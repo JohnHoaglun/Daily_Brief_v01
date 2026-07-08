@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Daily Brief Pipeline v0.1.0
+Daily Brief Pipeline v0.2.2
 ============================
 Fetches news from 17 categories via Google News RSS + NWS weather API,
 summarizes each story using local Ollama (Qwen), and writes a formatted
@@ -14,40 +14,50 @@ Run: python dashboard_pipeline.py
 import asyncio
 import aiohttp
 import feedparser
+from concurrent.futures import ThreadPoolExecutor
 from bs4 import BeautifulSoup
 import ollama
-
-# Ollama client configured for your network server at GX10 Ollama
-OLLAMA_HOST = "http://192.168.4.52:11434"
-_qwen_client = ollama.Client(host=OLLAMA_HOST, timeout=60)
+import sys
 from datetime import datetime, timezone
 import os
 import time
 
+# Ollama client — network server at GX10 Ollama
+_OLLAMA_HOST = "http://192.168.4.52:11434"
+_qwen_client = ollama.Client(host=_OLLAMA_HOST)
+
+LOGFILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "daily_brief.log")
+_executor = ThreadPoolExecutor(max_workers=3)
+
+def log(msg):
+    """Log to file AND stderr with flush — never buffered."""
+    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    line = f"[{timestamp}] {msg}"
+    os.makedirs(os.path.dirname(LOGFILE), exist_ok=True)
+    with open(LOGFILE, "a") as f:
+        f.write(line + "\n")
+        f.flush()
+    sys.stderr.write(line + "\n")
+    sys.stderr.flush()
+
 # ─── CONFIGURATION ───────────────────────────────────────────
 
 QWEN_MODEL = "qwen3.6-256k-agents:latest"
-
-OLLAMA_BASE_URL = "http://192.168.4.52:11434/v1"
-
 OUTPUT_DIR = "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/"
-
 WEATHER_LAT = "30.38"
 WEATHER_LON = "-95.69"
-
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
 
-# 17 Categories: (display_name, rss_query, max_stories)
 CATEGORIES = [
-    ("World News",             "world+news",                10),
-    ("US News",                "US+news",                   10),
+    ("World News",             "world+news",               10),
+    ("US News",                "US+news",                  10),
     ("Texas News",             "Texas+news",                 5),
     ("Conroe TX News",         "Conroe+TX",                  5),
-    ("Montgomery County TX News", "Montgomery+County+TX",    5),
-    ("Weather Forecast 77316", None,                         0),  # handled separately
+    ("Montgomery County TX News", "Montgomery+County+TX",   5),
+    ("Weather Forecast 77316", None,                         0),
     ("Houston Tropical Weather", "Houston+hurricane+tropical", 5),
     ("Market News",            "stock+market+economy",        5),
-    ("Semiconductors",         "semiconductor+chip+industry",  5),
+    ("Semiconductors",         "semiconductor+chip+industry", 5),
     ("Big Tech",               "\"big+tech\"",                5),
     ("Artificial Intelligence", "artificial+intelligence+LLM", 5),
     ("OpenAI News",            "OpenAI",                      5),
@@ -61,13 +71,13 @@ CATEGORIES = [
 SUMMARY_PROMPT = (
     "You are an objective news editor. You will be given a short news snippet from a search engine RSS feed. "
     "Write exactly 2-3 sentences summarizing the key facts: what happened, who was involved, when and where. "
-    "Be neutral – no opinions, predictions, or editorializing.\n\n"
+    "Be neutral - no opinions, predictions, or editorializing.\n\n"
     "Use **bold** to highlight 3-5 key words or phrases: company names, technical terms, locations, numbers, dates, action verbs."
 )
 
 ALERT_PROMPT = (
     "You are a news classifier. Judge if this brief story deserves an urgent alert based on these criteria:\n\n"
-    "1. Extreme weather: hurricane, tornado, flood, freeze warnings – especially Houston/Texas/77316\n"
+    "1. Extreme weather: hurricane, tornado, flood, freeze warnings - especially Houston/Texas/77316\n"
     "2. Major breakthroughs from OpenAI, Anthropic, SpaceX, OpenCode, or Hermes Agent\n"
     "3. Critical economic disruption, geopolitical crisis, or infrastructure failure\n\n"
     "Respond with exactly ONE word: TRUE or FALSE. Nothing else."
@@ -76,6 +86,13 @@ ALERT_PROMPT = (
 RSS_BASE = "https://news.google.com/rss/search?q="
 RSS_PARAMS = "&hl=en-US&gl=US&ceid=US:en"
 
+
+def normalize_title(title):
+    """Normalize title for comparison: remove source suffixes, lowercase, strip."""
+    # Remove common suffixes like " - Reuters", "(AP)", "(by John Smith)"
+    parts = [p.strip() for p in title.split(" - ") if p.strip()]
+    main_part = parts[0] if parts else title.lower().strip()
+    return main_part[:80].lower()
 
 # ─── HELPER FUNCTIONS ────────────────────────────────────────
 
@@ -91,22 +108,21 @@ async def fetch_feed(session, category_name, rss_url, max_stories):
         feed = feedparser.parse(text)
         entries = []
         for e in feed.entries[:max_stories]:
-            title = e.get("title", "").strip() if isinstance(e.get("title"), str) else ""
-            link = e.get("link", "") or "#"
-            # Google RSS summary/description has a short paragraph per story – this is our source text for Qwen
-            raw = (e.get("summary") or e.get("description") or "").strip() if isinstance(e.get("summary"), str) else ""
+            title = (e.get("title", "") or "").strip() if isinstance(e.get("title"), str) else ""
+            link = e.get("link") or "#"
+            raw = (e.get("summary") or e.get("description") or "").strip() if isinstance(e.get("summary"), str) and e["summary"] else ""
             if title and link:
                 entries.append((title, link, raw))
         return category_name, entries
     except Exception as e:
-        print(f"  ⚠ {category_name}: feed fetch failed ({e})")
+        log(f"  ⚠ {category_name}: feed fetch failed ({e})")
         return category_name, []
 
 
 async def fallback_fetch(session, url):
-    """Optional: try to follow Google redirect and scrape full article text. Returns clean text or ''."""
+    """If Google snippet is too short, scrape the full article for context."""
     try:
-        async with session.get(url, headers={"User-Agent": USER_AGENT}, timeout=12, allow_redirects=True) as resp:
+        async with session.get(url, headers={"User-Agent": USER_AGENT}, timeout=12) as resp:
             html = await resp.text()
         soup = BeautifulSoup(html, "html.parser")
         for tag in soup(["script", "style", "nav", "footer", "header", "aside", "form"]):
@@ -118,10 +134,10 @@ async def fallback_fetch(session, url):
         return ""
 
 
-def summarize_with_ollama(context_text):
-    """Ask local Qwen to turn the context (snippet ± optional full text) into a 2-3 sentence summary."""
+def llm_summarize(context_text):
+    """Call Ollama Qwen to create a 2-3 sentence summary. Blocking call."""
     if not context_text or len(context_text.strip()) < 50:
-        return None  # signal empty context (pipeline will try fallback fetch or skip)
+        return None
     try:
         r = _qwen_client.chat(
             model=QWEN_MODEL,
@@ -133,11 +149,11 @@ def summarize_with_ollama(context_text):
         )
         return r["message"]["content"].strip()
     except Exception:
-        return f"[Ollama unavailable]"
+        return "[Ollama unavailable]"
 
 
-def evaluate_alert_with_ollama(title, summary):
-    """Qwen one-shot classifier — TRUE or FALSE."""
+def llm_evaluate_alert(title, summary):
+    """Qwen returns TRUE or FALSE for urgency."""
     try:
         text = f"{title} — {summary}"[:1200]
         r = _qwen_client.chat(
@@ -153,23 +169,26 @@ def evaluate_alert_with_ollama(title, summary):
         return False
 
 
+def run_blocking(func, *args):
+    """Run a blocking Ollama call in a thread pool."""
+    loop = asyncio.get_event_loop()
+    return loop.run_in_executor(_executor, func, *args)
+
+
 async def fetch_weather(session, lat, lon):
-    """Fetch NWS forecast for coordinates → next 3 periods."""
+    """Fetch NWS forecast for coordinates."""
     try:
-        async with session.get(
-            f"https://api.weather.gov/points/{lat},{lon}",
-            headers={"User-Agent": USER_AGENT}, timeout=10) as resp:
+        async with session.get(f"https://api.weather.gov/points/{lat},{lon}", headers={"User-Agent": USER_AGENT}, timeout=10) as resp:
             point = await resp.json()
         if "properties" not in point:
             return []
         fc_url = point["properties"]["forecast"]
-        async with session.get(
-            fc_url, headers={"User-Agent": USER_AGENT + "/WeatherAgent"}, timeout=10) as resp:
+        async with session.get(fc_url, headers={"User-Agent": USER_AGENT + "/WeatherAgent"}, timeout=10) as resp:
             data = await resp.json()
         periods = data.get("properties", {}).get("periods", [])
         return periods[:3]
     except Exception as e:
-        print(f"  ⚠ Weather fetch failed ({e})")
+        log(f"  ⚠ Weather fetch failed ({e})")
         return []
 
 
@@ -177,76 +196,121 @@ async def fetch_weather(session, lat, lon):
 
 async def main():
     t0 = time.time()
-    print("=" * 60)
-    print("  DAILY BRIEF v0.1.0 — Pipeline Starting")
-    print("=" * 60)
+
+    if os.path.exists(LOGFILE):
+        os.remove(LOGFILE)
+
+    log("=" * 60)
+    log("DAILY BRIEF v0.2.2 — Pipeline Starting")
+    log("=" * 60)
 
     async with aiohttp.ClientSession(
         connector=aiohttp.TCPConnector(limit=50, limit_per_host=20),
         headers={"User-Agent": USER_AGENT}
     ) as session:
 
-        # --- Phase 1: Weather ---
-        print("\n[Phase 1] Fetching NWS weather...")
+        # Phase 1: Weather
+        log("\n[Phase 1] Fetching NWS weather...")
         weather = await fetch_weather(session, WEATHER_LAT, WEATHER_LON)
+        if weather:
+            log(f"  Weather OK — {len(weather)} periods")
+        else:
+            log("  Weather returned empty — will write blank section")
 
-        # --- Phase 2: RSS feeds (all concurrent) ---
+        # Phase 2: RSS feeds (all concurrent)
         rss_items = [(c[0], build_rss_url(c[1]), c[2]) for c in CATEGORIES if c[1]]
-        print(f"[Phase 2] Fetching {len(rss_items)} RSS feeds...")
+        log(f"\n[Phase 2] Fetching {len(rss_items)} RSS feeds...")
         results = await asyncio.gather(*(fetch_feed(session, n, u, m) for n, u, m in rss_items))
         by_cat = {n: ents for n, ents in results}
+        total_before_dedup = sum(len(v) for v in by_cat.values())
+        log(f"  Fetched {total_before_dedup} stories from {len(by_cat)} categories")
 
-        # DEDUPLICATION: flatten all stories, keep first (higher-priority category wins)
+        # Deduplication: keep first occurrence, higher-priority cat wins.
+        # Use BOTH link AND normalized title to catch cross-category duplicates.
         seen_links = set()
-        deduped = {}  # cat -> list of (title, link, snippet)
+        seen_titles = set()
+        deduped = {}
         for _cat_name, entries in by_cat.items():
             for title, link, snippet in entries:
-                if link not in seen_links:
+                norm_key = normalize_title(title)
+                if link not in seen_links and norm_key not in seen_titles:
                     seen_links.add(link)
+                    seen_titles.add(norm_key)
                     deduped.setdefault(_cat_name, []).append((title, link, snippet))
-        # --- Phase 3: Enrich + Summarize (category-by-category) ---
-        print("\n[Phase 3] Enriching articles and summarizing...")
-        sections = []   # [(cat_name, [...story_dicts])]
-        alerts = []     # high-priority story_dicts
 
+        total_after_dedup = sum(len(v) for v in deduped.values())
+        log(f"  Deduplicated: {total_before_dedup} -> {total_after_dedup} stories (removed {total_before_dedup - total_after_dedup} dups)")
+
+        # Phase 3: Summarize ALL (concurrent, using thread pool)
+        log("\n[Phase 3] Enriching articles and summarizing...")
+        sections = []   # [(cat_name, [...story_dicts])]
+        alerts = []
+
+        all_stories_flat = []
         for cat, stories in deduped.items():
             if not stories:
-                print(f"  - {cat}: no entries")
+                log(f"  - {cat}: no entries")
                 continue
-
-            cat_stories = []
             for title, link, snippet in stories:
-                # Strategy: use RSS snippet as primary context.
-                # If it's very short (<100 chars), try a fallback full-article fetch concurrently with the summarization step.
-                if len(snippet) < 100:
-                    # Launch async article fetch alongside ollama calls
-                    fetch_task = asyncio.create_task(fallback_fetch(session, link))
-                    summary = summarize_with_ollama(snippet)
-                    if not summary or "[Ollama" in (summary or ""):
-                        full_text = await fetch_task
-                        summary = summarize_with_ollama(full_text)
-                    if not summary:
-                        summary = f"[Could not generate summary for this article]"
-                else:
-                    summary = summarize_with_ollama(snippet)
+                all_stories_flat.append((title, link, snippet, cat))
 
-                is_alert = False
-                if summary and "[Ollama" in (summary or ""):
+        processed = 0
+        failed = 0
+        for title, link, snippet, cat in all_stories_flat:
+            processed += 1
+            context = snippet if len(snippet) >= 50 else ""
+
+            # If snippet is too short, try fetching full article concurrently with summary attempt
+            fetch_task = None
+            if not context:
+                fetch_task = asyncio.create_task(fallback_fetch(session, link))
+
+            # Run summarize in thread pool (non-blocking w.r.t. async event loop)
+            summary = await run_blocking(llm_summarize, context)
+
+            # If first attempt failed/returned nothing and we fetched full text, try again
+            if (not summary or "[Ollama" in (summary or "")) and fetch_task:
+                full_text = await fetch_task
+                summary = await run_blocking(llm_summarize, full_text)
+
+            if not summary:
+                summary = "[Summary unavailable]"
+                failed += 1
+
+            # Evaluate alert (also non-blocking)
+            is_alert = False
+            if "Ollama" not in (summary or "") and "unavailable" not in (summary or ""):
+                try:
+                    is_alert = await run_blocking(llm_evaluate_alert, title, summary)
+                except Exception:
                     is_alert = False
-                elif summary:
-                    is_alert = evaluate_alert_with_ollama(title, summary)
 
-                cat_stories.append({"title": title, "link": link, "summary": summary or "", "category": cat, "is_alert": bool(is_alert)})
+            story_dict = {
+                "title": title,
+                "link": link,
+                "summary": summary if summary else "[Summary unavailable]",
+                "category": cat,
+                "is_alert": bool(is_alert),
+            }
 
-            sections.append((cat, cat_stories))
-            # Collect alerts early for priority section
-            for s in cat_stories:
-                if s["is_alert"]:
-                    alerts.append(s)
+            # Re-group by category (preserving order)
+            found = False
+            for i, (existing_cat, existing_stories) in enumerate(sections):
+                if existing_cat == cat:
+                    sections[i] = (existing_cat, existing_stories + [story_dict])
+                    found = True
+                    break
+            if not found:
+                sections.append((cat, [story_dict]))
 
-        # --- Phase 4: Render Markdown ---
-        print("\n[Phase 4] Rendering report...")
+            if is_alert:
+                alerts.append(story_dict)
 
+            if processed % 10 == 0:
+                log(f"  Processed {processed}/{len(all_stories_flat)} stories ({failed} failures)")
+
+        # Phase 4: Render Markdown
+        log("\n[Phase 4] Rendering report...")
         now = datetime.now(timezone.utc)
         date_str = now.strftime("%Y-%m-%d")
         ts_iso = now.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -254,57 +318,41 @@ async def main():
         filepath = os.path.join(OUTPUT_DIR, f"DailyBrief-{fn_ts}.md")
         os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-        total = sum(len(s[1]) for s in sections)
+        total_final = sum(len(s[1]) for s in sections)
+        ordered_cats = [c[0] for c in CATEGORIES if c[1]]
+        sections_map = dict(sections)
 
         md = []
-        # Frontmatter
-        md += [
-            "---",
-            "title: Daily Brief",
-            f"date: {date_str}",
-            f"time_generated: {ts_iso}",
-            "status: active",
-            "content_age_window: 24 hours",
-            f"story_count_total: {total}",
-            "categories: 17",
-            "---",
-            "",
-            f"# Daily Brief — {now.strftime('%B %d, %Y')}",
-        ]
+        # YAML frontmatter
+        md += ["---", "title: Daily Brief", f"date: {date_str}", f"time_generated: {ts_iso}",
+               "status: active", "content_age_window: 24 hours", f"story_count_total: {total_final}",
+               "categories: 17", "---", "", f"# Daily Brief — {now.strftime('%B %d, %Y')}"]
 
-        # High-Priority section (if any)
+        # High-Priority alerts at top
         if alerts:
             md += ["", "---", "", "## HIGH-PRIORITY BULLETINS"]
             for a in alerts:
-                md += [
-                    "",
-                    f"### {a['title']}",
-                    a["summary"],
-                    f"*Category: {a['category']}*",
-                ]
+                md += ["", f"### {a['title']}", a["summary"], f"*Category: {a['category']}*"]
 
-        # Category sections — ordered by spec
-        cat_order = [c[0] for c in CATEGORIES if c[1]]  # excludes "Weather Forecast 77316"
-        sections_map = dict(sections)
-
-        for cn in cat_order:
+        # Category sections
+        for cn in ordered_cats:
             stories = sections_map.get(cn, [])
             md += ["", f"## {cn} ({len(stories)} stories)", ""]
-            for i, st in enumerate(stories, 1):
-                # Headline as h3 — title is already the article headline from Google RSS
-                md += [
-                    f"### {st['title']}",
-                    st["summary"],
-                    "",
-                ]
+            for st in stories:
+                md += [f"### {st['title']}", st["summary"] if st["summary"] else "[Summary unavailable]", ""]
 
+        # Write file
         with open(filepath, "w", encoding="utf-8") as fh:
             fh.write("\n".join(md) + "\n")
 
         elapsed = time.time() - t0
-        print(f"\n✓ Written to {filepath}")
-        print(f"  Stories: {total} | Alerts: {len(alerts)} | Time: {elapsed:.1f}s")
-        print("=" * 60)
+        log(f"\nFile written to {filepath}")
+        log(f"  Stories: {total_final} | Alerts: {len(alerts)} | Failed: {failed}/{len(all_stories_flat)} | Time: {elapsed:.1f}s")
+        log("=" * 60)
+
+        # Also print to stdout for terminal visibility
+        print(f"\nDone. File: {filepath}")
+        print(f"  Stories: {total_final} | Alerts: {len(alerts)}")
 
 
 if __name__ == "__main__":

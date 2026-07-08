@@ -13,3 +13,12 @@
 #                           |          STATUS: UNTESTED — no full end-to-end run ever completed
 # 2026-07-08 10:30 | v0.2.3 | PERF: Increased thread pool workers from 3 to 8, added performance timing, improved Ollama timeout handling
 # 2026-07-08 12:30 | v0.2.4 | FINAL: Complete documentation updates, temporary file cleanup, obsidian path verification
+# 2026-07-08 16:00 | v0.2.5 | FIX: Log output moved from project dir to vault/logs/ directory
+#                           |          PERF: Phase 3 refactored from serial single-story processing to parallel batch fan-out
+#                           |          PERF: Article extraction (3A), summarization (3B), alert evaluation (3C) all run concurrently
+#                           |          FIX: Alert collection bug — previously only captured last processed story, now collects ALL alerts
+#                           |          FIX: Markdown headlines are hyperlinks [Title](URL) to original articles
+#                           |          IMPROVED: Pub date extraction from RSS feeds and display "Originally published on: ..." per story
+#                           |          STATUS: Ready for first performance test run — watch CPU/memory on DGX Spark during summaries
+
+

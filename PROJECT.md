@@ -9,10 +9,10 @@ Automatically generates a curated daily news brief from 17 content categories an
 Input Layer          Processing Layer           Output Layer
  ┌──────────────┐    ┌───────────────────┐    ┌──────────────────┐
  │ 17 RSS feeds │───▶│ Async text fetch  │───▶│ YAML frontmatter │
- │ NWS weather  │   │ BeautifulSoup     │    │ Markdown report  │
- │                │   │ Ollama Qwen       │    │ Per-category     │
- │                │   │ Alert evaluator   │    │ stories          │
-└──────────────┘    └───────────────────┘    └──────────────────┘
+ │ NWS weather  │    │ BeautifulSoup     │    │ Markdown report  │
+ │              │    │ Ollama Qwen (batch)│   │ Per-category     │
+ │              │    │ Alert evaluator   │    │ stories          │
+ └──────────────┘    └───────────────────┘    └──────────────────┘
 ```
 
 ## Data Sources
@@ -24,16 +24,17 @@ Input Layer          Processing Layer           Output Layer
 
 ## Dependencies
 
-- Python 3.9+
-- Ollama running locally with model `qwen3.6-256k-agents:latest`
+- Python 3.9+ — runs on Mac Studio
+- Ollama running on DGX Spark (http://192.168.4.52:11434) with model `qwen3.6-256k-agents:latest`
 - `feedparser`, `aiohttp`, `beautifulsoup4`, `ollama` (pip install)
 
 ## Output
 
 - Files written to the Obsidian vault: `/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/`
+- Logs written to: `/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/logs/daily_brief.log`
 - Format: `DailyBrief-YYYY-MM-DD__HH-MM-SS.md`
-- 17 content categories (see spec) — each story has headline, link, 2-3 sentence factual summary, source attribution, and tags
-- High-priority alerts bubbled to a top section when Qwen evaluates as TRUE
+- 17 content categories — each story has headline (hyperlinked), link, 2-3 sentence factual summary, source attribution, published date, and tags
+- High-priority alerts bubbled to top section when Qwen evaluates as TRUE
 
 ## How It Runs
 
@@ -66,5 +67,4 @@ python dashboard_pipeline.py
 
 ## Current Status
 
-- v0.0.1: Initial pipeline scaffold — async fetching, Ollama summarization, alert routing, Markdown output with YAML frontmatter
-- v0.2.3: Performance improvements - increased thread pool workers from 3 to 8, added performance timing, improved Ollama timeout handling
+- v0.2.5: PERF: Phase 3 refactored from serial single-story processing to parallel batch fan-out (article extraction, summarization, alert evaluation all concurrent with thread pool). FIX: Alert collection now captures ALL alerts not just last story. FIX: Markdown headlines are hyperlinks [Title](URL). IMPROVED: Pub date extracted from RSS and displayed per story. STATUS: Ready for first performance test run — compare against v0.2.4 baseline of ~4600s

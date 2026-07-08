@@ -25,19 +25,19 @@ import threading
 
 # Ollama client -- network server at GX10 Ollama
 _OLLAMA_HOST = "http://192.168.4.52:11434"
-_qwen_client = ollama.Client(host=_OLLAMA_HOST, timeout=90)
+_qwen_client = ollama.Client(host=_OLLAMA_HOST, timeout=120)
 
 # Log file lives in the vault's logs directory
 LOG_DIR = "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/logs"
-LOGFILE = os.path.join(LOG_DIR, "daily_brief.md")
+LOGFILE = os.path.join(LOG_DIR, "daily_brief.log")
 log_lock = threading.Lock()
 
-# Thread pool: 20 max workers (concurrent Ollama calls), queueing the rest
-_executor = ThreadPoolExecutor(max_workers=20)
+# Thread pool with 6 workers for concurrent Ollama calls
+_executor = ThreadPoolExecutor(max_workers=6)
 
 
 def log(msg):
-    """Log to markdown file AND stderr. Thread-safe via lock."""
+    """Log to file AND stderr. Thread-safe via lock."""
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     line = f"[{timestamp}] {msg}"
     os.makedirs(LOG_DIR, exist_ok=True)
@@ -180,62 +180,45 @@ async def fetch_weather(session, lat, lon):
 
 # -- Ollama helpers (blocking, run in thread pool) -------------------------
 
-# Max retries for Ollama calls before giving up
-_OLLAMA_MAX_RETRIES = 3
-_OLLAMA_RETRY_DELAY = 2.0  # seconds between retries
-
-
 def _summarize(context):
-    """Blocking summary call with retry on failure."""
+    """Blocking summary call."""
     if not context or len(context.strip()) < 50:
         return None
-    for attempt in range(_OLLAMA_MAX_RETRIES):
-        try:
-            t0 = time.time()
-            r = _qwen_client.chat(
-                model=QWEN_MODEL,
-                messages=[
-                    {"role": "system", "content": SUMMARY_PROMPT},
-                    {"role": "user", "content": context[:6000]}
-                ],
-                options={"temperature": 0.3, "top_p": 0.8, "num_ctx": 4096}
-            )
-            elapsed = time.time() - t0
-            log(f"SUMMARIZE: {elapsed:.2f}s (attempt {attempt + 1})")
-            return r["message"]["content"].strip().split('\n')[0].strip()
-        except Exception as e:
-            if attempt < _OLLAMA_MAX_RETRIES - 1:
-                log(f"SUMMARIZE failed (attempt {attempt + 1}): {e}, retrying in {_OLLAMA_RETRY_DELAY}s...")
-                time.sleep(_OLLAMA_RETRY_DELAY)
-            else:
-                log(f"SUMMARIZE ERROR after {attempt + 1} attempts: {e}")
-    return None
+    try:
+        t0 = time.time()
+        r = _qwen_client.chat(
+            model=QWEN_MODEL,
+            messages=[
+                {"role": "system", "content": SUMMARY_PROMPT},
+                {"role": "user", "content": context[:6000]}
+            ],
+            options={"temperature": 0.3, "top_p": 0.8, "num_ctx": 4096}
+        )
+        log(f"SUMMARIZE: {time.time() - t0:.2f}s")
+        return r["message"]["content"].strip().split('\n')[0].strip()
+    except Exception as e:
+        log(f"SUMMARIZE ERROR: {e}")
+        return None
 
 
 def _evaluate_alert(title, summary):
-    """Blocking alert eval call with retry on failure."""
-    for attempt in range(_OLLAMA_MAX_RETRIES):
-        try:
-            t0 = time.time()
-            text = f"{title}\n---\n{summary}"[:1200]
-            r = _qwen_client.chat(
-                model=QWEN_MODEL,
-                messages=[
-                    {"role": "system", "content": ALERT_PROMPT},
-                    {"role": "user", "content": text}
-                ],
-                options={"temperature": 0.1, "top_p": 0.3, "num_ctx": 4096}
-            )
-            elapsed = time.time() - t0
-            log(f"ALERT: {elapsed:.2f}s (attempt {attempt + 1})")
-            return r["message"]["content"].strip().upper() == "TRUE"
-        except Exception as e:
-            if attempt < _OLLAMA_MAX_RETRIES - 1:
-                log(f"ALERT failed (attempt {attempt + 1}): {e}, retrying in {_OLLAMA_RETRY_DELAY}s...")
-                time.sleep(_OLLAMA_RETRY_DELAY)
-            else:
-                log(f"ALERT ERROR after {attempt + 1} attempts: {e}")
-    return False
+    """Blocking alert eval call."""
+    try:
+        t0 = time.time()
+        r = _qwen_client.chat(
+            model=QWEN_MODEL,
+            messages=[
+                {"role": "system", "content": ALERT_PROMPT},
+                {"role": "user", "content": f"{title}\n---\n{summary}"[:1200]}
+            ],
+            options={"temperature": 0.1, "top_p": 0.3, "num_ctx": 4096}
+        )
+        log(f"ALERT: {time.time() - t0:.2f}s")
+        return r["message"]["content"].strip().upper() == "TRUE"
+    except Exception as e:
+        log(f"ALERT ERROR: {e}")
+        return False
+
 
 def _run_blocking(fn, *args):
     loop = asyncio.get_event_loop()

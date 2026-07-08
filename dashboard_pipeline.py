@@ -25,7 +25,7 @@ import threading
 
 # Ollama client -- network server at GX10 Ollama
 _OLLAMA_HOST = "http://192.168.4.52:11434"
-_qwen_client = ollama.Client(host=_OLLAMA_HOST, timeout=60)
+_qwen_client = ollama.Client(host=_OLLAMA_HOST, timeout=120)
 
 # Log file lives in the vault's logs directory
 LOG_DIR = "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/logs"

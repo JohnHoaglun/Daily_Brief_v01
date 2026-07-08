@@ -67,3 +67,4 @@ python dashboard_pipeline.py
 ## Current Status
 
 - v0.0.1: Initial pipeline scaffold — async fetching, Ollama summarization, alert routing, Markdown output with YAML frontmatter
+- v0.2.3: Performance improvements - increased thread pool workers from 3 to 8, added performance timing, improved Ollama timeout handling

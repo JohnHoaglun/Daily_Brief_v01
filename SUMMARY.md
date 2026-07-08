@@ -11,3 +11,4 @@
 # 2026-0708 02:58 | v0.2.2 | REWRITTEN pipeline from scratch with thread pool executor + proper logging
 #                           |          ADDED normalize_title() for cross-category title dedup
 #                           |          STATUS: UNTESTED — no full end-to-end run ever completed
+# 2026-07-08 10:30 | v0.2.3 | PERF: Increased thread pool workers from 3 to 8, added performance timing, improved Ollama timeout handling

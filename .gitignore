@@ -1,0 +1,11 @@
+# Generated log files
+*.log
+
+# Stale process IDs
+*.pid
+
+# Auto-generated pipeline outputs (kept outside repo)
+daily_brief.log
+final_run.txt
+pipeline.pid
+pipeline_output.log

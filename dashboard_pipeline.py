@@ -24,10 +24,11 @@ import time
 
 # Ollama client — network server at GX10 Ollama
 _OLLAMA_HOST = "http://192.168.4.52:11434"
-_qwen_client = ollama.Client(host=_OLLAMA_HOST)
+_qwen_client = ollama.Client(host=_OLLAMA_HOST, timeout=60)
 
 LOGFILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "daily_brief.log")
-_executor = ThreadPoolExecutor(max_workers=3)
+# Increase thread pool workers to handle more concurrent Ollama operations
+_executor = ThreadPoolExecutor(max_workers=8)
 
 def log(msg):
     """Log to file AND stderr with flush — never buffered."""
@@ -139,33 +140,41 @@ def llm_summarize(context_text):
     if not context_text or len(context_text.strip()) < 50:
         return None
     try:
+        start_time = time.time()
         r = _qwen_client.chat(
             model=QWEN_MODEL,
             messages=[
                 {"role": "system", "content": SUMMARY_PROMPT},
-                {"role": "user", "content": f"Snippet:\n{context_text}"}
+                {"role": "user", "content": context_text[:6000] if len(context_text) > 500 else context_text}
             ],
-            options={"temperature": 0.15},
+            options={"temperature": 0.3, "top_p": 0.8, "num_ctx": 4096}
         )
+        end_time = time.time()
+        log(f"SUMMARIZE: {end_time - start_time:.2f}s")
         return r["message"]["content"].strip()
-    except Exception:
+    except Exception as e:
+        log(f"SUMMARIZE ERROR: {str(e)}")
         return "[Ollama unavailable]"
 
 
 def llm_evaluate_alert(title, summary):
     """Qwen returns TRUE or FALSE for urgency."""
     try:
+        start_time = time.time()
         text = f"{title} — {summary}"[:1200]
         r = _qwen_client.chat(
             model=QWEN_MODEL,
             messages=[
                 {"role": "system", "content": ALERT_PROMPT},
-                {"role": "user", "content": text},
+                {"role": "user", "content": text}
             ],
-            options={"temperature": 0.0},
+            options={"temperature": 0.1, "top_p": 0.3, "num_ctx": 4096}
         )
-        return "TRUE" in r["message"]["content"].strip().upper()
-    except Exception:
+        end_time = time.time()
+        log(f"ALERT: {end_time - start_time:.2f}s")
+        return r["message"]["content"].strip().upper() == "TRUE"
+    except Exception as e:
+        log(f"ALERT ERROR: {str(e)}")
         return False
 
 
@@ -256,6 +265,7 @@ async def main():
 
         processed = 0
         failed = 0
+        start_time = time.time()
         for title, link, snippet, cat in all_stories_flat:
             processed += 1
             context = snippet if len(snippet) >= 50 else ""
@@ -297,11 +307,14 @@ async def main():
             found = False
             for i, (existing_cat, existing_stories) in enumerate(sections):
                 if existing_cat == cat:
-                    sections[i] = (existing_cat, existing_stories + [story_dict])
+                    sections[i][1].append(story_dict)
                     found = True
                     break
             if not found:
                 sections.append((cat, [story_dict]))
+
+        end_time = time.time()
+        log(f"PROCESSING COMPLETE: {processed} stories in {end_time - start_time:.2f}s ({failed} failures)")
 
             if is_alert:
                 alerts.append(story_dict)

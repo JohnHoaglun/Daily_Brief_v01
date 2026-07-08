@@ -240,11 +240,11 @@ class StoryPipelineState:
         self.is_alert = False
 
 
-async def stage_enrich(story):
+async def stage_enrich(story, session):
     """Phase 3A: If snippet is too short, extract full article from page."""
     if story.context is not None:
         return
-    text = await extract_article(aiohttp_session, story.link)
+    text = await extract_article(session, story.link)
     if text and len(text) > 500:
         story.context = text
 
@@ -273,15 +273,10 @@ async def main():
     log("DAILY BRIEF v0.2.5 -- Pipeline Starting")
     log("=" * 60)
 
-    global aiohttp_session
-    aiohttp_session = None
-
     async with aiohttp.ClientSession(
         connector=aiohttp.TCPConnector(limit=100, limit_per_host=30, ttl_dns_cache=300),
         headers={"User-Agent": USER_AGENT}
     ) as session:
-        global aiohttp_session
-        aiohttp_session = session
 
         # ---------- Phase 1: Weather (async) ----------
         log("\n[Phase 1] Fetching NWS weather...")
@@ -341,7 +336,7 @@ async def main():
         need_fetch = sum(1 for s in stories if s.context is None)
         log(f"  {need_fetch} articles need full extraction")
 
-        fetch_done = await asyncio.gather(*(stage_enrich(s) for s in stories), return_exceptions=True)
+        fetch_done = await asyncio.gather(*(stage_enrich(s, session) for s in stories), return_exceptions=True)
         still_no_text = sum(1 for i, r in enumerate(fetch_done) if stories[i].context is None and need_fetch > 0)
 
         enriched = sum(1 for s in stories if s.context is not None)

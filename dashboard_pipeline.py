@@ -25,7 +25,7 @@ import threading
 
 # Ollama client -- network server at GX10 Ollama
 _OLLAMA_HOST = "http://192.168.4.52:11434"
-_qwen_client = ollama.Client(host=_OLLAMA_HOST, timeout=120)
+_qwen_client = ollama.Client(host=_OLLAMA_HOST, timeout=180)
 
 # Log file lives in the vault's logs directory
 LOG_DIR = "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/logs"
@@ -33,7 +33,7 @@ LOGFILE = os.path.join(LOG_DIR, "daily_brief.log")
 log_lock = threading.Lock()
 
 # Thread pool with 6 workers for concurrent Ollama calls
-_executor = ThreadPoolExecutor(max_workers=6)
+_executor = ThreadPoolExecutor(max_workers=3)  # Cap to Ollama NUM_PARALLEL=3 limit
 
 
 def log(msg):
@@ -181,43 +181,53 @@ async def fetch_weather(session, lat, lon):
 # -- Ollama helpers (blocking, run in thread pool) -------------------------
 
 def _summarize(context):
-    """Blocking summary call."""
+    """Blocking summary call with retry."""
     if not context or len(context.strip()) < 50:
         return None
-    try:
-        t0 = time.time()
-        r = _qwen_client.chat(
-            model=QWEN_MODEL,
-            messages=[
-                {"role": "system", "content": SUMMARY_PROMPT},
-                {"role": "user", "content": context[:6000]}
-            ],
-            options={"temperature": 0.3, "top_p": 0.8, "num_ctx": 4096}
-        )
-        log(f"SUMMARIZE: {time.time() - t0:.2f}s")
-        return r["message"]["content"].strip().split('\n')[0].strip()
-    except Exception as e:
-        log(f"SUMMARIZE ERROR: {e}")
-        return None
+    for attempt in range(2):
+        try:
+            t0 = time.time()
+            r = _qwen_client.chat(
+                model=QWEN_MODEL,
+                messages=[
+                    {"role": "system", "content": SUMMARY_PROMPT},
+                    {"role": "user", "content": context[:6000]}
+                ],
+                options={"temperature": 0.3, "top_p": 0.8, "num_ctx": 4096}
+            )
+            log(f"SUMMARIZE: {time.time() - t0:.2f}s")
+            return r["message"]["content"].strip().split('\n')[0].strip()
+        except Exception as e:
+            if attempt == 0:
+                log(f"SUMMARIZE attempt 1 failed ({e}), retrying...")
+                time.sleep(3)
+            else:
+                log(f"SUMMARIZE ERROR (final): {e}")
+    return None
 
 
 def _evaluate_alert(title, summary):
-    """Blocking alert eval call."""
-    try:
-        t0 = time.time()
-        r = _qwen_client.chat(
-            model=QWEN_MODEL,
-            messages=[
-                {"role": "system", "content": ALERT_PROMPT},
-                {"role": "user", "content": f"{title}\n---\n{summary}"[:1200]}
-            ],
-            options={"temperature": 0.1, "top_p": 0.3, "num_ctx": 4096}
-        )
-        log(f"ALERT: {time.time() - t0:.2f}s")
-        return r["message"]["content"].strip().upper() == "TRUE"
-    except Exception as e:
-        log(f"ALERT ERROR: {e}")
-        return False
+    """Blocking alert eval call with retry."""
+    for attempt in range(2):
+        try:
+            t0 = time.time()
+            r = _qwen_client.chat(
+                model=QWEN_MODEL,
+                messages=[
+                    {"role": "system", "content": ALERT_PROMPT},
+                    {"role": "user", "content": f"{title}\n---\n{summary}"[:1200]}
+                ],
+                options={"temperature": 0.1, "top_p": 0.3, "num_ctx": 4096}
+            )
+            log(f"ALERT: {time.time() - t0:.2f}s")
+            return r["message"]["content"].strip().upper() == "TRUE"
+        except Exception as e:
+            if attempt == 0:
+                log(f"ALERT attempt 1 failed ({e}), retrying...")
+                time.sleep(3)
+            else:
+                log(f"ALERT ERROR (final): {e}")
+    return False
 
 
 def _run_blocking(fn, *args):
@@ -270,7 +280,7 @@ def stage_alert(story):
 async def main():
     t0 = time.time()
     log("=" * 60)
-    log("DAILY BRIEF v0.2.5 -- Pipeline Starting")
+    log("DAILY BRIEF v0.2.5-BETA01 — Pipeline Starting")
     log("=" * 60)
 
     async with aiohttp.ClientSession(
@@ -353,7 +363,7 @@ async def main():
 
         # ---------- Phase 3C: Alert evaluation (thread pool, fan-out) ----------
         log("  [3C] Evaluating alerts...")
-        alert_tasks = [_run_blocking(stage_alert, s) for s in stories]
+        alert_tasks = [_run_blocking(stage_alert, s) for s in stories if s.summary is not None and 'Ollama' not in str(s.summary)]
         await asyncio.gather(*alert_tasks, return_exceptions=True)
 
         alert_count = sum(1 for s in stories if s.is_alert)

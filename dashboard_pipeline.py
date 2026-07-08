@@ -316,11 +316,11 @@ async def main():
         end_time = time.time()
         log(f"PROCESSING COMPLETE: {processed} stories in {end_time - start_time:.2f}s ({failed} failures)")
 
-            if is_alert:
-                alerts.append(story_dict)
+        if is_alert:
+            alerts.append(story_dict)
 
-            if processed % 10 == 0:
-                log(f"  Processed {processed}/{len(all_stories_flat)} stories ({failed} failures)")
+        if processed % 10 == 0:
+            log(f"  Processed {processed}/{len(all_stories_flat)} stories ({failed} failures)")
 
         # Phase 4: Render Markdown
         log("\n[Phase 4] Rendering report...")

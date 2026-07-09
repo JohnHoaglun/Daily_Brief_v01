@@ -32,6 +32,8 @@ python dashboard_pipeline.py
 
 Output file: `DailyBrief-YYYY-MM-DD__HH-MM-SS.md` → `/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/`
 
+**Known issue**: Google News RSS feeds return snippets with embedded `<a href=...>` HTML links. The BETA02 pipeline includes `strip_html()` to handle this, but articles relying solely on RSS snippets (without article extraction) may have degraded summaries. Full article extraction is now used for all stories to compensate.
+
 ## Configuration
 
 ### Model name
@@ -73,6 +75,9 @@ Change `WEATHER_LAT`, `WEATHER_LON` if you move.
 | `model not found` | Wrong model tag | Run `ollama list`, update `QWEN_MODEL` in script |
 | Feed returns zero entries | Google blocked / rate limit | Wait 10-30 min, retry. If persistent, add User-Agent header (already configured) |
 | Weather API returns null periods | Bad lat/lon or API outage | Verify lat/lon, check https://api.weather.gov documentation |
+| Summaries show "Summary unavailable" | RSS snippets contained embedded `<a href=...>` HTML links that passed length checks but had zero article content. BETA02 fixes: strip_html() on snippets, extract_article always runs for all stories (no length gate), 300-char minimum context for summaries |
+| Articles from days ago still appear | RSS pub dates unreliable. BETA02 adds AGE_LIMIT_HOURS=24 filter in dedup loop to drop stale articles |
+| Same story in multiple categories | Google News syndicates across categories. BETA02: per-category title normalization dedup prevents this |
 
 ## File Naming Convention
 

@@ -28,8 +28,11 @@ Step 1: RSS INGEST (Concurrent)
 │   - Build Google News RSS URL               │
 │   - aiohttp fetch (async, 8s timeout)       │
 │   - Parse XML with feedparser               │
-│   - Store: title, link, pub date            │
+│   - strip_html() removes <a> tags from snippets │
+│   - Store: title, link, pub date (pub_dt)   │
 └─────────────────────────────────────────────┘
+
+Note: RSS snippets contain raw `<a href=...>` HTML links. Without stripping, the markup passes length checks (~700-1500 chars) but yields no real article text when sent to Ollama.
 
 Step 2: ARTICLE EXTRACTION (Concurrent per batch)
 ┌─────────────────────────────────────────────┐
@@ -160,7 +163,8 @@ No single failure should halt the entire pipeline. Each component is isolated.
 ### Memory / GPU Constraints
 
 - RSS fetches are async — network-bound, no CPU pressure
-- Ollama calls are **sequential** (not parallel) to avoid GPU contention
+- Ollama calls use 3 parallel workers via ThreadPoolExecutor, matching NUM_PARALLEL=3 constraint on the Ollama server to avoid GPU contention
+- With article extraction enabled (all stories always extracted), expect higher network/CPU during Phase 3A
 - Article text capped at 6000 chars before LLM call
 - Temperature: 0.15 for summaries (balanced creativity/factuality), 0.0 for alerts (exact logic)
 

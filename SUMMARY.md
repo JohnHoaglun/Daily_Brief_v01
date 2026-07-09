@@ -21,5 +21,15 @@
 #                           |       IMPROVED: Pub date extracted from RSS feed and displayed at end of each summary as "Originally published on: ..."
 #                           |          STATUS: v0.2.5 is the CLEAN baseline — all features working, verified in test run producing 89 stories with hyperlinks + pub dates + alert fix
 #                           |          NOTE: Subsequent perf experiments from v0.2.6 onward introduced concurrent retry storms that caused Ollama timeout cascades; reverted to this clean state
+# 2026-07-08 20:39 | v0.2.5-BETA01 | workers=3 (from 8), timeout=180s, added retry loops on _summarize() and _evaluate_alert(), skip alerts for failed summaries; NOTE: Retry storms caused Ollama timeout cascades in first run — retries kept queueing behind each other
+# 2026-07-08 20:39 | v0.2.5-BETA02 | FIX: Added strip_html() to remove <a> tags from RSS snippets before length check; _summarize() minimum context raised to 300 chars (stub text couldn't produce summaries); Phase 3A ALWAYS runs extract_article for ALL stories (no length gate, RSS gives nothing useful without article extraction); parse_feed_date() using email.utils.parsedate_to_datetime for proper date parsing; AGE_LIMIT_HOURS=24 with age filter in dedup loop drops articles >24h old (fixes stale articles); per-category title normalization dedup prevents same story from multiple sources appearing as different stories; StoryPipelineState: removed `snippet` slot, replaced with `pub_dt`; Deleted dead test files (comprehensive_test.py, test_performance.py, verify_performance.py) — all imported nonexistent functions and asserted wrong worker counts
+# 2026-07-08 20:39 | MAINTENANCE | Removed dead test files that imported non-existent functions (llm_summarize, llm_evaluate_alert) and asserted stale values (8 workers instead of actual 3)
 
+## Issues Under Investigation
 
+### Pending Tests & Known Issues
+- [ ] END-TO-END PIPELINE RUN — BETA02 has never been run end-to-end. Must verify: 17 categories fetch, extract_article pulls real text from source pages, summaries are meaningful (not "Summary unavailable"), alerts fire correctly
+- [ ] CPU MONITORING — Previous BETA01 run showed 7% CPU during Ollama phase. With article extraction enabled now, should see higher CPU on DGX Spark. Monitor during run.
+- [ ] TIMING — Need to measure: how long does extract_article take for 90 stories vs the previous BETA01 time (should now be ~0 since all extracted async now)
+- [ ] REDUCED STORY COUNT — Age filter + dedup will likely produce fewer stories than before. Expect ~30-50 stories from many categories having zero or one article. This is CORRECT behavior per requirements but needs visual verification
+- [ ] ARTICLE EXTRACTION QUALITY — Need to spot-check that extracted text from actual news sites produces good summaries when sent to Qwen

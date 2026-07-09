@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """
-Daily Brief Pipeline v0.2.5
-===========================
-Fetches news from 17 categories via Google News RSS + NWS weather API,
-summarizes each story using local Ollama (Qwen), and writes a formatted
-Markdown file to Obsidian vault.
+Daily Brief Pipeline v0.2.5-BETA02
+===================================
+BETA01 fixes: workers=3, timeout=180s, retries.
+BETA02 fixes: strip HTML from RSS snippets, always extract articles, 24h age filter, title dedup per category.
 
 No API keys required. All sources are free and keyless.
 
@@ -18,22 +17,26 @@ from concurrent.futures import ThreadPoolExecutor
 from bs4 import BeautifulSoup
 import ollama
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import os
 import time
+from email.utils import parsedate_to_datetime
 import threading
 
 # Ollama client -- network server at GX10 Ollama
 _OLLAMA_HOST = "http://192.168.4.52:11434"
 _qwen_client = ollama.Client(host=_OLLAMA_HOST, timeout=180)
 
-# Log file lives in the vault's logs directory
+# Log file lives in the vault logs directory
 LOG_DIR = "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/logs"
 LOGFILE = os.path.join(LOG_DIR, "daily_brief.log")
 log_lock = threading.Lock()
 
-# Thread pool with 6 workers for concurrent Ollama calls
-_executor = ThreadPoolExecutor(max_workers=3)  # Cap to Ollama NUM_PARALLEL=3 limit
+# Thread pool with 3 workers to match Ollama NUM_PARALLEL=3 limit
+_executor = ThreadPoolExecutor(max_workers=3)
+
+# Configuration: only include stories within last 24 hours
+AGE_LIMIT_HOURS = 24
 
 
 def log(msg):
@@ -78,10 +81,9 @@ CATEGORIES = [
 ]
 
 SUMMARY_PROMPT = (
-    "You are an objective news editor. You will be given a short news snippet from a search engine RSS feed. "
-    "Write exactly 2-3 sentences summarizing the key facts: what happened, who was involved, when and where. "
-    "Be neutral - no opinions, predictions, or editorializing.\n\n"
-    "Use **bold** to highlight 3-5 key words or phrases: company names, technical terms, locations, numbers, dates, action verbs."
+    "You are an objective news editor. Write exactly 2-3 sentences summarizing the key facts of this article: "
+    "what happened, who was involved, when and where.\n\n"
+    "Be neutral - no opinions, predictions, or editorializing."
 )
 
 ALERT_PROMPT = (
@@ -96,31 +98,50 @@ RSS_BASE = "https://news.google.com/rss/search?q="
 RSS_PARAMS = "&hl=en-US&gl=US&ceid=US:en"
 
 
+def strip_html(html_text):
+    """Remove HTML tags from a string, leaving only plain text."""
+    if not html_text:
+        return ""
+    s = BeautifulSoup(html_text, "html.parser")
+    return s.get_text(separator=" ", strip=True)
+
+
 def normalize_title(title):
     parts = [p.strip() for p in title.split(" - ") if p.strip()]
     return (parts[0] if parts else title.lower().strip())[:80].lower()
 
 
-def get_pub_date(entry):
+def parse_feed_date(entry):
+    """Parse entry published date into a datetime object."""
+    raw_date = None
     for attr in ("published", "updated"):
         val = entry.get(attr)
         if val and isinstance(val, str) and val.strip():
-            return val.strip()
+            raw_date = val.strip()
+            break
+    if not raw_date:
+        return None
+    try:
+        dt = parsedate_to_datetime(raw_date)
+        return dt
+    except Exception:
+        pass
+    stripped = raw_date.strip()
+    for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(stripped, fmt)
+        except ValueError:
+            continue
     return None
 
 
 def format_pub_date(raw):
+    """Format a publication date string into readable form."""
     if not raw:
         return None
     stripped = raw.strip()
     if len(stripped) >= 10 and stripped[:4].isdigit():
         return stripped[:10]
-    try:
-        ts = feedparser._parse_date(stripped)[0]
-        if ts:
-            return datetime.utcfromtimestamp(ts).strftime("%B %d, %Y")
-    except Exception:
-        pass
     return stripped[:40]
 
 
@@ -140,9 +161,11 @@ async def fetch_feed(session, name, rss_url, max_stories):
             title = (e.get("title", "") or "").strip() if isinstance(e.get("title"), str) else ""
             link = e.get("link") or "#"
             raw = (e.get("summary") or e.get("description") or "").strip() if isinstance(e.get("summary"), str) and e["summary"] else ""
-            pub_date = get_pub_date(e)
+            pub_dt = parse_feed_date(e)
+            # Strip HTML from snippet so we can measure REAL text length for extraction decision
+            plain_snippet = strip_html(raw)
             if title and link:
-                entries.append((title, link, raw, pub_date))
+                entries.append((title, link, plain_snippet, pub_dt))
         return (name, entries)
     except Exception as e:
         log(f"  WARNING {name}: feed fetch failed ({e})")
@@ -181,8 +204,8 @@ async def fetch_weather(session, lat, lon):
 # -- Ollama helpers (blocking, run in thread pool) -------------------------
 
 def _summarize(context):
-    """Blocking summary call with retry."""
-    if not context or len(context.strip()) < 50:
+    """Blocking summary call with retry. Minimum 300 chars context required."""
+    if not context or len(context.strip()) < 300:
         return None
     for attempt in range(2):
         try:
@@ -199,7 +222,7 @@ def _summarize(context):
             return r["message"]["content"].strip().split('\n')[0].strip()
         except Exception as e:
             if attempt == 0:
-                log(f"SUMMARIZE attempt 1 failed ({e}), retrying...")
+                log(f"SUMMARIZE attempt 1 failed ({e}), retrying 3s...")
                 time.sleep(3)
             else:
                 log(f"SUMMARIZE ERROR (final): {e}")
@@ -223,7 +246,7 @@ def _evaluate_alert(title, summary):
             return r["message"]["content"].strip().upper() == "TRUE"
         except Exception as e:
             if attempt == 0:
-                log(f"ALERT attempt 1 failed ({e}), retrying...")
+                log(f"ALERT attempt 1 failed ({e}), retrying 3s...")
                 time.sleep(3)
             else:
                 log(f"ALERT ERROR (final): {e}")
@@ -238,20 +261,20 @@ def _run_blocking(fn, *args):
 # -- Stage workers (for parallel phase 3) -----------------------------------
 
 class StoryPipelineState:
-    __slots__ = ('title', 'link', 'category', 'pub_date', 'context', 'summary', 'is_alert')
+    __slots__ = ("title", "link", "category", "pub_dt", "context", "summary", "is_alert")
 
-    def __init__(self, title, link, snippet, category, pub_date):
+    def __init__(self, title, link, snippet, pub_dt, category):
         self.title = title
         self.link = link
         self.category = category
-        self.pub_date = pub_date
+        self.pub_dt = pub_dt
         self.context = None
         self.summary = None
         self.is_alert = False
 
 
-async def stage_enrich(story, session):
-    """Phase 3A: If snippet is too short, extract full article from page."""
+async def stage_extract_article(story, session):
+    """Phase 3A: Extract full article text. Always attempt — Google News snippets lack content."""
     if story.context is not None:
         return
     text = await extract_article(session, story.link)
@@ -261,7 +284,7 @@ async def stage_enrich(story, session):
 
 def stage_summarize(story):
     """Phase 3B: Summarize via Ollama. Blocking -> runs in thread pool."""
-    if not story.context or len(story.context.strip()) < 50:
+    if not story.context or len(story.context.strip()) < 300:
         story.summary = None
         return
     summary = _summarize(story.context)
@@ -270,7 +293,7 @@ def stage_summarize(story):
 
 def stage_alert(story):
     """Phase 3C: Evaluate alert via Ollama. Blocking -> runs in thread pool."""
-    if not story.summary or 'Ollama' in story.summary or 'unavailable' in story.summary:
+    if not story.summary or "Ollama" in str(story.summary) or "unavailable" in str(story.summary):
         return
     story.is_alert = _evaluate_alert(story.title, story.summary)
 
@@ -282,6 +305,10 @@ async def main():
     log("=" * 60)
     log("DAILY BRIEF v0.2.5-BETA01 — Pipeline Starting")
     log("=" * 60)
+
+    # Track age threshold
+    now_utc = datetime.utcnow()
+    cutoff = now_utc - timedelta(hours=AGE_LIMIT_HOURS)
 
     async with aiohttp.ClientSession(
         connector=aiohttp.TCPConnector(limit=100, limit_per_host=30, ttl_dns_cache=300),
@@ -317,53 +344,71 @@ async def main():
         total_before_dedup = sum(len(v) for v in by_cat.values())
         log(f"  Fetched {total_before_dedup} stories from {len(by_cat)} categories")
 
-        # Deduplicate: link + title normalize
-        seen_links, seen_titles = set(), set()
+        # Deduplicate + filter by age: per category, keep first occurrence of each normalized title, only if <= 24h old
         deduped = []
+        total_age_filtered = 0
+        total_dup_filtered = 0
+        seen_per_cat = {}
+
         for cat_name in by_cat:
-            for title, link, snippet, pub_date in by_cat[cat_name]:
+            if cat_name not in seen_per_cat:
+                seen_per_cat[cat_name] = set()
+            for title, link, snippet, pub_dt in by_cat[cat_name]:
+                # 1. Age filter
+                is_old = False
+                if pub_dt is not None:
+                    age_secs = (now_utc - pub_dt).total_seconds()
+                    if age_secs > AGE_LIMIT_HOURS * 3600:
+                        total_age_filtered += 1
+                        is_old = True
+
+                if is_old:
+                    continue
+
+                # 2. Title dedup within category (prevents same story from 3 sources)
                 norm = normalize_title(title)
-                if link not in seen_links and norm not in seen_titles:
-                    seen_links.add(link)
-                    seen_titles.add(norm)
-                    deduped.append((title, link, snippet, cat_name, pub_date))
+                if norm in seen_per_cat[cat_name]:
+                    total_dup_filtered += 1
+                    continue
+                seen_per_cat[cat_name].add(norm)
+
+                deduped.append((title, link, pub_dt, cat_name))
 
         total_after_dedup = len(deduped)
-        log(f"  Deduplicated: {total_before_dedup} -> {total_after_dedup} stories")
+        log(f"  Deduplicated: {total_before_dedup} -> {total_after_dedup} stories " +
+            f"(age-filtered: {total_age_filtered}, dup-filtered: {total_dup_filtered})")
 
         # ---------- Phase 3A: Article extraction (async fan-out) ----------
         log("\n[Phase 3] Enriching + summarizing...")
-        log("  [3A] Extracting article text where snippets are short...")
+        log("  [3A] Extracting full article text for each story (RSS snippets lack content)...")
 
         stories = []
-        for title, link, snippet, cat, pub_date in deduped:
-            s = StoryPipelineState(title, link, snippet, cat, pub_date)
-            if snippet and len(snippet) >= 50:
-                s.context = snippet
+        for title, link, pub_dt, cat in deduped:
+            s = StoryPipelineState(title, link, "", pub_dt, cat)
             stories.append(s)
 
         total = len(stories)
-        need_fetch = sum(1 for s in stories if s.context is None)
-        log(f"  {need_fetch} articles need full extraction")
+        need_fetch = total  # ALL stories need extraction — RSS gives nothing useful
 
-        fetch_done = await asyncio.gather(*(stage_enrich(s, session) for s in stories), return_exceptions=True)
-        still_no_text = sum(1 for i, r in enumerate(fetch_done) if stories[i].context is None and need_fetch > 0)
+        log(f"  {need_fetch} articles will be extracted from source pages")
 
-        enriched = sum(1 for s in stories if s.context is not None)
-        log(f"  Articles ready for summarization: {enriched}")
+        fetch_done = await asyncio.gather(*(stage_extract_article(s, session) for s in stories), return_exceptions=True)
+        enriched_articles = sum(1 for i, r in enumerate(fetch_done) if stories[i].context is not None)
+        still_no_text = total - enriched_articles
+        log(f"  [3A] Completed: {enriched_articles} extracted / {still_no_text} could not be extracted")
 
         # ---------- Phase 3B: Summarize (thread pool, fan-out) ----------
-        log("  [3B] Running summaries...")
+        log("  [3B] Running summaries via Qwen...")
         summary_tasks = [_run_blocking(stage_summarize, s) for s in stories]
         await asyncio.gather(*summary_tasks, return_exceptions=True)
 
         sum_ok = sum(1 for s in stories if s.summary is not None)
         sum_fail = total - sum_ok
-        log(f"  Summaries done: {sum_ok} OK / {sum_fail} failed")
+        log(f"  Summaries done: {sum_ok} OK / {sum_fail} failed (no context)")
 
         # ---------- Phase 3C: Alert evaluation (thread pool, fan-out) ----------
         log("  [3C] Evaluating alerts...")
-        alert_tasks = [_run_blocking(stage_alert, s) for s in stories if s.summary is not None and 'Ollama' not in str(s.summary)]
+        alert_tasks = [_run_blocking(stage_alert, s) for s in stories if s.summary is not None and "Ollama" not in str(s.summary)]
         await asyncio.gather(*alert_tasks, return_exceptions=True)
 
         alert_count = sum(1 for s in stories if s.is_alert)
@@ -377,8 +422,14 @@ async def main():
         alerts_list = []
         for s in stories:
             smry = s.summary if s.summary else "[Summary unavailable]"
-            entry = {'title': s.title, 'link': s.link, 'category': s.category,
-                     'summary': smry, 'is_alert': s.is_alert, 'pub_date': s.pub_date}
+            entry = {
+                "title": s.title,
+                "link": s.link,
+                "category": s.category,
+                "summary": smry,
+                "is_alert": s.is_alert,
+                "pub_date": format_pub_date(s.pub_dt),
+            }
             sections.setdefault(s.category, []).append(entry)
             if s.is_alert:
                 alerts_list.append(entry)
@@ -409,11 +460,10 @@ async def main():
         if alerts_list:
             md += ["", "---", "", "## HIGH-PRIORITY BULLETINS"]
             for a in alerts_list:
-                pub = format_pub_date(a['pub_date'])
-                pub_line = f"\n*Originally published on: {pub}*" if pub else ""
+                pub_line = f"\n*Originally published on: {a['pub_date']}*" if a.get("pub_date") else ""
                 md.append("")
                 md.append(f"### [{a['title']}]({a['link']})")
-                md.append(a['summary'] + pub_line)
+                md.append(a["summary"] + pub_line)
                 md.append(f"*Category: {a['category']}*")
 
         # Category sections
@@ -421,14 +471,13 @@ async def main():
             cat_stories = sections_map.get(cn, [])
             md += ["", f"## {cn} ({len(cat_stories)} stories)", ""]
             for idx, st in enumerate(cat_stories):
-                title_text = st['title']
-                url_val = st['link']
-                link_md = f"[{title_text}]({url_val})" if url_val and url_val != '#' else title_text
-                pub = format_pub_date(st.get('pub_date'))
-                pub_line = f"\n*Originally published on: {pub}*" if pub else ""
+                title_text = st["title"]
+                url_val = st["link"]
+                link_md = f"[{title_text}]({url_val})" if url_val and url_val != "#" else title_text
+                pub_line = f"\n*Originally published on: {st['pub_date']}*" if st.get("pub_date") else ""
                 md.append("")
                 md.append(f"### {idx + 1}. {link_md}")
-                md.append(st['summary'] + pub_line)
+                md.append(st["summary"] + pub_line)
 
         with open(filepath, "w", encoding="utf-8") as fh:
             fh.write("\n".join(md) + "\n")

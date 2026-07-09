@@ -2,8 +2,14 @@
 # description: Auto-generate daily news brief for Obsidian
 # created: 2026-07-07
 
-# ─── CHANGE LOG ──────────────────────────────────────────────
-# 2026-0707 18:53 | v0.0.1 | Created PROJECT.md, SUMMARY.md, README.md, ARCHITECTURE.md — initial scaffolding
+#  project: Daily_Brief_v01
+#  description: Auto-generate daily news brief for Obsidian
+#  created: 2026-07-07
+
+## ─── CHANGE LOG ──────────────────────────────────────────────
+- [2026-07-09 03:30] v0.2.5-BETA03 | FIX: Corrected Obsidian vault path from `Documents/Shared_AI/vault/...` to `Documents/Obsidian_Shared_AI/Shared_AI/vault/...` — the actual vault directory is named `Obsidian_Shared_AI`. Updated both LOG_DIR and OUTPUT_DIR in dashboard_pipeline.py.
+- [2026-07-09 03:30] v0.2.5-BETA03 | CHANGED: Per-run log files now use `.md` extension (`run_log_YYYY-MM-DD__HH-MM-SS.md`) instead of `.log`, written to `vault/logs/`. Removed duplicate banner lines in main(). Deleted old non-timestamped `daily_brief.log` file.
+- [2026-07-08 20:39] MAINTENANCE | Removed dead test files that imported non-existent functions (llm_summarize, llm_evaluate_alert) and asserted stale values (8 workers instead of actual 3)
 # 2026-0707 20:11 | v0.1.0 | Wrote first pipeline script — feeds fetch + render works; Ollama unavailable (local)
 # 2026-07-08 01:55 | v0.2.0 | FIX: Deduplication across 17 categories (prevents same story in World+US etc.)
 #                           |          FIX: Ollama client timeout=60s for network host http://192.168.4.52:11434

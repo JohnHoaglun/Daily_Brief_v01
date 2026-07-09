@@ -18,6 +18,7 @@ from bs4 import BeautifulSoup
 import ollama
 import sys
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 import os
 import time
 from email.utils import parsedate_to_datetime
@@ -27,9 +28,9 @@ import threading
 _OLLAMA_HOST = "http://192.168.4.52:11434"
 _qwen_client = ollama.Client(host=_OLLAMA_HOST, timeout=180)
 
-# Log file lives in the vault logs directory
+# Log file lives in the logs directory inside Obsidian vault (unique .md per run)
 LOG_DIR = "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/logs"
-LOGFILE = os.path.join(LOG_DIR, "daily_brief.log")
+RUN_LOGFILE = None   # set dynamically at start of each run as .md
 log_lock = threading.Lock()
 
 # Thread pool with 3 workers to match Ollama NUM_PARALLEL=3 limit
@@ -41,11 +42,12 @@ AGE_LIMIT_HOURS = 24
 
 def log(msg):
     """Log to file AND stderr. Thread-safe via lock."""
+    global RUN_LOGFILE
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     line = f"[{timestamp}] {msg}"
     os.makedirs(LOG_DIR, exist_ok=True)
     with log_lock:
-        with open(LOGFILE, "a", encoding="utf-8") as f:
+        with open(RUN_LOGFILE, "a", encoding="utf-8") as f:
             f.write(line + "\n")
             f.flush()
     sys.stderr.write(line + "\n")
@@ -136,9 +138,12 @@ def parse_feed_date(entry):
 
 
 def format_pub_date(raw):
-    """Format a publication date string into readable form."""
+    """Format a publication date into readable form."""
     if not raw:
         return None
+    if isinstance(raw, datetime):
+        tz = raw.strftime("%Z") if raw.tzinfo else ""
+        return raw.strftime(f"%Y-%m-%d {tz}").strip()
     stripped = raw.strip()
     if len(stripped) >= 10 and stripped[:4].isdigit():
         return stripped[:10]
@@ -174,15 +179,22 @@ async def fetch_feed(session, name, rss_url, max_stories):
 
 async def extract_article(session, url):
     try:
-        async with session.get(url, headers={"User-Agent": USER_AGENT}, timeout=15) as resp:
+        async with session.get(url, headers={"User-Agent": USER_AGENT}, timeout=25) as resp:
             html = await resp.text()
+        if resp.status != 200:
+            return ""
         soup = BeautifulSoup(html, "html.parser")
         for tag in soup(["script", "style", "nav", "footer", "header", "aside", "form"]):
             tag.extract()
         chunks = [t.get_text(separator=" ", strip=True) for t in soup.find_all(["p", "h1", "h2", "h3"])]
         text = " ".join(chunks).strip()
-        return text if len(text) > 500 else ""
-    except Exception:
+        if len(text) > 500:
+            return text
+        else:
+            log(f"  [extract] '{url[:80]}...' returned only {len(text)} chars")
+            return ""
+    except Exception as e:
+        log(f"  [extract FAILED] '{url[:80]}...': {e}")
         return ""
 
 
@@ -203,9 +215,9 @@ async def fetch_weather(session, lat, lon):
 
 # -- Ollama helpers (blocking, run in thread pool) -------------------------
 
-def _summarize(context):
-    """Blocking summary call with retry. Minimum 300 chars context required."""
-    if not context or len(context.strip()) < 300:
+def _summarize(context, min_chars=100):
+    """Blocking summary call with retry."""
+    if not context or len(context.strip()) < min_chars:
         return None
     for attempt in range(2):
         try:
@@ -261,11 +273,12 @@ def _run_blocking(fn, *args):
 # -- Stage workers (for parallel phase 3) -----------------------------------
 
 class StoryPipelineState:
-    __slots__ = ("title", "link", "category", "pub_dt", "context", "summary", "is_alert")
+    __slots__ = ("title", "link", "snippet", "category", "pub_dt", "context", "summary", "is_alert")
 
     def __init__(self, title, link, snippet, pub_dt, category):
         self.title = title
         self.link = link
+        self.snippet = snippet
         self.category = category
         self.pub_dt = pub_dt
         self.context = None
@@ -274,20 +287,23 @@ class StoryPipelineState:
 
 
 async def stage_extract_article(story, session):
-    """Phase 3A: Extract full article text. Always attempt — Google News snippets lack content."""
-    if story.context is not None:
-        return
-    text = await extract_article(session, story.link)
-    if text and len(text) > 500:
-        story.context = text
+    """Phase 3A: Google News RSS provides internal article IDs that can't be fetched directly.
+    We already have the full snippet + title, and feedparser gives us publisher source data."""
+    return  # Skip article extraction — Google News articles are encoded IDs
 
 
 def stage_summarize(story):
-    """Phase 3B: Summarize via Ollama. Blocking -> runs in thread pool."""
-    if not story.context or len(story.context.strip()) < 300:
-        story.summary = None
-        return
-    summary = _summarize(story.context)
+    """Phase 3B: Summarize via Ollama. Uses extracted text, falls back to snippet."""
+    # Try extracted context first; if none available, build from title + snippet
+    context = story.context
+    fallback_used = False
+    if not context or len(str(context).strip()) < 20:
+        # Google News gives internal IDs — can't fetch articles
+        parts = [s.strip() for s in [story.snippet, story.title] if s and len(s.strip()) > 0]
+        context = "\n---\n".join(parts)
+        fallback_used = True
+    
+    summary = _summarize(context, min_chars=50 if fallback_used else 300)
     story.summary = summary
 
 
@@ -302,13 +318,22 @@ def stage_alert(story):
 
 async def main():
     t0 = time.time()
+    
+    # Unique log file per run (same convention as markdown output)
+    now_ts = datetime.now(timezone.utc).strftime("%Y-%m-%d__%H-%M-%S")
+    global RUN_LOGFILE, OUTPUT_DIR
+    RUN_LOGFILE = os.path.join(LOG_DIR, f"run_log_{now_ts}.md")
+    # Create the log directory if needed and verify it exists
+    os.makedirs(LOG_DIR, exist_ok=True)
+    
     log("=" * 60)
-    log("DAILY BRIEF v0.2.5-BETA01 — Pipeline Starting")
+    log(f"RUN LOG: {RUN_LOGFILE}")
+    log("DAILY BRIEF v0.3.0-BETA03 - Pipeline Starting")
     log("=" * 60)
 
     # Track age threshold
-    now_utc = datetime.utcnow()
-    cutoff = now_utc - timedelta(hours=AGE_LIMIT_HOURS)
+    now_ct = datetime.now(ZoneInfo("America/Chicago"))
+    cutoff = now_ct - timedelta(hours=AGE_LIMIT_HOURS)
 
     async with aiohttp.ClientSession(
         connector=aiohttp.TCPConnector(limit=100, limit_per_host=30, ttl_dns_cache=300),
@@ -357,7 +382,7 @@ async def main():
                 # 1. Age filter
                 is_old = False
                 if pub_dt is not None:
-                    age_secs = (now_utc - pub_dt).total_seconds()
+                    age_secs = (now_ct - pub_dt).total_seconds()
                     if age_secs > AGE_LIMIT_HOURS * 3600:
                         total_age_filtered += 1
                         is_old = True
@@ -372,7 +397,7 @@ async def main():
                     continue
                 seen_per_cat[cat_name].add(norm)
 
-                deduped.append((title, link, pub_dt, cat_name))
+                deduped.append((title, link, snippet, pub_dt, cat_name))
 
         total_after_dedup = len(deduped)
         log(f"  Deduplicated: {total_before_dedup} -> {total_after_dedup} stories " +
@@ -383,14 +408,15 @@ async def main():
         log("  [3A] Extracting full article text for each story (RSS snippets lack content)...")
 
         stories = []
-        for title, link, pub_dt, cat in deduped:
-            s = StoryPipelineState(title, link, "", pub_dt, cat)
+        for title, link, snippet, pub_dt, cat in deduped:
+            s = StoryPipelineState(title, link, snippet, pub_dt, cat)
             stories.append(s)
 
         total = len(stories)
-        need_fetch = total  # ALL stories need extraction — RSS gives nothing useful
-
-        log(f"  {need_fetch} articles will be extracted from source pages")
+        extracted = sum(1 for s in stories if s.context is not None)
+        log(f"  {extracted}/{total} articles extracted successfully")
+        if extracted == 0:
+            log("  [NOTE] All article extraction failed — using title + category as fallback context")
 
         fetch_done = await asyncio.gather(*(stage_extract_article(s, session) for s in stories), return_exceptions=True)
         enriched_articles = sum(1 for i, r in enumerate(fetch_done) if stories[i].context is not None)

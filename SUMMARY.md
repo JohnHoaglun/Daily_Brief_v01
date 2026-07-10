@@ -28,6 +28,10 @@ Playwright crashed with `Execution context was destroyed` on concurrent Google N
 ### CLEANUP: Removed dead external RSS feeds
 Guardian World, Guardian Technology, TechCrunch — added by failed Build agent refactor, all returned 0 stories. Removed from CATEGORIES. Only original Google News queries remain.
 
+### BETA10 (2026-07-10): Per-category age window for local feeds
+**Problem:** Conroe TX News, Montgomery County TX News, and Houston Tropical Weather categories always returned 0 stories. Local/specialty feeds publish less frequently — by the time the pipeline runs (~3 AM), articles are often 30+ hours old but still worth surfacing. A blanket 24h window dropped all their content.
+**Fix:** Added `CATEGORY_AGE_LIMITS` dict — Conroe/Montgomery/Tropical use 48h instead of the default 24h. All other categories remain at 24h.
+
 ---
 # v0.1.0 (2026-07-07) — First pipeline: feeds fetch + render works; Ollama unavailable locally
 # v0.2.0 (2026-07-08 01:55) — Cross-category dedup; Ollama client timeout=60s for remote host

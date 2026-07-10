@@ -1,28 +1,58 @@
 # Plan: Daily_Brief_v01
 
-## BLOCKER (Resolved)
-- [2026-07-09] **Wrong Obsidian vault path** — LOG_DIR and OUTPUT_DIR pointed to `Documents/Shared_AI/vault/...` instead of `Documents/Obsidian_Shared_AI/Shared_AI/vault/...`. The actual vault directory is named `Obsidian_Shared_AI`, not `Shared_AI`. This caused logs to be written to the wrong location (or fail silently). **RESOLVED**: Updated both LOG_DIR and OUTPUT_DIR to correct path in dashboard_pipeline.py.
+## Agent Roles & Responsibilities (2026-07-10)
 
-## BLOCKER (New — 2026-07-09)
-- **[Critical] All article extraction returns 0 chars** — Google News RSS now provides internal article IDs (`news.google.com/rss/articles/CBMin...`) instead of real URLs (cnn.com, reuters.com, etc.). `extract_article()` fetches these and returns empty text. Pipeline falls back to title-only context (~40-60 chars), which causes `_summarize()` to hang or produce no summary. **ALL 40 summaries in latest run returned "Summary unavailable"**. Root cause: Google News changed their feed format. Pivot: use RSS `<summary>`/`<description>` (after `strip_html()`) as primary summary context — it's the best available content without needing real URL access.
-- **[Minor] Conroe TX query returns property listings** — The query `"news+Conroe+TX"` still surfaces Realtor.com listings. Need to exclude keywords like "Realtor", "Listings", "Sale", "For Sale".
+**Planner (me — the agent you talk to):**
+- Research issues in logs and code
+- Analyze failures, determine root cause
+- Write clear task descriptions for Build agent
+- Test pipeline runs and verify results against requirements
+- Update docs (SUMMARY.md, PLAN.md, PROJECT.md) with accurate changelogs
+- **NEVER** directly edit pipeline code — delegated to Build
+- **NEVER** commit structural changes (CATEGORIES, feeds) without your explicit approval
 
-## Strategy
-### Fix 1: Use RSS snippets as summary context (primary fix)
-- After `strip_html()`, the snippet often has 200-600 chars of useful text — more than enough for `_summarize()` with min_chars=300. Fall back to title+category for very short snippets.
-- Store cleaned snippet in `story.snippet` (already done) and use it in `stage_summarize` as primary context source, not just a last resort.
+**Build Agent (delegated task executor):**
+- Implement code exactly as specified in Planner's task description
+- Show git diff for review BEFORE committing
+- Do ONE logical change per commit with descriptive message
+- Verify output after fixing ("done" reports must be verified by Planner)
 
-### Fix 2: Improve fallback summary quality when extraction + snippet both fail
-- When both extract_article fails AND snippet is too short, still attempt summary with enriched title context including category signal. Reduce min_chars to 50 for fallback-only cases.
-- Add "Best effort" prefix in system prompt for minimal context so Qwen doesn't say "Summary unavailable".
+**What Build must NOT do without your written approval:**
+- Change CATEGORIES list (add/remove/edit feeds)
+- Replace Google News RSS with alternative sources
+- Switch Playwright headless/headful or change extraction approach
+- Make architectural changes to the pipeline
 
-### Fix 3: Narrow Conroe TX and Montgomery County queries
-- Add negative keywords to filter out real estate/property listings from local news results.
+## CURRENT STATUS — BETA11 Base Line
 
-### Fix 4: Update version string to BETA07 — document the fixes
-- Bump pipeline version comment at top of file to BETA07.
+Working baseline: commit `02ab117` (verified 61 stories, 0 failed, ~162s)
 
 ---
-- All paths must use the Obsidian vault at `/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/`
-- Per-run unique `.md` log files are now created at `vault/logs/run_log_YYYY-MM-DD__HH-MM-SS.md`
-- BETA02 pipeline is ready for end-to-end test run (article extraction, summarization with proper context lengths)
+
+## OPEN ISSUES — See SUMMARY.md for live TODO list
+1. Remove HIGH-PRIORITY BULLETINS section, keep alert stories in their regular category sections
+2. Playwright article extraction fails (headless blocked by publisher sites)
+3. Conroe TX News = 0 stories (Google has no fresh content for this query)
+4. Summary length ~2 sentences, need 3+
+5. "Last available" date for empty categories
+
+---
+
+## BLOCKERS (Resolved)
+- [2026-07-09] **Wrong Obsidian vault path** — LOG_DIR/OUTPUT_DIR pointed to wrong directory. Fixed by moving everything under `Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/`. See commit 562fe28 (BETA09).
+
+## RESOLVED FIXES (Documented in SUMMARY.md)
+### BETA09: Context overflow fix + model swap + batch-per-category
+- **Problem:** Single-batch call sent ~92K chars → Ollama returned empty output.
+- **Fix:** One batch call per category. Switched from qwen3.6-256k-agents to gemma4:e2b (~8x faster, ~130s total).
+- Removed Playwright extraction (concurrent navigation crashed the browser).
+- Removed dead external feeds (Guardian World/Technology, TechCrunch all returned 0 stories).
+
+### BETA10: Per-category age window for local feeds  
+- **Problem:** Conroe/Montgomery/Tropical categories always returned 0 stories — blanket 24h limit dropped their content when Google served articles >24h old.
+- **Fix:** `CATEGORY_AGE_LIMITS` dict gives those 3 feeds 48h instead of 24h default.
+
+### BETA11: RSS entries sorted by pub_date before taking top N  
+- **Problem:** Google News RSS returns oldest articles at the TOP of each feed list. Pipeline grabbed `feed.entries[:max_stories]` which meant stale content, not newest. Local feeds had fresh articles buried deep in 100+ entry list.
+- **Fix:** All entries sorted by pub_date descending (`_sort_entries()` with `cmp_to_key()`), THEN take top N. Also fixed: Conroe/Montgomery/Tropical age limits use 48h via `CATEGORY_AGE_LIMITS` dict.
+- Montgomery County TX now surfaces content (e.g., "4 events this weekend in Conroe, Montgomery").

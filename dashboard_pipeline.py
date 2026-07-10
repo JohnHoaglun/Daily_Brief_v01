@@ -52,8 +52,13 @@ async def _get_browser():
         _get_browser._cache = await p.chromium.launch(headless=True)
     return _get_browser._cache
 
-# Configuration: only include stories within last 24 hours
-AGE_LIMIT_HOURS = 24
+# Configuration: only include stories within last 24 hours (default)
+DEFAULT_AGE_LIMIT_HOURS = 24
+CATEGORY_AGE_LIMITS = {
+    "Conroe TX News": 48,
+    "Montgomery County TX News": 48,
+    "Houston Tropical Weather": 48,
+}
 
 
 def log(msg):
@@ -647,7 +652,7 @@ async def main():
             count = len(by_cat[name])
             log(f"    {name}: {count} stories")
 
-        # Deduplicate + filter by age: per category, keep first occurrence of each normalized title, only if <= 24h old
+        # Deduplicate + filter by age: per category, keep first occurrence of each normalized title
         deduped = []
         total_age_filtered = 0
         total_dup_filtered = 0
@@ -663,8 +668,9 @@ async def main():
                 if pub_dt is not None:
                     try:
                         age_secs = (now_ct - pub_dt).total_seconds()
-                        # If we have a meaningful timestamp and it's newer than AGE_LIMIT_HOURS, keep it
-                        if age_secs > AGE_LIMIT_HOURS * 3600:
+                        # If we have a meaningful timestamp and it's newer than the category's age limit, keep it
+                        age_limit = CATEGORY_AGE_LIMITS.get(cat_name, DEFAULT_AGE_LIMIT_HOURS)
+                        if age_secs > age_limit * 3600:
                             total_age_filtered += 1
                             is_old = True
                     except Exception:

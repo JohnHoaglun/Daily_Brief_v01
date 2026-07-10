@@ -618,6 +618,11 @@ async def main():
         # ---------- Phase 2: RSS feeds (all async, concurrent) ----------
         rss_items = [(c[0], build_rss_url(c[1]), c[2]) for c in CATEGORIES if c[1]]
         log(f"\n[Phase 2] Fetching {len(rss_items)} RSS feeds...")
+        
+        # DEBUG: Show all categories we're actually going to fetch
+        log("  [DEBUG] Categories being fetched:")
+        for name, url, max_stories in rss_items:
+            log(f"    {name}: {url[:100]}... (max: {max_stories})")
 
         all_results = await asyncio.gather(
             *(fetch_feed(session, n, u, m) for n, u, m in rss_items),
@@ -636,6 +641,12 @@ async def main():
         total_before_dedup = sum(len(v) for v in by_cat.values())
         log(f"  Fetched {total_before_dedup} stories from {len(by_cat)} categories")
 
+        # DEBUG: Show which feed queries are returning data (helpful to identify if query is too specific)
+        log("  [DEBUG] Feed results by category:")
+        for name in sorted(by_cat.keys()):
+            count = len(by_cat[name])
+            log(f"    {name}: {count} stories")
+
         # Deduplicate + filter by age: per category, keep first occurrence of each normalized title, only if <= 24h old
         deduped = []
         total_age_filtered = 0
@@ -647,14 +658,20 @@ async def main():
             if cat_name not in seen_per_cat:
                 seen_per_cat[cat_name] = set()
             for title, link, snippet, pub_dt in by_cat[cat_name]:
-                # 1. Age filter
+                # 1. Age filter - more lenient approach due to timezone issues with RSS timestamps
                 is_old = False
                 if pub_dt is not None:
-                    age_secs = (now_ct - pub_dt).total_seconds()
-                    if age_secs > AGE_LIMIT_HOURS * 3600:
+                    try:
+                        age_secs = (now_ct - pub_dt).total_seconds()
+                        # If we have a meaningful timestamp and it's newer than AGE_LIMIT_HOURS, keep it
+                        if age_secs > AGE_LIMIT_HOURS * 3600:
+                            total_age_filtered += 1
+                            is_old = True
+                    except Exception:
+                        # If there are timezone conversion issues or malformed dates, treat as expired
                         total_age_filtered += 1
                         is_old = True
-
+                        
                 if is_old:
                     continue
 
@@ -687,6 +704,15 @@ async def main():
         total_after_dedup = len(deduped)
         log(f"  Deduplicated: {total_before_dedup} -> {total_after_dedup} stories " +
             f"(age-filtered: {total_age_filtered}, dup-filtered: {total_dup_filtered}, cross-cat-filtered: {total_cross_dup_filtered})")
+
+        # DEBUG: Show per-category breakdown before summarization
+        log("  [DEBUG] Per-category story count AFTER dedup:")
+        cat_counts = {}
+        for entry in deduped:
+            cat = entry[4]  # cat_name
+            cat_counts[cat] = cat_counts.get(cat, 0) + 1
+        for cn in sorted(cat_counts.keys()):
+            log(f"    {cn}: {cat_counts[cn]}")
 
         # ---------- Phase 3: Summarization + Alerts (single batch calls) ----------
         log("\n[Phase 3] Enriching + summarizing...")

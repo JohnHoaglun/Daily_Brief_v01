@@ -10,7 +10,7 @@ Input Layer          Processing Layer           Output Layer
  ┌──────────────┐    ┌───────────────────┐    ┌──────────────────┐
  │ 17 RSS feeds │───▶│ Async text fetch  │───▶│ YAML frontmatter │
  │ NWS weather  │    │ BeautifulSoup     │    │ Markdown report  │
- │              │    │ Ollama Qwen (batch)│   │ Per-category     │
+ │              │    │ gemma4:e2b (batch) │   │ Per-category     │
  │              │    │ Alert evaluator   │    │ stories          │
  └──────────────┘    └───────────────────┘    └──────────────────┘
 ```
@@ -25,8 +25,8 @@ Input Layer          Processing Layer           Output Layer
 ## Dependencies
 
 - Python 3.9+ — runs on Mac Studio
-- Ollama running on DGX Spark (http://192.168.4.52:11434) with model `qwen3.6-256k-agents:latest`
-- `feedparser`, `aiohttp`, `beautifulsoup4`, `ollama` (pip install)
+- Ollama running on DGX Spark (http://192.168.4.52:11434) with model `gemma4:e2b`
+- `feedparser`, `aiohttp`, `beautifulsoup4`, `ollama`, `playwright` (pip install)
 
 ## Output
 
@@ -67,7 +67,4 @@ python dashboard_pipeline.py
 
 ## Current Status
 
-- v0.2.5: PERF: Phase 3 refactored from serial single-story processing to parallel batch fan-out (article extraction, summarization, alert evaluation all concurrent with thread pool). FIX: Alert collection now captures ALL alerts not just last story. FIX: Markdown headlines are hyperlinks [Title](URL). IMPROVED: Pub date extracted from RSS and displayed per story.
-- BETA01: workers=3, timeout=180s, retry loops on _summarize()/ _evaluate_alert(). NOTE: Retry storms caused Ollama timeout cascades in first run.
-- BETA02 (previous): Root cause — Google News RSS snippets contained raw `<a href=...>` HTML markup (~700-1500 chars) which passed the `len(raw)>=50` length check so `extract_article()` was NEVER called; Ollama received title+source as "context" and failed silently. Fixes: strip_html() removes `<a>` tags from snippets before length check; _summarize() minimum context raised to 300 chars; Phase 3A always runs extract_article for ALL stories (no length gate, RSS gives nothing useful); parse_feed_date() uses email.utils.parsedate_to_datetime; AGE_LIMIT_HOURS=24 with age filter in dedup loop drops stale articles; per-category title normalization dedup prevents same story from multiple sources appearing as different; StoryPipelineState replaced `snippet` slot with `pub_dt`. Pipeline is ready for end-to-end test run.
-- BETA03 (current): FIX: Corrected Obsidian vault path from `Documents/Shared_AI/vault/...` to `Documents/Obsidian_Shared_AI/Shared_AI/vault/...` — the actual vault directory is named `Obsidian_Shared_AI`. CHANGED: Per-run log files now use `.md` extension (`run_log_YYYY-MM-DD__HH-MM-SS.md`) instead of `.log`, written to `vault/logs/`. Removed duplicate header banners in main(). Old non-timestamped `daily_brief.log` removed. Pipeline ready for production run.
+- v0.2.5-BETA12 (current): Doc updates aligned to BETA11 baseline. RSS entries sorted by pub_date descending before taking top N. Local feeds get 48h age window via CATEGORY_AGE_LIMITS dict. Per-category batching prevents context overflow. Model: gemma4:e2b (~8x faster than Qwen).

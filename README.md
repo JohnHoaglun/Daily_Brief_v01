@@ -15,7 +15,7 @@ Automated daily news brief generator that fetches stories from 17 categories usi
 | Requirement | Why | Install |
 |-------------|-----|---------|
 | Python 3.9+ | Async HTTP requests, type safety | `brew install python` (macOS) or default system install |
-| Ollama running with `qwen3.6-256k-agents:latest` | Summarization + alert evaluation | [ollama.com](https://ollama.com) → then `ollama pull qwen3.6-256k-agents:latest` |
+| Ollama running with `gemma4:e2b` | Summarization + alert evaluation | [ollama.com](https://ollama.com) → then `ollama pull gemma4:e2b` |
 | `~/.config/opencode/obsidian_vaults.md` skill (optional) | Local knowledge of Obsidian path | Already created in project setup |
 
 ## Quick Start

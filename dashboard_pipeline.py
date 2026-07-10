@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Daily Brief Pipeline v0.2.5-BETA11
+Daily Brief Pipeline v0.2.5-BETA12
 ===================================
 BETA07: RSS snippets as primary summary context; headline fallback for low-context.
 BETA08: BATCH summarization — single Ollama call processes all 40-90 stories at once (2.5x speedup over individual calls). 
@@ -10,6 +10,7 @@ BETA08: BATCH summarization — single Ollama call processes all 40-90 stories a
 BETA09 (current): BATCH summarization redesigned — one Ollama call per category instead of all stories combined,
                   prevents context overflow (was 92K chars → now ~400-1200 per batch). Switched to gemma4:e2b 
                   (~6s per batch vs ~45s with qwen3.6-256k). Google News tracking URLs handled via title+snippet context.
+BETA12: Updated version bump — documented in all markdown files (PROJECT, SUMMARY, PLAN, README).
 BETA11: RSS entries sorted by pub_date (newest first) instead of taking arbitrary first N stories from Google News RSS feed.
 
 No API keys required. All sources are free and keyless.
@@ -619,7 +620,7 @@ async def main():
     
     log("=" * 60)
     log(f"RUN LOG: {RUN_LOGFILE}")
-    log("DAILY BRIEF v0.2.5-BETA11 - Pipeline Starting")
+    log("DAILY BRIEF v0.2.5-BETA12 - Pipeline Starting")
     log("=" * 60)
 
     # Track age threshold

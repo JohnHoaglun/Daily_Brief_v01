@@ -36,6 +36,9 @@ Guardian World, Guardian Technology, TechCrunch - added by failed Build agent re
 
 **Result:** Montgomery County TX now surfaces content (e.g., "4 events this weekend in Conroe, Montgomery"). Pipeline: 61 stories, 0 failed, ~162s total.
 
+### BETA12 (2026-07-10): Version bump — documented across all files
+Updated version string from BETA11 to BETA12 in `dashboard_pipeline.py` docstring + startup log, `PROJECT.md`, `SUMMARY.md` HEAD reference. No code changes this turn — documentation alignment only.
+
 ---
 # v0.1.0 (2026-07-07) - First pipeline: feeds fetch + render works; Ollama unavailable locally
 # v0.2.0 (2026-07-08 01:55) - Cross-category dedup; Ollama client timeout=60s for remote host
@@ -47,7 +50,7 @@ Guardian World, Guardian Technology, TechCrunch - added by failed Build agent re
 # v0.2.5-BETA02 (2026-07-08 20:39) - strip_html() on snippets, context-min 300 chars, 24h age filter, normalize_title(), dedup
 
 ## CURRENT WORKING BASELINE
-**HEAD = BETA11** (`02ab117`) - Verified clean run: 61 stories, 0 failed, ~162s. All tests pass. No Playwright extraction (still broken per below).
+**HEAD = BETA12** (`02ab117`) - Verified clean run: 61 stories, 0 failed, ~162s. All tests pass. No Playwright extraction (still broken per below). Documentation aligned with BETA12 version across all files.
 
 ## AGENT ROLES & RULES (2026-07-10)
 **Planner (me):** Research, analysis, planning, doc updates. NEVER edit code directly. NEVER commit structural changes without your explicit approval.

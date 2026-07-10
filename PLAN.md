@@ -23,7 +23,7 @@
 - Switch Playwright headless/headful or change extraction approach
 - Make architectural changes to the pipeline
 
-## CURRENT STATUS — BETA11 Base Line
+## CURRENT STATUS — BETA12 Base Line
 
 Working baseline: commit `02ab117` (verified 61 stories, 0 failed, ~162s)
 

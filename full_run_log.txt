@@ -1,0 +1,25 @@
+[2026-07-09 20:48:59] ============================================================
+[2026-07-09 20:48:59] RUN LOG: /Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/logs/run_log_2026-07-09__20-48-59.md
+[2026-07-09 20:48:59] DAILY BRIEF v0.2.5-BETA08 - Pipeline Starting
+[2026-07-09 20:48:59] ============================================================
+[2026-07-09 20:48:59] 
+[Phase 1] Fetching NWS weather...
+[2026-07-09 20:48:59]   Weather OK -- 3 periods
+[2026-07-09 20:48:59] 
+[Phase 2] Fetching 19 RSS feeds...
+[2026-07-09 20:49:00]   Fetched 120 stories from 19 categories
+[2026-07-09 20:49:00]   Deduplicated: 120 -> 43 stories (age-filtered: 75, dup-filtered: 0, cross-cat-filtered: 2)
+[2026-07-09 20:49:00] 
+[Phase 3] Enriching + summarizing...
+[2026-07-09 20:49:00]   [3A] Fetching full articles from external sources...
+[2026-07-09 20:49:09]   [playwright extraction ERROR] 'https://news.google.com/rss/articles/CBMixwFBVV95cUxNREFXMVdGT0x1RWdPXzdQNGNRN3J...': Page.evaluate: Execution context was destroyed, most likely because of a navigation
+[2026-07-09 20:49:09]   [playwright extraction ERROR] 'https://news.google.com/rss/articles/CBMitwFBVV95cUxNdXdvNzNaY0VydXlOYmFrZ3pKeVZ...': Page.evaluate: Execution context was destroyed, most likely because of a navigation
+[2026-07-09 20:49:09]   [playwright extraction ERROR] 'https://news.google.com/rss/articles/CBMi3AFBVV95cUxQOVNYeUowRlNrejJ2QXNMSmdSU0t...': Page.evaluate: Execution context was destroyed, most likely because of a navigation
+[2026-07-09 20:49:16]   [playwright extraction ERROR] 'https://news.google.com/rss/articles/CBMiqwFBVV95cUxQMnFxVUxGaWwybXJ0d0lkNkFPY2t...': Page.evaluate: TypeError: Failed to execute 'createTreeWalker' on 'Document': parameter 1 is not of type 'Node'.
+    at eval (eval at evaluate (:302:30), <anonymous>:2:45)
+    at UtilityScript.evaluate (<anonymous>:309:18)
+    at UtilityScript.<anonymous> (<anonymous>:1:44)
+[2026-07-09 20:49:16]   [3BC] Running BATCH summaries via Qwen...
+[2026-07-09 20:50:39] BATCH SUMMARIZE (World News, 9 stories): 82.3s
+[2026-07-09 20:50:39] BATCH OUTPUT (World News, 3545 chars): 1: The United States and Iran have exchanged renewed military strikes following President Trump's declaration that a ceasefire is over. On Wednesday, the U.S. military conducted airstrikes against approximately 90 targets across Iran while simultaneously intercepting incoming Iranian projectiles. This escalation has intensified regional tensions as both nations continue to trade attacks.
+2: On July 9, 2026, the United States launched fresh airstrikes against Iran shortly after President Trump th

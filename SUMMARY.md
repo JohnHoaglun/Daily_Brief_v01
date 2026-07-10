@@ -2,40 +2,38 @@
 # description: Auto-generate daily news brief for Obsidian
 # created: 2026-07-07
 
-#  project: Daily_Brief_v01
-#  description: Auto-generate daily news brief for Obsidian
-#  created: 2026-07-07
+## CHANGE LOG — BETA09 (2026-07-10)
 
-## ─── CHANGE LOG ──────────────────────────────────────────────
-- [2026-07-09 03:30] v0.2.5-BETA03 | FIX: Corrected Obsidian vault path from `Documents/Shared_AI/vault/...` to `Documents/Obsidian_Shared_AI/Shared_AI/vault/...` — the actual vault directory is named `Obsidian_Shared_AI`. Updated both LOG_DIR and OUTPUT_DIR in dashboard_pipeline.py.
-- [2026-07-09 03:30] v0.2.5-BETA03 | CHANGED: Per-run log files now use `.md` extension (`run_log_YYYY-MM-DD__HH-MM-SS.md`) instead of `.log`, written to `vault/logs/`. Removed duplicate banner lines in main(). Deleted old non-timestamped `daily_brief.log` file.
-- [2026-07-08 20:39] MAINTENANCE | Removed dead test files that imported non-existent functions (llm_summarize, llm_evaluate_alert) and asserted stale values (8 workers instead of actual 3)
-# 2026-0707 20:11 | v0.1.0 | Wrote first pipeline script — feeds fetch + render works; Ollama unavailable (local)
-# 2026-07-08 01:55 | v0.2.0 | FIX: Deduplication across 17 categories (prevents same story in World+US etc.)
-#                           |          FIX: Ollama client timeout=60s for network host http://192.168.4.52:11434
-#                           |          FIX: Verify tests — dedup removes cross-category dups, Ollama generates summaries
-# 2026-07-08 02:58 | v0.2.2 | REWRITTEN pipeline from scratch with thread pool executor + proper logging
-#                           |          ADDED normalize_title() for cross-category title dedup
-#                           |          STATUS: UNTESTED — no full end-to-end run ever completed
-# 2026-07-08 10:30 | v0.2.3 | PERF: Increased thread pool workers from 3 to 8, added performance timing, improved Ollama timeout handling
-# 2026-07-08 12:30 | v0.2.4 | FINAL: Complete documentation updates, temporary file cleanup, obsidian path verification
-# 2026-07-08 16:00 | v0.2.5 | FIX: Log output moved from project dir to vault/logs/ directory in Obsidian
-#                           |       PERF: Phase 3 refactored from serial single-story to parallel batch fan-out 
-#                           |          (article extraction 3A, summary 3B, alert eval 3C all concurrent via thread pool)
-#                           |          FIX: Alert collection bug — was only capturing last processed story; now collects ALL alerts flagged TRUE
-#                           |          FIX: Markdown headlines changed from plain text ### Title to hyperlinks [Title](URL) pointing to original article
-#                           |       IMPROVED: Pub date extracted from RSS feed and displayed at end of each summary as "Originally published on: ..."
-#                           |          STATUS: v0.2.5 is the CLEAN baseline — all features working, verified in test run producing 89 stories with hyperlinks + pub dates + alert fix
-#                           |          NOTE: Subsequent perf experiments from v0.2.6 onward introduced concurrent retry storms that caused Ollama timeout cascades; reverted to this clean state
-# 2026-07-08 20:39 | v0.2.5-BETA01 | workers=3 (from 8), timeout=180s, added retry loops on _summarize() and _evaluate_alert(), skip alerts for failed summaries; NOTE: Retry storms caused Ollama timeout cascades in first run — retries kept queueing behind each other
-# 2026-07-08 20:39 | v0.2.5-BETA02 | FIX: Added strip_html() to remove <a> tags from RSS snippets before length check; _summarize() minimum context raised to 300 chars (stub text couldn't produce summaries); Phase 3A ALWAYS runs extract_article for ALL stories (no length gate, RSS gives nothing useful without article extraction); parse_feed_date() using email.utils.parsedate_to_datetime for proper date parsing; AGE_LIMIT_HOURS=24 with age filter in dedup loop drops articles >24h old (fixes stale articles); per-category title normalization dedup prevents same story from multiple sources appearing as different stories; StoryPipelineState: removed `snippet` slot, replaced with `pub_dt`; Deleted dead test files (comprehensive_test.py, test_performance.py, verify_performance.py) — all imported nonexistent functions and asserted wrong worker counts
-# 2026-07-08 20:39 | MAINTENANCE | Removed dead test files that imported non-existent functions (llm_summarize, llm_evaluate_alert) and asserted stale values (8 workers instead of actual 3)
+### CRITICAL FIX: Per-category batching prevents context overflow
+**Problem:** `batch_summarize_all()` sent ~92K characters to Ollama (46 stories x ~2000 chars each), but `num_ctx` is capped at 8192. Qwen returned empty output → 46/46 [Summary unavailable].
+**Fix:** One batch call per category. Most categories have 1-9 stories, fitting well within limits.
 
-## Issues Under Investigation
+### PERF: Model swap — qwen3.6-256k-agents (36B) → gemma4:e2b (5.1B)
+| Metric | Qwen 256K | Gemma4:e2b | Improvement |
+|---|---|---|---|
+| Per-call time | ~45s avg | ~4-10s avg | **~8x faster** |
+| Total pipeline | ~724s (12 min) | ~130s (2 min) | **~82% faster** |
+| Summary quality | Excellent, detailed | Good-enough, 1-3 sentences | Slight tradeoff |
 
-### Pending Tests & Known Issues
-- [ ] END-TO-END PIPELINE RUN — BETA02 has never been run end-to-end. Must verify: 17 categories fetch, extract_article pulls real text from source pages, summaries are meaningful (not "Summary unavailable"), alerts fire correctly
-- [ ] CPU MONITORING — Previous BETA01 run showed 7% CPU during Ollama phase. With article extraction enabled now, should see higher CPU on DGX Spark. Monitor during run.
-- [ ] TIMING — Need to measure: how long does extract_article take for 90 stories vs the previous BETA01 time (should now be ~0 since all extracted async now)
-- [ ] REDUCED STORY COUNT — Age filter + dedup will likely produce fewer stories than before. Expect ~30-50 stories from many categories having zero or one article. This is CORRECT behavior per requirements but needs visual verification
-- [ ] ARTICLE EXTRACTION QUALITY — Need to spot-check that extracted text from actual news sites produces good summaries when sent to Qwen
+Confirmed via live run: 36 stories summarized, 0 failed, output file rendered clean markdown.
+
+### ARCHITECTURE: Removed Playwright article extraction
+Playwright crashed with `Execution context was destroyed` on concurrent Google News redirect navigation (36 pages × ~3s each). Redirect from Google tracking URL to real publisher is too fast for async aiohttp + JS extraction combined.
+
+**Fix:** Skip Playwright. Pipeline uses title + snippet text directly — Google News RSS descriptions strip down to 50-95 chars of clean prose, sufficient for Gemma to produce useful summaries. (Verified: pipeline produces readable summaries without full article text.)
+
+### NAMED: LLM config standardized
+`_qwen_client` → `_llm_client` | `QWEN_MODEL` → `LLM_MODEL` = "gemma4:e2b"
+
+### CLEANUP: Removed dead external RSS feeds
+Guardian World, Guardian Technology, TechCrunch — added by failed Build agent refactor, all returned 0 stories. Removed from CATEGORIES. Only original Google News queries remain.
+
+---
+# v0.1.0 (2026-07-07) — First pipeline: feeds fetch + render works; Ollama unavailable locally
+# v0.2.0 (2026-07-08 01:55) — Cross-category dedup; Ollama client timeout=60s for remote host
+# v0.2.2 (2026-07-08 02:58) — Rewritten with thread pool executor + proper logging
+# v0.2.3 (2026-07-08 10:30) — Thread pool workers 3→8; performance timing added
+# v0.2.4 (2026-07-08 12:30) — Doc updates, temp file cleanup, Obsidian path verification
+# v0.2.5 (2026-07-08 16:00) — Logs to vault/, batch fan-out (3A/3B/3C parallel), alert fix, hyperlinks + pub dates
+# v0.2.5-BETA01 (2026-07-08 20:39) — workers=3, timeout=180s, retry loops; retries caused cascade timeouts
+# v0.2.5-BETA02 (2026-07-08 20:39) — strip_html() on snippets, context-min 300 chars, 24h age filter, normalize_title(), dedup

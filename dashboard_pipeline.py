@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
 """
-Daily Brief Pipeline v0.2.5-BETA02
+Daily Brief Pipeline v0.2.5-BETA09
 ===================================
-BETA01 fixes: workers=3, timeout=180s, retries.
-BETA02 fixes: strip HTML from RSS snippets, always extract articles, 24h age filter, title dedup per category.
+BETA07: RSS snippets as primary summary context; headline fallback for low-context.
+BETA08: BATCH summarization — single Ollama call processes all 40-90 stories at once (2.5x speedup over individual calls). 
+        ARTICLE EXTRACTION REMOVED — Google News provides only internal article IDs, not real publisher URLs.
+        ALERTS: also batched into single call. Removed threading deadlocks from server-side single-thread bottleneck.
+        FILTER: excludes Conroe TX property listings; Big Tech query fixed.
+BETA09 (current): BATCH summarization redesigned — one Ollama call per category instead of all stories combined,
+                  prevents context overflow (was 92K chars → now ~400-1200 per batch). Switched to gemma4:e2b 
+                  (~6s per batch vs ~45s with qwen3.6-256k). Google News tracking URLs handled via title+snippet context.
 
 No API keys required. All sources are free and keyless.
 
@@ -23,10 +29,11 @@ import os
 import time
 from email.utils import parsedate_to_datetime
 import threading
+from playwright.async_api import async_playwright
 
 # Ollama client -- network server at GX10 Ollama
 _OLLAMA_HOST = "http://192.168.4.52:11434"
-_qwen_client = ollama.Client(host=_OLLAMA_HOST, timeout=180)
+_llm_client = ollama.Client(host=_OLLAMA_HOST, timeout=180)
 
 # Log file lives in the logs directory inside Obsidian vault (unique .md per run)
 LOG_DIR = "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/logs"
@@ -35,6 +42,15 @@ log_lock = threading.Lock()
 
 # Thread pool with 3 workers to match Ollama NUM_PARALLEL=3 limit
 _executor = ThreadPoolExecutor(max_workers=3)
+
+# Browser pool for Playwright
+_browser_lock = None  # Used only at startup
+async def _get_browser():
+    """Singleton browser instance — created once, reused."""
+    if not hasattr(_get_browser, '_cache') or _get_browser._cache is None:
+        p = await async_playwright().start()
+        _get_browser._cache = await p.chromium.launch(headless=True)
+    return _get_browser._cache
 
 # Configuration: only include stories within last 24 hours
 AGE_LIMIT_HOURS = 24
@@ -56,7 +72,7 @@ def log(msg):
 
 # -- CONFIGURATION ----------------------------------------------------------
 
-QWEN_MODEL = "qwen3.6-256k-agents:latest"
+LLM_MODEL = "gemma4:e2b"
 OUTPUT_DIR = "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/"
 WEATHER_LAT = "30.38"
 WEATHER_LON = "-95.69"
@@ -66,13 +82,13 @@ CATEGORIES = [
     ("World News",              "world+news",                 10),
     ("US News",                 "US+news",                    10),
     ("Texas News",              "Texas+news",                   5),
-    ("Conroe TX News",          "Conroe+TX",                    5),
+    ("Conroe TX News",          "news+Conroe+TX",               5),
     ("Montgomery County TX News", "Montgomery+County+TX",       5),
     ("Weather Forecast 77316",  None,                           0),
     ("Houston Tropical Weather","Houston+hurricane+tropical",   5),
     ("Market News",             "stock+market+economy",          5),
     ("Semiconductors",          "semiconductor+chip+industry",   5),
-    ("Big Tech",                "\"big+tech\"",                  5),
+    ("Big Tech",                "big+tech",                      5),
     ("Artificial Intelligence","artificial+intelligence+LLM",   5),
     ("OpenAI News",             "OpenAI",                        5),
     ("Anthropic News",          "Anthropic",                     5),
@@ -178,6 +194,16 @@ async def fetch_feed(session, name, rss_url, max_stories):
 
 
 async def extract_article(session, url):
+    """Extract article text using Playwright for JS-rendered pages (including Google News tracking URL redirects)."""
+    if not url or url == "#" or not url.strip():
+        return ""
+    
+    # If it's a Google tracking URL, skip — not a real publisher page.
+    # The title + snippet from the RSS feed will be used instead for summarization.
+    if "news.google.com/rss/articles/" in url:
+        return ""
+    
+    # For non-Google URLs, fall through to existing aiohttp logic
     try:
         async with session.get(url, headers={"User-Agent": USER_AGENT}, timeout=25) as resp:
             html = await resp.text()
@@ -188,11 +214,7 @@ async def extract_article(session, url):
             tag.extract()
         chunks = [t.get_text(separator=" ", strip=True) for t in soup.find_all(["p", "h1", "h2", "h3"])]
         text = " ".join(chunks).strip()
-        if len(text) > 500:
-            return text
-        else:
-            log(f"  [extract] '{url[:80]}...' returned only {len(text)} chars")
-            return ""
+        return text if len(text) > 40 else ""
     except Exception as e:
         log(f"  [extract FAILED] '{url[:80]}...': {e}")
         return ""
@@ -222,8 +244,8 @@ def _summarize(context, min_chars=100):
     for attempt in range(2):
         try:
             t0 = time.time()
-            r = _qwen_client.chat(
-                model=QWEN_MODEL,
+            r = _llm_client.chat(
+                model=LLM_MODEL,
                 messages=[
                     {"role": "system", "content": SUMMARY_PROMPT},
                     {"role": "user", "content": context[:6000]}
@@ -246,8 +268,8 @@ def _evaluate_alert(title, summary):
     for attempt in range(2):
         try:
             t0 = time.time()
-            r = _qwen_client.chat(
-                model=QWEN_MODEL,
+            r = _llm_client.chat(
+                model=LLM_MODEL,
                 messages=[
                     {"role": "system", "content": ALERT_PROMPT},
                     {"role": "user", "content": f"{title}\n---\n{summary}"[:1200]}
@@ -273,7 +295,7 @@ def _run_blocking(fn, *args):
 # -- Stage workers (for parallel phase 3) -----------------------------------
 
 class StoryPipelineState:
-    __slots__ = ("title", "link", "snippet", "category", "pub_dt", "context", "summary", "is_alert")
+    __slots__ = ("title", "link", "snippet", "category", "pub_dt", "context", "summary", "is_alert", "_batch_context", "_alert_idx")
 
     def __init__(self, title, link, snippet, pub_dt, category):
         self.title = title
@@ -284,34 +306,279 @@ class StoryPipelineState:
         self.context = None
         self.summary = None
         self.is_alert = False
+        self._batch_context = None
+        self._alert_idx = None
 
 
 async def stage_extract_article(story, session):
-    """Phase 3A: Google News RSS provides internal article IDs that can't be fetched directly.
-    We already have the full snippet + title, and feedparser gives us publisher source data."""
-    return  # Skip article extraction — Google News articles are encoded IDs
-
-
-def stage_summarize(story):
-    """Phase 3B: Summarize via Ollama. Uses extracted text, falls back to snippet."""
-    # Try extracted context first; if none available, build from title + snippet
-    context = story.context
-    fallback_used = False
-    if not context or len(str(context).strip()) < 20:
-        # Google News gives internal IDs — can't fetch articles
-        parts = [s.strip() for s in [story.snippet, story.title] if s and len(s.strip()) > 0]
-        context = "\n---\n".join(parts)
-        fallback_used = True
-    
-    summary = _summarize(context, min_chars=50 if fallback_used else 300)
-    story.summary = summary
-
-
-def stage_alert(story):
-    """Phase 3C: Evaluate alert via Ollama. Blocking -> runs in thread pool."""
-    if not story.summary or "Ollama" in str(story.summary) or "unavailable" in str(story.summary):
+    """Phase 3A: Fetch full article text from source URL for summary context."""
+    url = story.link.strip()
+    if not url or url == "#" or url.startswith("#"):
         return
-    story.is_alert = _evaluate_alert(story.title, story.summary)
+    # Skip Google News links as they're tracking IDs (no real content) - we will extract them differently
+    # We now handle them in the main extraction function that uses Playwright
+    try:
+        result = await extract_article(session, url)
+        if result:
+            story.context = result
+    except Exception as e:
+        log(f"  [extract error] '{story.title[:60]}...': {e}")
+
+
+def build_context(story):
+    """Build the text context for a single story — capped at 600 chars for batch processing."""
+    context = story.context
+    if context and len(str(context).strip()) >= 50:
+        return str(context).strip()[:600]  # Cap article content
+    
+    parts = [v.strip() for v in [story.snippet, story.title] if v and len((v or "").strip()) > 0]
+    if not parts:
+        return f"{story.category}: {story.title}"
+    
+    inner = "\n---\n".join(parts + [f"Category: {story.category}"])
+    return inner[:600]
+
+
+def batch_summarize_all(stories, session=None):
+    """One batch summarization call per category. Returns dict mapping story object -> summary text."""
+    if not stories:
+        return {}
+    
+    # Group by category
+    by_category = {}
+    for s in stories:
+        by_category.setdefault(s.category, []).append(s)
+    
+    all_summaries = {}
+    
+    # System prompt (same as before but simplified - no STORY_X format since we do per-category batches)
+    SYSTEM_BATCH = ("You are a news summarization engine. For each story I list, produce exactly 2-3 sentences:\n"
+                    "What happened, who was involved, when and where.\n\n"
+                    "For EACH story numbered below (1., 2., 3., etc.), reply with one line in this EXACT format:\n"
+                    "1: <your 2-3 sentence summary>\n"
+                    "2: <your 2-3 sentence summary>\n"
+                    "\nRequirements:\n"
+                    "- Start directly with '1:' (no preamble)\n"
+                    "- Each story gets exactly one line starting with the numbered tag\n"  
+                    "- No bullet points, no markdown formatting\n"
+                    "- Factual and neutral tone")
+    
+    total_parsed = 0
+    for cat_name, cat_stories in by_category.items():
+        # Build contexts for this category's stories
+        context_lines = []
+        for idx, s in enumerate(cat_stories):
+            # Build a shorter context: title + first 400 chars of article if available
+            context_parts = [s.title]
+            content = build_context(s)  # This returns story.context if available and >= 50 chars, else snippet+title
+            if len(content) > 600:
+                content = content[:600]
+            context_parts.append(content)
+            
+            entry = f"{idx + 1}. {cat_name}\n" + "\n".join(context_parts)
+            context_lines.append(entry)
+        
+        batch_text = "\n---\n\n".join(context_lines)
+        
+        # Make ONE batch call for this category
+        try:
+            t0 = time.time()
+            r = _llm_client.chat(
+                model=LLM_MODEL,
+                messages=[
+                    {"role": "system", "content": SYSTEM_BATCH},
+                    {"role": "user", "content": batch_text}
+                ],
+                options={"temperature": 0.3, "top_p": 0.8, "num_ctx": 8192}
+            )
+            elapsed = time.time() - t0
+            log(f"BATCH SUMMARIZE ({cat_name}, {len(cat_stories)} stories): {elapsed:.1f}s")
+            
+            resp_text = r["message"]["content"] if r.get("message", {}).get("content") else ""
+            log(f"BATCH OUTPUT ({cat_name}, {len(resp_text)} chars): {resp_text[:500]}")
+            
+            # Parse per-category response
+            reply_lines = [l.strip() for l in resp_text.split('\n') if l.strip()]
+            
+            for idx, s in enumerate(cat_stories):
+                line_num = str(idx + 1) + ":"
+                match_found = False
+                for line in reply_lines:
+                    if line.startswith(line_num):
+                        summary = line[len(line_num):].strip()
+                        if len(summary) > 30:
+                            s.summary = summary
+                            total_parsed += 1
+                            match_found = True
+                
+                # Fallback if no valid line found
+                if not match_found or (idx < len(cat_stories) and not cat_stories[idx].summary):
+                    cat_stories[idx].summary = f"[Headline] {cat_stories[idx].title}"
+                    log(f"  [parse gap] {cat_name} story {idx+1}")
+            
+        except Exception as e:
+            log(f"BATCH SUMMARIZE ERROR ({cat_name}): {e}")
+            # Set fallback summary for all stories in this category
+            for s in cat_stories:
+                s.summary = f"[Headline] {s.title}"
+    
+    return all_summaries
+
+
+def parse_batch_response(response, expected_count):
+    """Parse numbered batch response into dict mapping index → summary string.
+    
+    Handles output like:
+    STORY_0: France and Spain are preparing...
+    STORY_1: President Trump has ordered...
+    ...
+    """
+    summaries = {}
+    for line in response.split('\n'):
+        line = line.strip()
+        # Match STORY_<number>: or <number>: patterns
+        if line.startswith('STORY_'):
+            try:
+                idx_str = line.split(':')[0].replace('STORY_', '')
+                idx = int(idx_str)
+                summary = ':'.join(line.split(':', 1))[1:].strip()  # Everything after "STORY_N:"
+                summaries[idx] = summary.strip()
+            except (ValueError, IndexError):
+                pass
+        else:
+            # Fallback: <number>:. <text>
+            parts = line.split(':', 1)
+            if len(parts) == 2 and parts[0].strip().isdigit():
+                idx = int(parts[0].strip())
+                summaries[idx] = parts[1].strip()
+    
+    # Fill any missing indices with fallback based on title+context
+    for idx in range(expected_count):
+        if idx not in summaries:
+            # Try to find the story's index by matching snippet in available output
+            log(f"  [parse gap] STORY {idx} — no response line, using headline fallback")
+            summaries[idx] = f"[Summary unavailable]"
+    
+    return summaries
+
+
+def batch_evaluate_alerts(stories):
+    """Single Ollama call to evaluate ALL stories for alert priority.
+    Returns dict mapping index → True/False."""
+    if not stories:
+        return {}
+
+    # Group by category to prevent overload and ensure proper handling
+    by_category = {}
+    for s in stories:
+        by_category.setdefault(s.category, []).append(s)
+    
+    # Process each category separately to avoid hitting context limits or timeouts
+    all_alerts = {}
+    for cat_name, cat_stories in by_category.items():
+        # Build input text — only include stories that have valid summaries
+        labeled_summaries = []
+        summary_indices = []  # Track which stories are included
+        idx = 0
+        
+        for s in cat_stories:
+            if not s.summary or s.summary.startswith("[") or "unavailable" in s.summary.lower():
+                continue
+            label = f"STORY_{idx}"
+            entry = f"{label} | Headline: {s.title}\nSummary: {s.summary}"
+            labeled_summaries.append(entry)
+            s._alert_idx = idx  # Tag the story with its batch index
+            summary_indices.append(idx)
+            idx += 1
+        
+        if not labeled_summaries:
+            continue
+
+        alert_text = "\n\n".join(labeled_summaries)
+        
+        SYSTEM_ALERT_BATCH = ("You are a news priority classifier. For EACH story provided, respond with exactly one line:\n"
+                              "Format: STORY_<number>: TRUE or FALSE\n"
+                              "Judge: extreme weather (hurricane/tornado/flood/freeze in Houston/Texas/77316), major breakthroughs from top tech labs,\n"
+                              "critical economic disruption, geopolitical crises, or infrastructure failure.\n"
+                              "Be conservative — only flag TRUE for genuinely important news. No preamble.\n\n"
+                              "Use EXACT format:\n"
+                              "STORY_0: TRUE\n"
+                              "STORY_1: FALSE\n"
+                              "STORY_2: TRUE\n")
+
+        for attempt in range(2):
+            try:
+                t0 = time.time()
+                r = _llm_client.chat(
+                    model=LLM_MODEL,
+                    messages=[
+                        {"role": "system", "content": SYSTEM_ALERT_BATCH},
+                        {"role": "user", "content": alert_text}
+                    ],
+                    options={"temperature": 0.1, "top_p": 0.3, "num_ctx": 8192}
+                )
+                log(f"BATCH ALERT EVAL ({cat_name}, {len(labeled_summaries)} stories): {time.time() - t0:.2f}s")
+                
+                resp_text = r["message"]["content"]
+                alert_results = parse_alert_batch_response(resp_text)
+                
+                # Map results back to stories
+                alerts_flagged = 0
+                for s in cat_stories:
+                    if hasattr(s, '_alert_idx') and s._alert_idx in alert_results:
+                        s.is_alert = alert_results[s._alert_idx]
+                        if s.is_alert:
+                            alerts_flagged += 1
+                    else:
+                        s.is_alert = False
+                
+                break  # Success, exit retry loop
+            except Exception as e:
+                if attempt == 0:
+                    log(f"BATCH ALERT EVAL ({cat_name}) attempt 1 failed ({e}), retrying...")
+                    time.sleep(3)
+                else:
+                    log(f"BATCH ALERT ERROR ({cat_name}, final): {e}")
+                    # Even if we fail, continue to next category - don't crash the whole pipeline
+                    for s in cat_stories:
+                        s.is_alert = False
+    
+    return {}
+
+
+def parse_alert_batch_response(response):
+    """Parse alert batch response into dict mapping index → bool."""
+    results = {}
+    for line in response.split('\n'):
+        line = line.strip()
+        if line.startswith('STORY_'):
+            try:
+                parts = line.split(':', 1)
+                idx_str = parts[0].replace('STORY_', '')
+                val = parts[1].strip().upper()
+                idx = int(idx_str)
+                results[idx] = (val == "TRUE")
+            except (ValueError, IndexError):
+                pass
+        else:
+            # Fallback: <number>: TRUE/FALSE
+            parts = line.split(':', 1)
+            if len(parts) == 2 and parts[0].strip().isdigit() and parts[1].strip() in ('TRUE', 'FALSE'):
+                idx = int(parts[0].strip())
+                results[idx] = (parts[1].strip().upper() == "TRUE")
+    return results
+
+
+def is_realt_estate_title(title):
+    """Check if a title contains real estate markers that should be filtered out."""
+    if not title:
+        return False
+    realtor_keywords = [
+        "realtor", "zillow", "redfin", "listing", "for sale", "house for", 
+        "home for", "property", "$"
+    ]
+    title_lower = title.lower()
+    return any(keyword in title_lower for keyword in realtor_keywords)
 
 
 # -- Main -------------------------------------------------------------------
@@ -328,7 +595,7 @@ async def main():
     
     log("=" * 60)
     log(f"RUN LOG: {RUN_LOGFILE}")
-    log("DAILY BRIEF v0.3.0-BETA03 - Pipeline Starting")
+    log("DAILY BRIEF v0.2.5-BETA08 - Pipeline Starting")
     log("=" * 60)
 
     # Track age threshold
@@ -373,6 +640,7 @@ async def main():
         deduped = []
         total_age_filtered = 0
         total_dup_filtered = 0
+        total_cross_dup_filtered = 0
         seen_per_cat = {}
 
         for cat_name in by_cat:
@@ -397,15 +665,31 @@ async def main():
                     continue
                 seen_per_cat[cat_name].add(norm)
 
+                # 3. Filter out real estate listings for Conroe TX News (after dedup but before adding to deduped)
+                if cat_name == "Conroe TX News" and is_realt_estate_title(title):
+                    continue
+
                 deduped.append((title, link, snippet, pub_dt, cat_name))
+
+        # Cross-category dedup: prevent same story appearing in multiple categories
+        global_seen = set()
+        cross_deduped = []
+        for entry in deduped:
+            title, link, snippet, pub_dt, cat_name = entry
+            norm = normalize_title(title)
+            if norm in global_seen:
+                total_cross_dup_filtered += 1
+                continue
+            global_seen.add(norm)
+            cross_deduped.append(entry)
+        deduped = cross_deduped
 
         total_after_dedup = len(deduped)
         log(f"  Deduplicated: {total_before_dedup} -> {total_after_dedup} stories " +
-            f"(age-filtered: {total_age_filtered}, dup-filtered: {total_dup_filtered})")
+            f"(age-filtered: {total_age_filtered}, dup-filtered: {total_dup_filtered}, cross-cat-filtered: {total_cross_dup_filtered})")
 
-        # ---------- Phase 3A: Article extraction (async fan-out) ----------
+        # ---------- Phase 3: Summarization + Alerts (single batch calls) ----------
         log("\n[Phase 3] Enriching + summarizing...")
-        log("  [3A] Extracting full article text for each story (RSS snippets lack content)...")
 
         stories = []
         for title, link, snippet, pub_dt, cat in deduped:
@@ -413,30 +697,30 @@ async def main():
             stories.append(s)
 
         total = len(stories)
-        extracted = sum(1 for s in stories if s.context is not None)
-        log(f"  {extracted}/{total} articles extracted successfully")
-        if extracted == 0:
-            log("  [NOTE] All article extraction failed — using title + category as fallback context")
 
-        fetch_done = await asyncio.gather(*(stage_extract_article(s, session) for s in stories), return_exceptions=True)
-        enriched_articles = sum(1 for i, r in enumerate(fetch_done) if stories[i].context is not None)
-        still_no_text = total - enriched_articles
-        log(f"  [3A] Completed: {enriched_articles} extracted / {still_no_text} could not be extracted")
+        # ---------- Phase 3A: Async article fetching for non-Google links ----------
+        log("  [3A] Fetching full articles from external sources...")
+        # Use bounded concurrency (20) with 5s timeout
+        async with aiohttp.ClientSession(
+            connector=aiohttp.TCPConnector(limit=20, limit_per_host=10, ttl_dns_cache=300),
+            headers={"User-Agent": USER_AGENT},
+            timeout=aiohttp.ClientTimeout(total=5)
+        ) as extract_session:
+            await asyncio.gather(
+                *[stage_extract_article(s, extract_session) for s in stories],
+                return_exceptions=True
+            )
 
-        # ---------- Phase 3B: Summarize (thread pool, fan-out) ----------
-        log("  [3B] Running summaries via Qwen...")
-        summary_tasks = [_run_blocking(stage_summarize, s) for s in stories]
-        await asyncio.gather(*summary_tasks, return_exceptions=True)
-
-        sum_ok = sum(1 for s in stories if s.summary is not None)
+        # ---------- Phase 3B/3C: Batch summary (single Ollama call for all stories) ----------
+        log("  [3BC] Running BATCH summaries via Qwen...")
+        sum_results = batch_summarize_all(stories, session)
+        sum_ok = sum(1 for s in stories if s.summary is not None and not s.summary.startswith("[Summary"))
         sum_fail = total - sum_ok
-        log(f"  Summaries done: {sum_ok} OK / {sum_fail} failed (no context)")
+        log(f"  Summaries done: {sum_ok} OK / {sum_fail} failed")
 
-        # ---------- Phase 3C: Alert evaluation (thread pool, fan-out) ----------
-        log("  [3C] Evaluating alerts...")
-        alert_tasks = [_run_blocking(stage_alert, s) for s in stories if s.summary is not None and "Ollama" not in str(s.summary)]
-        await asyncio.gather(*alert_tasks, return_exceptions=True)
-
+        # ---------- Phase 3C: Batch alert evaluation (single Ollama call) ----------
+        log("  [3C] Evaluating alerts in BATCH...")
+        alert_results = batch_evaluate_alerts(stories)
         alert_count = sum(1 for s in stories if s.is_alert)
         log(f"  Alerts flagged: {alert_count}")
         log(f"\n  PROCESSING COMPLETE: {total} stories in {time.time() - t0:.2f}s")

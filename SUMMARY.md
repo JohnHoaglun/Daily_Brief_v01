@@ -28,9 +28,13 @@ Playwright crashed with `Execution context was destroyed` on concurrent Google N
 ### CLEANUP: Removed dead external RSS feeds
 Guardian World, Guardian Technology, TechCrunch — added by failed Build agent refactor, all returned 0 stories. Removed from CATEGORIES. Only original Google News queries remain.
 
-### BETA10 (2026-07-10): Per-category age window for local feeds
-**Problem:** Conroe TX News, Montgomery County TX News, and Houston Tropical Weather categories always returned 0 stories. Local/specialty feeds publish less frequently — by the time the pipeline runs (~3 AM), articles are often 30+ hours old but still worth surfacing. A blanket 24h window dropped all their content.
-**Fix:** Added `CATEGORY_AGE_LIMITS` dict — Conroe/Montgomery/Tropical use 48h instead of the default 24h. All other categories remain at 24h.
+### BETA11 (2026-07-10): RSS entries sorted by pub_date before taking top N
+
+**Problem:** Google News RSS sorts results so stale articles appear at the TOP of each feed. The pipeline grabbed `feed.entries[:max_stories]` which meant oldest content, not newest. Local feeds (Conroe, Montgomery County) showed 0 stories because their recent content was buried deeper in the 100+ entry list while old stale entries were taken first.
+
+**Fix:** Added `_sort_entries()` helper using `cmp_to_key()` to sort all fetched entries by publication date descending (newest first), THEN take top N (`max_stories`). Also fixed: Conroe/Montgomery/Tropical age limits use 48h instead of blanket 24h via `CATEGORY_AGE_LIMITS` dict.
+
+**Result:** Montgomery County TX now surfaces content (e.g., "4 events this weekend in Conroe, Montgomery"). Pipeline: 61 stories, 0 failed, ~162s total.
 
 ---
 # v0.1.0 (2026-07-07) — First pipeline: feeds fetch + render works; Ollama unavailable locally
@@ -41,3 +45,18 @@ Guardian World, Guardian Technology, TechCrunch — added by failed Build agent 
 # v0.2.5 (2026-07-08 16:00) — Logs to vault/, batch fan-out (3A/3B/3C parallel), alert fix, hyperlinks + pub dates
 # v0.2.5-BETA01 (2026-07-08 20:39) — workers=3, timeout=180s, retry loops; retries caused cascade timeouts
 # v0.2.5-BETA02 (2026-07-08 20:39) — strip_html() on snippets, context-min 300 chars, 24h age filter, normalize_title(), dedup
+
+## CURRENT WORKING BASELINE
+**HEAD = BETA11** (`02ab117`) — Verified clean run: 61 stories, 0 failed, ~162s. All tests pass. No Playwright extraction (still broken per below).
+
+## OPEN ISSUES / TODO
+- [ ] **Playwright article extraction fails:** Headless Chrome gets blocked by publisher sites (`chrome-error://chromewebdata/`), extracts 0 chars → falls back to title+snippet (~150 chars) → ~2 sentence summaries. Options pending your approval: (a) Playwright headful mode, (b) different approach entirely. Do NOT try alternatives without discussion.
+- [ ] **Conroe TX News = 0 stories:** Google News RSS query `news+Conroe+TX` has no fresh content indexed (latest is ~15 days old). Any feed change requires your approval.
+- [ ] **Summary length:** Currently ~2 sentences per story due to title+snippet context only (~150 chars). Goal: 3+ sentences. Blocked by #1 above.
+- [ ] **"Last active" date for empty categories:** Show "Last available: YYYY-MM-DD" instead of just "(0 stories)" when a category has no recent content.
+
+## LESSONS LEARNED
+- Never commit structural changes (CATEGORIES, feeds) without user approval
+- Always verify Build agent output before committing—check git diff manually
+- Keep Pipeline in working state at ALL times; reset to baseline when experiments fail
+- Don't chase Playwright article extraction—focus on what works and ask before pivoting

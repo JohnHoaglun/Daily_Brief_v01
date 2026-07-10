@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Daily Brief Pipeline v0.2.5-BETA09
+Daily Brief Pipeline v0.2.5-BETA11
 ===================================
 BETA07: RSS snippets as primary summary context; headline fallback for low-context.
 BETA08: BATCH summarization — single Ollama call processes all 40-90 stories at once (2.5x speedup over individual calls). 
@@ -10,6 +10,7 @@ BETA08: BATCH summarization — single Ollama call processes all 40-90 stories a
 BETA09 (current): BATCH summarization redesigned — one Ollama call per category instead of all stories combined,
                   prevents context overflow (was 92K chars → now ~400-1200 per batch). Switched to gemma4:e2b 
                   (~6s per batch vs ~45s with qwen3.6-256k). Google News tracking URLs handled via title+snippet context.
+BETA11: RSS entries sorted by pub_date (newest first) instead of taking arbitrary first N stories from Google News RSS feed.
 
 No API keys required. All sources are free and keyless.
 
@@ -30,6 +31,7 @@ import time
 from email.utils import parsedate_to_datetime
 import threading
 from playwright.async_api import async_playwright
+from functools import cmp_to_key
 
 # Ollama client -- network server at GX10 Ollama
 _OLLAMA_HOST = "http://192.168.4.52:11434"
@@ -171,6 +173,18 @@ def format_pub_date(raw):
     return stripped[:40]
 
 
+def _sort_entries(a, b):
+    """Sort entries by publication date descending (newest first)."""
+    pa, pb = a[3], b[3]  # pub_dt tuples
+    if pa is None and pb is None:
+        return 0
+    if pa is None:
+        return 1   # push None dates to end
+    if pb is None:
+        return -1
+    return (pb - pa).total_seconds()  # newest first
+
+
 # -- HTTP helpers (async) ---------------------------------------------------
 
 def build_rss_url(query):
@@ -183,7 +197,7 @@ async def fetch_feed(session, name, rss_url, max_stories):
             text = await resp.text()
         feed = feedparser.parse(text)
         entries = []
-        for e in feed.entries[:max_stories]:
+        for e in feed.entries:
             title = (e.get("title", "") or "").strip() if isinstance(e.get("title"), str) else ""
             link = e.get("link") or "#"
             raw = (e.get("summary") or e.get("description") or "").strip() if isinstance(e.get("summary"), str) and e["summary"] else ""
@@ -192,6 +206,11 @@ async def fetch_feed(session, name, rss_url, max_stories):
             plain_snippet = strip_html(raw)
             if title and link:
                 entries.append((title, link, plain_snippet, pub_dt))
+        
+        # Sort entries by publication date (newest first) then take top N
+        entries.sort(key=cmp_to_key(_sort_entries))
+        entries = entries[:max_stories]
+        
         return (name, entries)
     except Exception as e:
         log(f"  WARNING {name}: feed fetch failed ({e})")
@@ -600,7 +619,7 @@ async def main():
     
     log("=" * 60)
     log(f"RUN LOG: {RUN_LOGFILE}")
-    log("DAILY BRIEF v0.2.5-BETA08 - Pipeline Starting")
+    log("DAILY BRIEF v0.2.5-BETA11 - Pipeline Starting")
     log("=" * 60)
 
     # Track age threshold

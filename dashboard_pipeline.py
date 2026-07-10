@@ -10,8 +10,8 @@ BETA08: BATCH summarization — single Ollama call processes all 40-90 stories a
 BETA09 (current): BATCH summarization redesigned — one Ollama call per category instead of all stories combined,
                   prevents context overflow (was 92K chars → now ~400-1200 per batch). Switched to gemma4:e2b 
                   (~6s per batch vs ~45s with qwen3.6-256k). Google News tracking URLs handled via title+snippet context.
-BETA12: Updated version bump — documented in all markdown files (PROJECT, SUMMARY, PLAN, README).
 BETA11: RSS entries sorted by pub_date (newest first) instead of taking arbitrary first N stories from Google News RSS feed.
+BETA12: Updated version bump — documented in all markdown files (PROJECT, SUMMARY, PLAN, README).
 
 No API keys required. All sources are free and keyless.
 

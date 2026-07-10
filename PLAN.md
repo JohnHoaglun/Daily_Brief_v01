@@ -1,28 +1,5 @@
 # Plan: Daily_Brief_v01
 
-## Agent Roles & Responsibilities (2026-07-10)
-
-**Planner (me — the agent you talk to):**
-- Research issues in logs and code
-- Analyze failures, determine root cause
-- Write clear task descriptions for Build agent
-- Test pipeline runs and verify results against requirements
-- Update docs (SUMMARY.md, PLAN.md, PROJECT.md) with accurate changelogs
-- **NEVER** directly edit pipeline code — delegated to Build
-- **NEVER** commit structural changes (CATEGORIES, feeds) without your explicit approval
-
-**Build Agent (delegated task executor):**
-- Implement code exactly as specified in Planner's task description
-- Show git diff for review BEFORE committing
-- Do ONE logical change per commit with descriptive message
-- Verify output after fixing ("done" reports must be verified by Planner)
-
-**What Build must NOT do without your written approval:**
-- Change CATEGORIES list (add/remove/edit feeds)
-- Replace Google News RSS with alternative sources
-- Switch Playwright headless/headful or change extraction approach
-- Make architectural changes to the pipeline
-
 ## CURRENT STATUS — BETA12 Base Line
 
 Working baseline: commit `02ab117` (verified 61 stories, 0 failed, ~162s)

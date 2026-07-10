@@ -49,20 +49,6 @@ Updated version string from BETA11 to BETA12 in `dashboard_pipeline.py` docstrin
 # v0.2.5-BETA01 (2026-07-08 20:39) - workers=3, timeout=180s, retry loops; retries caused cascade timeouts
 # v0.2.5-BETA02 (2026-07-08 20:39) - strip_html() on snippets, context-min 300 chars, 24h age filter, normalize_title(), dedup
 
-## CURRENT WORKING BASELINE
-**HEAD = BETA12** (`02ab117`) - Verified clean run: 61 stories, 0 failed, ~162s. All tests pass. No Playwright extraction (still broken per below). Documentation aligned with BETA12 version across all files.
-
-## AGENT ROLES & RULES (2026-07-10)
-**Planner (me):** Research, analysis, planning, doc updates. NEVER edit code directly. NEVER commit structural changes without your explicit approval.
-
-**Build Agent:** Implements code per Planner spec. Shows diff BEFORE committing. One change per commit. Verified output ("done" claims are never trusted - always rechecked by Planner).
-
-**Never delegated without your written approval:**
-- Changing CATEGORIES list (add/remove/edit feeds)
-- Replacing Google News RSS with alternative sources
-- Switching Playwright headless/headful or extraction approach
-- Any architectural changes to the pipeline
-
 ## OPEN ISSUES / TODO
 - [ ] **Remove HIGH-PRIORITY BULLETINS section from rendered output** — alert-flagged stories should appear only in their regular category sections (World News, US News, etc.) instead of duplicating at the top as a separate "HIGH-PRIORITY BULLETINS" section. Currently every alert story appears twice.
 - [ ] **Playwright article extraction fails:** Headless Chrome gets blocked by publisher sites (`chrome-error://chromewebdata/`), extracts 0 chars → falls back to title+snippet (~150 chars) → ~2 sentence summaries. Options pending your approval: (a) Playwright headful mode, (b) different approach entirely. Do NOT try alternatives without discussion.
@@ -70,8 +56,4 @@ Updated version string from BETA11 to BETA12 in `dashboard_pipeline.py` docstrin
 - [ ] **Summary length:** Currently ~2 sentences per story due to title+snippet context only (~150 chars). Goal: 3+ sentences. Blocked by #1 above.
 - [ ] **"Last active" date for empty categories:** Show "Last available: YYYY-MM-DD" instead of just "(0 stories)" when a category has no recent content.
 
-## LESSONS LEARNED
-- Never commit structural changes (CATEGORIES, feeds) without user approval
-- Always verify Build agent output before committing-check git diff manually
-- Keep Pipeline in working state at ALL times; reset to baseline when experiments fail
-- Don't chase Playwright article extraction-focus on what works and ask before pivoting
+---

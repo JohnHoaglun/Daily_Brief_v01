@@ -605,7 +605,7 @@ async def main():
 
     # Track age threshold
     now_ct = datetime.now(ZoneInfo("America/Chicago"))
-    cutoff = now_ct - timedelta(hours=AGE_LIMIT_HOURS)
+    cutoff = now_ct - timedelta(hours=DEFAULT_AGE_LIMIT_HOURS)
 
     async with aiohttp.ClientSession(
         connector=aiohttp.TCPConnector(limit=100, limit_per_host=30, ttl_dns_cache=300),

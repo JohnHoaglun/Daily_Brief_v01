@@ -1,114 +1,93 @@
-# Daily Brief v01 Pipeline
+# Daily Brief v0.2.5-BETA12
 
-Automated daily news brief generator that fetches stories from 17 categories using free APIs (no keys), summarizes each with a local Ollama Qwen model, and outputs a Markdown file to Obsidian.
+## Overview
+
+Daily Brief is an automated news aggregation and summarization system that collects articles from various sources, synthesizes them into concise summaries, and formats them into a daily markdown report.
 
 ## Features
 
-- **17 content categories** — World, US, Texas, Conroe TX, Montgomery County TX, Houston Tropical, Market News, Semiconductors, Big Tech, AI, OpenAI, Anthropic, SpaceX, OpenCode, Hermes Agent, Karpathy
-- **Free sources only** — Google News RSS feeds + NWS weather API (no API keys, no signup)
-- **Local AI summarization** — Uses `qwen3.6-256k-agents:latest` via Ollama on your hardware
-- **Smart alerts** — Qwen evaluates each story for urgency; flags land in top "High-Priority Bulletins" section
-- **Obsidian-native output** — Markdown with YAML frontmatter, links, bold keyword anchors
+- Automated RSS feed collection from Google News
+- Cross-category duplicate detection and filtering  
+- Article content extraction and summarization using LLM
+- Time-based filtering (last 24 hours by default)
+- Clean markdown output with category separation
+- Automatic cleanup of old reports and logs
+- Weather data integration
 
-## Prerequisites
+### New Features in v0.2.5-BETA12
 
-| Requirement | Why | Install |
-|-------------|-----|---------|
-| Python 3.9+ | Async HTTP requests, type safety | `brew install python` (macOS) or default system install |
-| Ollama running with `gemma4:e2b` | Summarization + alert evaluation | [ollama.com](https://ollama.com) → then `ollama pull gemma4:e2b` |
-| `~/.config/opencode/obsidian_vaults.md` skill (optional) | Local knowledge of Obsidian path | Already created in project setup |
+1. **Configuration System** - Moved all settings to config.py for easier management  
+2. **Enhanced Date/Time Handling** - Shows full date+time instead of just date
+3. **Cleaner Output Formatting** - Removed H3 headers, uses numbered lists instead
+4. **Improved Cleanup Logic** - Maintains only MAX_VERSIONS (5) most recent files
+5. **Removed Alert System** - Alerts no longer displayed in output to reduce clutter
+6. **Enhanced Article Extraction** - Better handling of external URLs
 
-## Quick Start
+## Requirements
 
-### Install dependencies
-```bash
-pip install feedparser aiohttp beautifulsoup4 ollama
-```
+- Python 3.9+
+- Ollama server available at http://192.168.4.52:11434 (customizable)
+- Required models:
+  - gemma4:e2b (or specified in config.py)
+  - [additional models as needed]
 
-### Run the pipeline
-```bash
-python dashboard_pipeline.py
-```
+## Setup
 
-Output file: `DailyBrief-YYYY-MM-DD__HH-MM-SS.md` → `/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/`
-
-**Known issue**: Google News RSS feeds return snippets with embedded `<a href=...>` HTML links. The BETA02 pipeline includes `strip_html()` to handle this, but articles relying solely on RSS snippets (without article extraction) may have degraded summaries. Full article extraction is now used for all stories to compensate.
+1. Install required packages: `pip install aiohttp feedparser beautifulsoup4 ollama`
+2. Ensure Ollama server is running
+3. Set up `config.py` with your preferences
+4. Run the script with: `python dashboard_pipeline.py`
 
 ## Configuration
 
-### Model name
-In `dashboard_pipeline.py`, line ~9:
-```python
-QWEN_MODEL = "qwen3.6-256k-agents:latest"
-```
-Adjust if your model has a different tag in Ollama (`ollama list` to check).
+All configuration now resides in `config.py`. Key settings include:
 
-### Output directory
-Default: `/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/`
-Change `OUTPUT_DIR` at the top of the script if needed.
+- `LLM_MODEL`: The model to use for summarization  
+- `LOG_DIR`: Directory for log files
+- `NEWS_DIR`: Directory for output markdown files
+- `MAX_VERSIONS`: Maximum number of old files to keep (default 5)
 
-### Weather coordinates
-Default: `30.38,-95.69` (Conroe / Montgomery County area, 77316)
-Change `WEATHER_LAT`, `WEATHER_LON` if you move.
+## Usage
 
-## How It Works
+Run the pipeline: `python dashboard_pipeline.py`
 
-1. **Fetch RSS feeds** — Async download 17 Google News RSS feeds + NWS weather API in parallel
-2. **Extract article text** — For each story URL, download HTML → strip scripts/ads/navigation with BeautifulSoup → return first 6000 chars
-3. **Summarize** — Send raw text to `ollama.chat(model=QWEN_MODEL)` with system prompt: "output exactly 2-3 sentences, factual, no pleasantries, bold 3-5 key phrases"
-4. **Evaluate alerts** — Send (title + summary) to Qwen: "TRUE or FALSE if urgent alert" at temperature 0.0 for consistency
-5. **Write Markdown** — Assemble with YAML frontmatter → write to obsidian vault
+The script will:
+1. Collect news from RSS feeds
+2. Filter and deduplicate stories  
+3. Extract full article content
+4. Generate summaries using LLM
+5. Create markdown report with clean formatting
+6. Clean up old log and report files
 
-## Daily Workflow
+## Output Format
 
-1. Generate brief → `python dashboard_pipeline.py`
-2. Read in Obsidian (files go directly into your vault)
-3. Send brief content to AI agent manually (clipboard, file paste, or direct access)
-4. Agent reads for knowledge only — no transformation needed
+Generated markdown files in `news/` directory named like `DailyBrief-2026-07-12__20-26-28.md`
 
-## Troubleshooting
-
-| Problem | Likely cause | Fix |
-|---------|--------------|-----|
-| `ModuleNotFoundError: No module named 'feedparser'` | Missing pip deps | `pip install feedparser aiohttp beautifulsoup4 ollama` |
-| `Ollama is not running` or connection error | Ollama daemon down | Start Ollama app: `open -a Ollama` or `ollama serve &` |
-| `model not found` | Wrong model tag | Run `ollama list`, update `QWEN_MODEL` in script |
-| Feed returns zero entries | Google blocked / rate limit | Wait 10-30 min, retry. If persistent, add User-Agent header (already configured) |
-| Weather API returns null periods | Bad lat/lon or API outage | Verify lat/lon, check https://api.weather.gov documentation |
-| Summaries show "Summary unavailable" | RSS snippets contained embedded `<a href=...>` HTML links that passed length checks but had zero article content. BETA02 fixes: strip_html() on snippets, extract_article always runs for all stories (no length gate), 300-char minimum context for summaries |
-| Articles from days ago still appear | RSS pub dates unreliable. BETA02 adds AGE_LIMIT_HOURS=24 filter in dedup loop to drop stale articles |
-| Same story in multiple categories | Google News syndicates across categories. BETA02: per-category title normalization dedup prevents this |
-
-## File Naming Convention
-
-```
-DailyBrief-YYYY-MM-DD__HH-MM-SS.md
-Example: DailyBrief-2026-07-02__06-30-00.md
-```
-
-Each run creates a new file — no overwrites. Manual cleanup as needed.
-
-## Maintaining the Pipeline
-
-- **Update dependencies**: `pip install --upgrade feedparser aiohttp beautifulsoup4 ollama`
-- **Pull latest Ollama model**: `ollama pull qwen3.6-256k-agents:latest`
-- **Test individual feeds**: Set `test_categories = ["World News", "US News"]` in the script to run only a few for debugging
-- **Check output quality**: Open generated `.md` files in Obsidian and spot-check summaries vs source articles
-
-## Schedule (Future)
-
-Currently manual. Future options:
-- macOS cron: `0 6 * * * /path/to/run.sh`
-- Windows Task Scheduler + batch script
-- Python `schedule` library with cron-like loop
+Each file includes:
+- Title and metadata
+- Category sections with stories listed as numbered items  
+- Clean separation between categories using horizontal rules
+- Full date+time formatting for all posts
 
 ## Files
 
 ```
-Daily_Brief_v01/
-├── README.md               # This file — run/maintain instructions
-├── PROJECT.md              # Project purpose, architecture, status
-├── SUMMARY.md              # Version changelog
-├── ARCHITECTURE.md         # System design doc (detailed flows)
-└── dashboard_pipeline.py   # The main pipeline script
+dashboard_pipeline.py     # Main pipeline script
+config.py                 # Configuration settings
+requirements.txt          # Dependencies (if needed)
+README.md                 # This file
+news/                     # Output directory for reports  
+logs/                     # Log file directory
 ```
+
+## Contributing
+
+1. Fork the repository
+2. Create feature branch: `git checkout -b feature/your-feature`
+3. Commit changes: `git commit -am 'Add new feature'`  
+4. Push to branch: `git push origin feature/your-feature`
+5. Create pull request
+
+## License
+
+MIT License

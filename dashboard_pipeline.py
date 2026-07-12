@@ -22,6 +22,7 @@ import asyncio
 import aiohttp
 import feedparser
 from concurrent.futures import ThreadPoolExecutor
+from functools import cmp_to_key
 from bs4 import BeautifulSoup
 import ollama
 import sys
@@ -31,8 +32,6 @@ import os
 import time
 from email.utils import parsedate_to_datetime
 import threading
-from playwright.async_api import async_playwright
-from functools import cmp_to_key
 
 # Ollama client -- network server at GX10 Ollama
 _OLLAMA_HOST = "http://192.168.4.52:11434"
@@ -47,13 +46,6 @@ log_lock = threading.Lock()
 _executor = ThreadPoolExecutor(max_workers=3)
 
 # Browser pool for Playwright
-_browser_lock = None  # Used only at startup
-async def _get_browser():
-    """Singleton browser instance — created once, reused."""
-    if not hasattr(_get_browser, '_cache') or _get_browser._cache is None:
-        p = await async_playwright().start()
-        _get_browser._cache = await p.chromium.launch(headless=True)
-    return _get_browser._cache
 
 # Configuration: only include stories within last 24 hours (default)
 DEFAULT_AGE_LIMIT_HOURS = 24
@@ -80,8 +72,11 @@ def log(msg):
 
 # -- CONFIGURATION ----------------------------------------------------------
 
-LLM_MODEL = "gemma4:e2b"
-OUTPUT_DIR = "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/"
+import config
+LLM_MODEL = config.LLM_MODEL
+LOG_DIR = config.LOG_DIR
+NEWS_DIR = config.NEWS_DIR
+OUTPUT_DIR = config.NEWS_DIR  # For backwards compatibility with existing code
 WEATHER_LAT = "30.38"
 WEATHER_LON = "-95.69"
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
@@ -107,18 +102,12 @@ CATEGORIES = [
 ]
 
 SUMMARY_PROMPT = (
-    "You are an objective news editor. Write exactly 2-3 sentences summarizing the key facts of this article: "
+    "You are an objective news editor. Write a detailed summary of at least 3 sentences covering the key facts of this article: "
     "what happened, who was involved, when and where.\n\n"
     "Be neutral - no opinions, predictions, or editorializing."
 )
 
-ALERT_PROMPT = (
-    "You are a news classifier. Judge if this brief story deserves an urgent alert:\n\n"
-    "1. Extreme weather: hurricane, tornado, flood, freeze - esp Houston/Texas/77316\n"
-    "2. Major breakthroughs from OpenAI, Anthropic, SpaceX, OpenCode, Hermes Agent\n"
-    "3. Critical economic disruption, geopolitical crisis, infrastructure failure\n\n"
-    "Respond with exactly ONE word: TRUE or FALSE. Nothing else."
-)
+
 
 RSS_BASE = "https://news.google.com/rss/search?q="
 RSS_PARAMS = "&hl=en-US&gl=US&ceid=US:en"
@@ -153,9 +142,11 @@ def parse_feed_date(entry):
     except Exception:
         pass
     stripped = raw_date.strip()
+    tz_chi = ZoneInfo("America/Chicago")
     for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
         try:
-            return datetime.strptime(stripped, fmt)
+            result = datetime.strptime(stripped, fmt)
+            return result.replace(tzinfo=tz_chi)
         except ValueError:
             continue
     return None
@@ -167,10 +158,12 @@ def format_pub_date(raw):
         return None
     if isinstance(raw, datetime):
         tz = raw.strftime("%Z") if raw.tzinfo else ""
-        return raw.strftime(f"%Y-%m-%d {tz}").strip()
+        # Show full datetime instead of just date
+        return raw.strftime(f"%Y-%m-%d %H:%M:%S {tz}").strip()
     stripped = raw.strip()
     if len(stripped) >= 10 and stripped[:4].isdigit():
-        return stripped[:10]
+        # Show the entire datetime, not just date part
+        return stripped
     return stripped[:40]
 
 
@@ -217,34 +210,6 @@ async def fetch_feed(session, name, rss_url, max_stories):
         log(f"  WARNING {name}: feed fetch failed ({e})")
         return (name, [])
 
-
-async def extract_article(session, url):
-    """Extract article text using Playwright for JS-rendered pages (including Google News tracking URL redirects)."""
-    if not url or url == "#" or not url.strip():
-        return ""
-    
-    # If it's a Google tracking URL, skip — not a real publisher page.
-    # The title + snippet from the RSS feed will be used instead for summarization.
-    if "news.google.com/rss/articles/" in url:
-        return ""
-    
-    # For non-Google URLs, fall through to existing aiohttp logic
-    try:
-        async with session.get(url, headers={"User-Agent": USER_AGENT}, timeout=25) as resp:
-            html = await resp.text()
-        if resp.status != 200:
-            return ""
-        soup = BeautifulSoup(html, "html.parser")
-        for tag in soup(["script", "style", "nav", "footer", "header", "aside", "form"]):
-            tag.extract()
-        chunks = [t.get_text(separator=" ", strip=True) for t in soup.find_all(["p", "h1", "h2", "h3"])]
-        text = " ".join(chunks).strip()
-        return text if len(text) > 40 else ""
-    except Exception as e:
-        log(f"  [extract FAILED] '{url[:80]}...': {e}")
-        return ""
-
-
 async def fetch_weather(session, lat, lon):
     try:
         async with session.get(f"https://api.weather.gov/points/{lat},{lon}", headers={"User-Agent": USER_AGENT}, timeout=10) as resp:
@@ -275,7 +240,7 @@ def _summarize(context, min_chars=100):
                     {"role": "system", "content": SUMMARY_PROMPT},
                     {"role": "user", "content": context[:6000]}
                 ],
-                options={"temperature": 0.3, "top_p": 0.8, "num_ctx": 4096}
+                options={"temperature": 0.3, "top_p": 0.8, "num_ctx": 8192}
             )
             log(f"SUMMARIZE: {time.time() - t0:.2f}s")
             return r["message"]["content"].strip().split('\n')[0].strip()
@@ -288,28 +253,7 @@ def _summarize(context, min_chars=100):
     return None
 
 
-def _evaluate_alert(title, summary):
-    """Blocking alert eval call with retry."""
-    for attempt in range(2):
-        try:
-            t0 = time.time()
-            r = _llm_client.chat(
-                model=LLM_MODEL,
-                messages=[
-                    {"role": "system", "content": ALERT_PROMPT},
-                    {"role": "user", "content": f"{title}\n---\n{summary}"[:1200]}
-                ],
-                options={"temperature": 0.1, "top_p": 0.3, "num_ctx": 4096}
-            )
-            log(f"ALERT: {time.time() - t0:.2f}s")
-            return r["message"]["content"].strip().upper() == "TRUE"
-        except Exception as e:
-            if attempt == 0:
-                log(f"ALERT attempt 1 failed ({e}), retrying 3s...")
-                time.sleep(3)
-            else:
-                log(f"ALERT ERROR (final): {e}")
-    return False
+
 
 
 def _run_blocking(fn, *args):
@@ -320,7 +264,7 @@ def _run_blocking(fn, *args):
 # -- Stage workers (for parallel phase 3) -----------------------------------
 
 class StoryPipelineState:
-    __slots__ = ("title", "link", "snippet", "category", "pub_dt", "context", "summary", "is_alert", "_batch_context", "_alert_idx")
+    __slots__ = ("title", "link", "snippet", "category", "pub_dt", "context", "summary")
 
     def __init__(self, title, link, snippet, pub_dt, category):
         self.title = title
@@ -330,22 +274,29 @@ class StoryPipelineState:
         self.pub_dt = pub_dt
         self.context = None
         self.summary = None
-        self.is_alert = False
-        self._batch_context = None
-        self._alert_idx = None
+
 
 
 async def stage_extract_article(story, session):
-    """Phase 3A: Fetch full article text from source URL for summary context."""
+    """Phase 3A: Fetch full article text from source URL for summary context when link is an external publisher URL."""
     url = story.link.strip()
     if not url or url == "#" or url.startswith("#"):
         return
-    # Skip Google News links as they're tracking IDs (no real content) - we will extract them differently
-    # We now handle them in the main extraction function that uses Playwright
+    # Skip Google News tracking URLs
+    if "news.google.com" in url:
+        return
     try:
-        result = await extract_article(session, url)
-        if result:
-            story.context = result
+        async with session.get(url, headers={"User-Agent": USER_AGENT}, timeout=5) as resp:
+            html = await resp.text()
+        soup = BeautifulSoup(html, "html.parser")
+        # Remove script/style/noise elements
+        for tag in soup(["script", "style", "nav", "header", "footer", "aside"]):
+            tag.decompose()
+        text = soup.get_text(separator=" ", strip=True)
+        # Strip whitespace and cap context size
+        text = " ".join(text.split())[:600]
+        if len(text) >= 50:  # Only update if we got meaningful content
+            story.context = text
     except Exception as e:
         log(f"  [extract error] '{story.title[:60]}...': {e}")
 
@@ -377,11 +328,11 @@ def batch_summarize_all(stories, session=None):
     all_summaries = {}
     
     # System prompt (same as before but simplified - no STORY_X format since we do per-category batches)
-    SYSTEM_BATCH = ("You are a news summarization engine. For each story I list, produce exactly 2-3 sentences:\n"
+    SYSTEM_BATCH = ("You are a news summarization engine. For each story I list, produce a detailed summary of at least 3 sentences:\n"
                     "What happened, who was involved, when and where.\n\n"
                     "For EACH story numbered below (1., 2., 3., etc.), reply with one line in this EXACT format:\n"
-                    "1: <your 2-3 sentence summary>\n"
-                    "2: <your 2-3 sentence summary>\n"
+                    "1: <your summary>\n"
+                    "2: <your summary>\n"
                     "\nRequirements:\n"
                     "- Start directly with '1:' (no preamble)\n"
                     "- Each story gets exactly one line starting with the numbered tag\n"  
@@ -414,7 +365,7 @@ def batch_summarize_all(stories, session=None):
                     {"role": "system", "content": SYSTEM_BATCH},
                     {"role": "user", "content": batch_text}
                 ],
-                options={"temperature": 0.3, "top_p": 0.8, "num_ctx": 8192}
+                options={"temperature": 0.3, "top_p": 0.8, "num_ctx": 16384}
             )
             elapsed = time.time() - t0
             log(f"BATCH SUMMARIZE ({cat_name}, {len(cat_stories)} stories): {elapsed:.1f}s")
@@ -448,43 +399,6 @@ def batch_summarize_all(stories, session=None):
                 s.summary = f"[Headline] {s.title}"
     
     return all_summaries
-
-
-def parse_batch_response(response, expected_count):
-    """Parse numbered batch response into dict mapping index → summary string.
-    
-    Handles output like:
-    STORY_0: France and Spain are preparing...
-    STORY_1: President Trump has ordered...
-    ...
-    """
-    summaries = {}
-    for line in response.split('\n'):
-        line = line.strip()
-        # Match STORY_<number>: or <number>: patterns
-        if line.startswith('STORY_'):
-            try:
-                idx_str = line.split(':')[0].replace('STORY_', '')
-                idx = int(idx_str)
-                summary = ':'.join(line.split(':', 1))[1:].strip()  # Everything after "STORY_N:"
-                summaries[idx] = summary.strip()
-            except (ValueError, IndexError):
-                pass
-        else:
-            # Fallback: <number>:. <text>
-            parts = line.split(':', 1)
-            if len(parts) == 2 and parts[0].strip().isdigit():
-                idx = int(parts[0].strip())
-                summaries[idx] = parts[1].strip()
-    
-    # Fill any missing indices with fallback based on title+context
-    for idx in range(expected_count):
-        if idx not in summaries:
-            # Try to find the story's index by matching snippet in available output
-            log(f"  [parse gap] STORY {idx} — no response line, using headline fallback")
-            summaries[idx] = f"[Summary unavailable]"
-    
-    return summaries
 
 
 def batch_evaluate_alerts(stories):
@@ -568,7 +482,15 @@ def batch_evaluate_alerts(stories):
                     for s in cat_stories:
                         s.is_alert = False
     
-    return {}
+    # Build return dict mapping global index → bool for all stories
+    alert_index = {}
+    for i, s in enumerate(stories):
+        if hasattr(s, "is_alert"):
+            alert_index[i] = s.is_alert
+        else:
+            alert_index[i] = False
+    
+    return alert_index
 
 
 def parse_alert_batch_response(response):
@@ -615,6 +537,24 @@ async def main():
     now_ts = datetime.now(timezone.utc).strftime("%Y-%m-%d__%H-%M-%S")
     global RUN_LOGFILE, OUTPUT_DIR
     RUN_LOGFILE = os.path.join(LOG_DIR, f"run_log_{now_ts}.md")
+    
+    # Cleanup old log files (keep only MAX_VERSIONS most recent)
+    if 'MAX_VERSIONS' in dir(config) and config.MAX_VERSIONS > 0:
+        try:
+            # Ensure LOG_DIR exists before trying to list it
+            os.makedirs(LOG_DIR, exist_ok=True)
+            log_files = [f for f in os.listdir(LOG_DIR) 
+                        if f.startswith('run_log_') and f.endswith('.md')]
+            log_files.sort(reverse=True)  # Newest first
+            
+            # Remove files exceeding MAX_VERSIONS limit
+            files_to_remove = log_files[config.MAX_VERSIONS:]
+            for old_file in files_to_remove:
+                os.remove(os.path.join(LOG_DIR, old_file))
+                log(f"Removed old log file: {old_file}")
+        except Exception as e:
+            print(f"Warning: Could not cleanup old log files: {e}")
+    
     # Create the log directory if needed and verify it exists
     os.makedirs(LOG_DIR, exist_ok=True)
     
@@ -629,16 +569,20 @@ async def main():
 
     async with aiohttp.ClientSession(
         connector=aiohttp.TCPConnector(limit=100, limit_per_host=30, ttl_dns_cache=300),
-        headers={"User-Agent": USER_AGENT}
+        headers={"User-Agent": USER_AGENT},
+        timeout=aiohttp.ClientTimeout(total=30)
     ) as session:
 
         # ---------- Phase 1: Weather (async) ----------
         log("\n[Phase 1] Fetching NWS weather...")
+        t1 = time.time()
         weather = await fetch_weather(session, WEATHER_LAT, WEATHER_LON)
         if weather:
             log(f"  Weather OK -- {len(weather)} periods")
         else:
             log("  Weather returned empty")
+        elapsed = time.time() - t1
+        log(f"  Phase 1 completed in {elapsed:.2f}s")
 
         # ---------- Phase 2: RSS feeds (all async, concurrent) ----------
         rss_items = [(c[0], build_rss_url(c[1]), c[2]) for c in CATEGORIES if c[1]]
@@ -740,7 +684,7 @@ async def main():
         for cn in sorted(cat_counts.keys()):
             log(f"    {cn}: {cat_counts[cn]}")
 
-        # ---------- Phase 3: Summarization + Alerts (single batch calls) ----------
+        # ---------- Phase 3: Summarization (single batch call) ----------
         log("\n[Phase 3] Enriching + summarizing...")
 
         stories = []
@@ -770,18 +714,15 @@ async def main():
         sum_fail = total - sum_ok
         log(f"  Summaries done: {sum_ok} OK / {sum_fail} failed")
 
-        # ---------- Phase 3C: Batch alert evaluation (single Ollama call) ----------
-        log("  [3C] Evaluating alerts in BATCH...")
-        alert_results = batch_evaluate_alerts(stories)
-        alert_count = sum(1 for s in stories if s.is_alert)
-        log(f"  Alerts flagged: {alert_count}")
         log(f"\n  PROCESSING COMPLETE: {total} stories in {time.time() - t0:.2f}s")
 
         # ---------- Phase 4: Build sections + render Markdown ----------
         log("\n[Phase 4] Rendering report...")
 
+        # Build the alerts list for final stats display
+        alerts_list = [s for s in stories if hasattr(s, 'is_alert') and s.is_alert]
+        
         sections = {}
-        alerts_list = []
         for s in stories:
             smry = s.summary if s.summary else "[Summary unavailable]"
             entry = {
@@ -789,17 +730,31 @@ async def main():
                 "link": s.link,
                 "category": s.category,
                 "summary": smry,
-                "is_alert": s.is_alert,
                 "pub_date": format_pub_date(s.pub_dt),
             }
             sections.setdefault(s.category, []).append(entry)
-            if s.is_alert:
-                alerts_list.append(entry)
 
         now = datetime.now(timezone.utc)
         fn_ts = now.strftime("%Y-%m-%d__%H-%M-%S")
         filepath = os.path.join(OUTPUT_DIR, f"DailyBrief-{fn_ts}.md")
         os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+        # Cleanup old DailyBrief files (keep only MAX_VERSIONS most recent)
+        if 'MAX_VERSIONS' in dir(config) and config.MAX_VERSIONS > 0:
+            try:
+                # Ensure OUTPUT_DIR exists before trying to list it
+                os.makedirs(OUTPUT_DIR, exist_ok=True)
+                daily_brief_files = [f for f in os.listdir(OUTPUT_DIR) 
+                                   if f.startswith('DailyBrief-') and f.endswith('.md')]
+                daily_brief_files.sort(reverse=True)  # Newest first
+                
+                # Remove files exceeding MAX_VERSIONS limit
+                files_to_remove = daily_brief_files[config.MAX_VERSIONS:]
+                for old_file in files_to_remove:
+                    os.remove(os.path.join(OUTPUT_DIR, old_file))
+                    log(f"Removed old DailyBrief file: {old_file}")
+            except Exception as e:
+                print(f"Warning: Could not cleanup old DailyBrief files: {e}")
 
         ordered_cats = [c[0] for c in CATEGORIES if c[1]]
         sections_map = {cn: sections.get(cn, []) for cn in ordered_cats}
@@ -818,15 +773,7 @@ async def main():
         md.append("")
         md.append(f"# Daily Brief -- {now.strftime('%B %d, %Y')}")
 
-        # High-Priority Bulletins
-        if alerts_list:
-            md += ["", "---", "", "## HIGH-PRIORITY BULLETINS"]
-            for a in alerts_list:
-                pub_line = f"\n*Originally published on: {a['pub_date']}*" if a.get("pub_date") else ""
-                md.append("")
-                md.append(f"### [{a['title']}]({a['link']})")
-                md.append(a["summary"] + pub_line)
-                md.append(f"*Category: {a['category']}*")
+
 
         # Category sections
         for cn in ordered_cats:
@@ -838,8 +785,12 @@ async def main():
                 link_md = f"[{title_text}]({url_val})" if url_val and url_val != "#" else title_text
                 pub_line = f"\n*Originally published on: {st['pub_date']}*" if st.get("pub_date") else ""
                 md.append("")
-                md.append(f"### {idx + 1}. {link_md}")
+                # Remove the H3 header for cleaner look, use regular text instead
+                md.append(f"{idx + 1}. {link_md}")
                 md.append(st["summary"] + pub_line)
+            
+            # Add horizontal rule between categories
+            md.append("---")
 
         with open(filepath, "w", encoding="utf-8") as fh:
             fh.write("\n".join(md) + "\n")

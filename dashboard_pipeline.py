@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
-Daily Brief Pipeline v0.2.5-BETA12
-===================================
+Daily Brief Pipeline v1.0.0
+============================
+Full working base model.
+
 BETA07: RSS snippets as primary summary context; headline fallback for low-context.
 BETA08: BATCH summarization — single Ollama call processes all 40-90 stories at once (2.5x speedup over individual calls). 
         ARTICLE EXTRACTION REMOVED — Google News provides only internal article IDs, not real publisher URLs.

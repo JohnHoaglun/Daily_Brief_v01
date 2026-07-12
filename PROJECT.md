@@ -67,4 +67,4 @@ python dashboard_pipeline.py
 
 ## Current Status
 
-- v0.2.5-BETA12 (current): Doc updates aligned to BETA11 baseline. RSS entries sorted by pub_date descending before taking top N. Local feeds get 48h age window via CATEGORY_AGE_LIMITS dict. Per-category batching prevents context overflow. Model: gemma4:e2b (~8x faster than Qwen).
+- v1.0.0: Final release of base model. All features working correctly with documented configurations.

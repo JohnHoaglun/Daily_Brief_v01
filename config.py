@@ -64,37 +64,65 @@ os.makedirs(NEWS_DIR, exist_ok=True)
 # Version
 VERSION = config_dict.get('VERSION', '1.0.0')
 
-# Process CATEGORIES manually since import approach is unreliable in current script
-CATEGORIES = [
-    ("World News", "world+news", 10),
-    ("US News", "us+news", 10),
-    ("Texas News", "Texas+news", 5),
-    ("Conroe TX News", "Conroe+TX", 5),
-    ("Montgomery County TX News", "Montgomery+County+TX", 5)
-]
+# Process CATEGORIES from config.txt - parse dictionary manually since it's in the file
+CATEGORIES = []
 
-# Other settings from config
-CATEGORY_SETTINGS = {
-    "World News": {"max_stories": 10, "min_age_hours": 24},
-    "US News": {"max_stories": 10, "min_age_hours": 24},
-    "Texas News": {"max_stories": 5, "min_age_hours": 24},
-    "Conroe TX News": {"max_stories": 5, "min_age_hours": 24},
-    "Montgomery County TX News": {"max_stories": 5, "min_age_hours": 24},
-    "Weather Forecast 77316": {"max_stories": 1, "min_age_hours": 8},
-    "Houston Tropical Weather": {"max_stories": 1, "min_age_hours": 24},
-    "Market News": {"max_stories": 5, "min_age_hours": 24},
-    "Semiconductors": {"max_stories": 5, "min_age_hours": 24},
-    "Big Tech": {"max_stories": 5, "min_age_hours": 24},
-    "Artificial Intelligence": {"max_stories": 5, "min_age_hours": 24},
-    "OpenAI News": {"max_stories": 5, "min_age_hours": 24},
-    "Anthropic News": {"max_stories": 5, "min_age_hours": 24},
-    "SpaceX News": {"max_stories": 5, "min_age_hours": 24},
-    "Andrej Karpathy Activity": {"max_stories": 5, "min_age_hours": 24},
-    "Hermes Agent News": {"max_stories": 5, "min_age_hours": 24}
-}
+# Parse CATEGORIES from the config file
+category_lines = []
+in_categories_block = False
+with open("config.txt", "r") as f:
+    content = f.read()
+    
+# We need to specifically look for the CATEGORIES block
+for line in content.split('\n'):
+    if line.strip().startswith('CATEGORIES = {'):
+        in_categories_block = True
+        continue
+    elif in_categories_block and line.strip() == '}':
+        break
+    elif in_categories_block and line.strip() and not line.strip().startswith('#'):
+        # Look for key-value pairs in the CATEGORIES section
+        if ':' in line:
+            category_name = line.split(':')[0].strip().strip('"\'')
+            # Look for max_stories value 
+            max_stories_match = re.search(r'"max_stories":\s*(\d+)', line)
+            if max_stories_match:
+                max_stories = int(max_stories_match.group(1))
+                CATEGORIES.append((category_name, "", max_stories))  # query="" for now, will be populated in pipeline
 
-MAX_STORIES_PER_CATEGORY = 10
-DEDUPE_WINDOW_HOURS = 24
+# Also pull CATEGORY_SETTINGS as a dict
+CATEGORY_SETTINGS = {}
+category_settings_start = False
+with open("config.txt", "r") as f:
+    content = f.read()
+    
+for line in content.split('\n'):
+    if line.strip().startswith('CATEGORY_SETTINGS = {'):
+        category_settings_start = True
+        continue
+    elif category_settings_start and line.strip() == '}':
+        break
+    elif category_settings_start and line.strip() and not line.strip().startswith('#') and ':' in line:
+        # Extract key (category name)
+        if '"' in line:
+            category_name_match = re.search(r'"([^"]+)"', line)
+            if category_name_match:
+                category_name = category_name_match.group(1)
+                # Extract max_stories and min_age_hours
+                max_stories_match = re.search(r'max_stories.*?(\d+)', line)
+                min_age_match = re.search(r'min_age_hours.*?(\d+)', line)
+                
+                if max_stories_match and min_age_match:
+                    max_stories = int(max_stories_match.group(1))
+                    min_age = int(min_age_match.group(1))
+                    CATEGORY_SETTINGS[category_name] = {"max_stories": max_stories, "min_age_hours": min_age}
+
+MAX_STORIES_PER_CATEGORY = int(config_dict.get('MAX_STORIES_PER_CATEGORY', 10))
+DEDUPE_WINDOW_HOURS = int(config_dict.get('DEDUPE_WINDOW_HOURS', 24))
+
+# RSS Feed Settings 
+RSS_BASE = config_dict.get('RSS_BASE', 'https://news.google.com/rss/search?q=')
+RSS_PARAMS = config_dict.get('RSS_PARAMS', '&hl=en-US&gl=US&ceid=US:en')
 
 # Make sure all variables are available in global namespace for module imports 
 globals().update(locals())

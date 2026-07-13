@@ -2,6 +2,7 @@
 """
 Daily Brief Pipeline v1.0.0
 ============================
+
 Full working base model.
 
 BETA07: RSS snippets as primary summary context; headline fallback for low-context.
@@ -35,12 +36,25 @@ import time
 from email.utils import parsedate_to_datetime
 import threading
 
+# Load configuration at the top to avoid import issues
+# We import config after defining all the necessary functions and constants
+# Then set all values from config properly
+
+# The main fix: properly load config at the beginning and only once
+# Avoid circular imports and make sure all configuration is loaded before we start doing work
+from config import *
+
 # Ollama client -- network server at GX10 Ollama
-_OLLAMA_HOST = "http://192.168.4.52:11434"
+_OLLAMA_HOST = OLLAMA_HOST if 'OLLAMA_HOST' in globals() else "http://192.168.4.52:11434"
 _llm_client = ollama.Client(host=_OLLAMA_HOST, timeout=180)
 
+# Pull configuration values after importing config
+LLM_MODEL = LLM_MODEL if 'LLM_MODEL' in globals() else 'gemma4-e2b-64k-utility:latest'
+LOG_DIR = LOG_DIR if 'LOG_DIR' in globals() else '/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/logs'
+NEWS_DIR = NEWS_DIR if 'NEWS_DIR' in globals() else '/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/news'
+OUTPUT_DIR = NEWS_DIR  # For backwards compatibility with existing code
+
 # Log file lives in the logs directory inside Obsidian vault (unique .md per run)
-LOG_DIR = "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/logs"
 RUN_LOGFILE = None   # set dynamically at start of each run as .md
 log_lock = threading.Lock()
 
@@ -56,6 +70,9 @@ CATEGORY_AGE_LIMITS = {
     "Montgomery County TX News": 48,
     "Houston Tropical Weather": 48,
 }
+
+# Timing measurements for phase breakdowns
+PHASE_TIMINGS = {}
 
 
 def log(msg):
@@ -74,45 +91,47 @@ def log(msg):
 
 # -- CONFIGURATION ----------------------------------------------------------
 
-import config
-LLM_MODEL = config.LLM_MODEL
-LOG_DIR = config.LOG_DIR
-NEWS_DIR = config.NEWS_DIR
-OUTPUT_DIR = config.NEWS_DIR  # For backwards compatibility with existing code
-WEATHER_LAT = "30.38"
-WEATHER_LON = "-95.69"
+WEATHER_LAT = WEATHER_LAT if 'WEATHER_LAT' in globals() else "30.38"
+WEATHER_LON = WEATHER_LON if 'WEATHER_LON' in globals() else "-95.69"
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
 
-CATEGORIES = [
-    ("World News",              "world+news",                 10),
-    ("US News",                 "US+news",                    10),
-    ("Texas News",              "Texas+news",                   5),
-    ("Conroe TX News",          "news+Conroe+TX",               5),
-    ("Montgomery County TX News", "Montgomery+County+TX",       5),
-    ("Weather Forecast 77316",  None,                           0),
-    ("Houston Tropical Weather","Houston+hurricane+tropical",   5),
-    ("Market News",             "stock+market+economy",          5),
-    ("Semiconductors",          "semiconductor+chip+industry",   5),
-    ("Big Tech",                "big+tech",                      5),
-    ("Artificial Intelligence","artificial+intelligence+LLM",   5),
-    ("OpenAI News",             "OpenAI",                        5),
-    ("Anthropic News",          "Anthropic",                     5),
-    ("SpaceX News",             "SpaceX",                        5),
-    ("OpenCode News",           "opencode+ai",                   5),
-    ("Hermes Agent News",       "hermes+agent",                  5),
-    ("Andrej Karpathy Activity","Andrej Karpathy",               5),
-]
+# Load categories from config if available and correctly processed
+if 'CATEGORIES' in globals() and CATEGORIES:
+    # If CATEGORIES is provided in config, use it directly
+    pass  # Already loaded via config.py
+else:
+    # Fallback to hardcoded categories (in case config doesn't have them)
+    CATEGORIES = [
+        ("World News",              "world+news",                 10),
+        ("US News",                 "US+news",                    10),
+        ("Texas News",              "Texas+news",                   5),
+        ("Conroe TX News",          "news+Conroe+TX",               5),
+        ("Montgomery County TX News", "Montgomery+County+TX",       5),
+        ("Weather Forecast 77316",  None,                           0),
+        ("Houston Tropical Weather","Houston+hurricane+tropical",   5),
+        ("Market News",             "stock+market+economy",          5),
+        ("Semiconductors",          "semiconductor+chip+industry",   5),
+        ("Big Tech",                "big+tech",                      5),
+        ("Artificial Intelligence","artificial+intelligence+LLM",   5),
+        ("OpenAI News",             "OpenAI",                        5),
+        ("Anthropic News",          "Anthropic",                     5),
+        ("SpaceX News",             "SpaceX",                        5),
+        ("OpenCode News",           "opencode+ai",                   5),
+        ("Hermes Agent News",       "hermes+agent",                  5),
+        ("Andrej Karpathy Activity","Andrej Karpathy",               5),
+    ]
 
+# RSS configuration from config
+RSS_BASE = RSS_BASE if 'RSS_BASE' in globals() else "https://news.google.com/rss/search?q="
+RSS_PARAMS = RSS_PARAMS if 'RSS_PARAMS' in globals() else "&hl=en-US&gl=US&ceid=US:en"
+
+# Timezone from config
+TIMEZONE = TIMEZONE if 'TIMEZONE' in globals() else 'America/Chicago'
 SUMMARY_PROMPT = (
     "You are an objective news editor. Write a detailed summary of at least 3 sentences covering the key facts of this article: "
     "what happened, who was involved, when and where.\n\n"
     "Be neutral - no opinions, predictions, or editorializing."
 )
-
-
-
-RSS_BASE = "https://news.google.com/rss/search?q="
-RSS_PARAMS = "&hl=en-US&gl=US&ceid=US:en"
 
 
 def strip_html(html_text):
@@ -259,6 +278,7 @@ def _summarize(context, min_chars=100):
 
 
 def _run_blocking(fn, *args):
+    """Run a blocking function in the thread pool executor."""
     loop = asyncio.get_event_loop()
     return loop.run_in_executor(_executor, fn, *args)
 
@@ -276,7 +296,6 @@ class StoryPipelineState:
         self.pub_dt = pub_dt
         self.context = None
         self.summary = None
-
 
 
 async def stage_extract_article(story, session):
@@ -518,6 +537,35 @@ def parse_alert_batch_response(response):
     return results
 
 
+def tag_story_with_keywords(story_title):
+    """Generate meaningful tags for a story based on its title."""
+    # Keywords mapping to tags
+    keywords_to_tags = {
+        'AI': ['artificial intelligence', 'machine learning', 'neural network', 'llm', 'transformer'],
+        'tech': ['technology', 'digital', 'software', 'programming'],
+        'economy': ['economy', 'market', 'finance', 'stock', 'invest', 'trade'],
+        'weather': ['weather', 'climate', 'storm', 'rain', 'snow','hurricane','tornado'],
+        'politics': ['election', 'government', 'politic', 'policy', 'congress', 'senate'],
+        'science': ['science', 'research', 'discovery', 'study', 'experiment'],
+        'health': ['health', 'medical', 'hospital', 'doctor', 'treatment', 'vaccine'],
+        'space': ['space', 'rocket', 'astronaut', 'nasa', 'mission']
+    }
+    
+    # Convert title to lowercase for matching
+    title_lower = story_title.lower()
+    
+    tags = []
+    for tag, keywords in keywords_to_tags.items():
+        if any(keyword in title_lower for keyword in keywords):
+            tags.append(f"#{tag}")
+    
+    # If no tags found, return a default tag
+    if not tags:
+        tags.append("#news")
+        
+    return " ".join(tags)
+
+
 def is_realt_estate_title(title):
     """Check if a title contains real estate markers that should be filtered out."""
     if not title:
@@ -533,36 +581,27 @@ def is_realt_estate_title(title):
 # -- Main -------------------------------------------------------------------
 
 async def main():
+    global PHASE_TIMINGS
+    PHASE_TIMINGS = {}
+    
     t0 = time.time()
     
     # Unique log file per run (same convention as markdown output)
-    now_ts = datetime.now(timezone.utc).strftime("%Y-%m-%d__%H-%M-%S")
+    now_ts = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     global RUN_LOGFILE, OUTPUT_DIR
-    RUN_LOGFILE = os.path.join(LOG_DIR, f"run_log_{now_ts}.md")
     
-    # Cleanup old log files (keep only MAX_VERSIONS most recent)
-    if 'MAX_VERSIONS' in dir(config) and config.MAX_VERSIONS > 0:
-        try:
-            # Ensure LOG_DIR exists before trying to list it
-            os.makedirs(LOG_DIR, exist_ok=True)
-            log_files = [f for f in os.listdir(LOG_DIR) 
-                        if f.startswith('run_log_') and f.endswith('.md')]
-            log_files.sort(reverse=True)  # Newest first
-            
-            # Remove files exceeding MAX_VERSIONS limit
-            files_to_remove = log_files[config.MAX_VERSIONS:]
-            for old_file in files_to_remove:
-                os.remove(os.path.join(LOG_DIR, old_file))
-                log(f"Removed old log file: {old_file}")
-        except Exception as e:
-            print(f"Warning: Could not cleanup old log files: {e}")
+    # Count existing files for the same date to get correct increment
+    log_files = [f for f in os.listdir(LOG_DIR) if f.startswith('run_log_' + now_ts) and f.endswith('.md')]
+    file_count = len(log_files) + 1  # Start from v01
     
-    # Create the log directory if needed and verify it exists
-    os.makedirs(LOG_DIR, exist_ok=True)
+    # Format with proper naming convention
+    run_log_name = f"run_log_{now_ts}_v{file_count:02d}.md"
+    RUN_LOGFILE = os.path.join(LOG_DIR, run_log_name)
     
+    # Log startup
     log("=" * 60)
     log(f"RUN LOG: {RUN_LOGFILE}")
-    log("DAILY BRIEF v0.2.5-BETA12 - Pipeline Starting")
+    log("DAILY BRIEF v" + VERSION + " - Pipeline Starting")
     log("=" * 60)
 
     # Track age threshold
@@ -584,11 +623,13 @@ async def main():
         else:
             log("  Weather returned empty")
         elapsed = time.time() - t1
+        PHASE_TIMINGS['Phase 1'] = elapsed
         log(f"  Phase 1 completed in {elapsed:.2f}s")
 
         # ---------- Phase 2: RSS feeds (all async, concurrent) ----------
         rss_items = [(c[0], build_rss_url(c[1]), c[2]) for c in CATEGORIES if c[1]]
         log(f"\n[Phase 2] Fetching {len(rss_items)} RSS feeds...")
+        t2 = time.time()
         
         # DEBUG: Show all categories we're actually going to fetch
         log("  [DEBUG] Categories being fetched:")
@@ -686,6 +727,10 @@ async def main():
         for cn in sorted(cat_counts.keys()):
             log(f"    {cn}: {cat_counts[cn]}")
 
+        elapsed = time.time() - t2
+        PHASE_TIMINGS['Phase 2'] = elapsed
+        log(f"  Phase 2 completed in {elapsed:.2f}s")
+
         # ---------- Phase 3: Summarization (single batch call) ----------
         log("\n[Phase 3] Enriching + summarizing...")
 
@@ -711,10 +756,15 @@ async def main():
 
         # ---------- Phase 3B/3C: Batch summary (single Ollama call for all stories) ----------
         log("  [3BC] Running BATCH summaries via Qwen...")
+        t3 = time.time()
         sum_results = batch_summarize_all(stories, session)
         sum_ok = sum(1 for s in stories if s.summary is not None and not s.summary.startswith("[Summary"))
         sum_fail = total - sum_ok
         log(f"  Summaries done: {sum_ok} OK / {sum_fail} failed")
+        
+        elapsed = time.time() - t3
+        log(f"  Phase 3 completed in {elapsed:.2f}s")
+        PHASE_TIMINGS['Phase 3'] = elapsed
 
         log(f"\n  PROCESSING COMPLETE: {total} stories in {time.time() - t0:.2f}s")
 
@@ -737,12 +787,18 @@ async def main():
             sections.setdefault(s.category, []).append(entry)
 
         now = datetime.now(timezone.utc)
-        fn_ts = now.strftime("%Y-%m-%d__%H-%M-%S")
-        filepath = os.path.join(OUTPUT_DIR, f"DailyBrief-{fn_ts}.md")
+        fn_ts = now.strftime("%Y-%m-%d")
+        
+        # Count existing files for the same date to get correct increment
+        daily_brief_files = [f for f in os.listdir(OUTPUT_DIR) if f.startswith('DailyBrief-' + fn_ts) and f.endswith('.md')]
+        file_count = len(daily_brief_files) + 1  # Start from v01
+        
+        # Format with proper naming convention  
+        filepath = os.path.join(OUTPUT_DIR, f"DailyBrief-{fn_ts}_v{file_count:02d}.md")
         os.makedirs(OUTPUT_DIR, exist_ok=True)
 
         # Cleanup old DailyBrief files (keep only MAX_VERSIONS most recent)
-        if 'MAX_VERSIONS' in dir(config) and config.MAX_VERSIONS > 0:
+        if 'MAX_VERSIONS' in globals() and MAX_VERSIONS > 0:
             try:
                 # Ensure OUTPUT_DIR exists before trying to list it
                 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -751,7 +807,7 @@ async def main():
                 daily_brief_files.sort(reverse=True)  # Newest first
                 
                 # Remove files exceeding MAX_VERSIONS limit
-                files_to_remove = daily_brief_files[config.MAX_VERSIONS:]
+                files_to_remove = daily_brief_files[MAX_VERSIONS:]
                 for old_file in files_to_remove:
                     os.remove(os.path.join(OUTPUT_DIR, old_file))
                     log(f"Removed old DailyBrief file: {old_file}")
@@ -771,6 +827,11 @@ async def main():
         md.append("content_age_window: 24 hours")
         md.append(f"story_count_total: {total_after_dedup}")
         md.append("categories: 17")
+        # Add tags for each news brief
+        md.append("tags:")
+        md.append("  - daily-brief")
+        md.append("  - news-summary")
+        md.append("  - ai-generated")
         md.append("---")
         md.append("")
         md.append(f"# Daily Brief -- {now.strftime('%B %d, %Y')}")
@@ -785,11 +846,14 @@ async def main():
                 title_text = st["title"]
                 url_val = st["link"]
                 link_md = f"[{title_text}]({url_val})" if url_val and url_val != "#" else title_text
-                pub_line = f"\n*Originally published on: {st['pub_date']}*" if st.get("pub_date") else ""
+                pub_line = f"\n*Originally published on:* {st['pub_date']}" if st.get("pub_date") else ""
+                # Add tags to each summary
+                tags_md = "  #news  #daily-brief"
                 md.append("")
                 # Remove the H3 header for cleaner look, use regular text instead
                 md.append(f"{idx + 1}. {link_md}")
                 md.append(st["summary"] + pub_line)
+                md.append(tags_md)  # Add tags after each story summary
             
             # Add horizontal rule between categories
             md.append("---")
@@ -800,6 +864,15 @@ async def main():
         elapsed = time.time() - t0
         log(f"\nFile written to {filepath}")
         log(f"  Stories: {total_after_dedup} | Alerts: {len(alerts_list)} | Failed: {sum_fail}/{total} | Time: {elapsed:.1f}s")
+        
+        # Add detailed timing breakdown at the end of log file
+        log("\n--- TIMING BREAKDOWN ---")
+        total_phase_time = 0
+        for phase, duration in PHASE_TIMINGS.items():
+            log(f"{phase}: ~{duration:.2f}s")
+            total_phase_time += duration
+        
+        log(f"Total: ~{total_phase_time:.2f}s")
         log("=" * 60)
 
         print(f"\nDone. File: {filepath}")

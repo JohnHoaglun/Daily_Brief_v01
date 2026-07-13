@@ -62,13 +62,7 @@ The script will:
 
 ## Output Format
 
-Generated markdown files in `news/` directory named like `DailyBrief-2026-07-12__20-26-28.md`
-
-Each file includes:
-- Title and metadata
-- Category sections with stories listed as numbered items  
-- Clean separation between categories using horizontal rules
-- Full date+time formatting for all posts
+Generated markdown files in `news/` directory named like `DailyBrief-2026-07-12_v01.md`
 
 Each file includes:
 - Title and metadata

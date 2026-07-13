@@ -63,7 +63,7 @@ os.makedirs(LOG_DIR, exist_ok=True)
 os.makedirs(NEWS_DIR, exist_ok=True)
 
 # Version
-VERSION = config_dict.get('VERSION', '1.0.0')
+VERSION = config_dict.get('VERSION')
 
 # Process CATEGORIES manually since the dict parsing is complex - copy from config.txt directly
 CATEGORIES = [

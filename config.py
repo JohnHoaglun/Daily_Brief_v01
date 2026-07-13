@@ -3,6 +3,7 @@
 # Extract values directly from the config.txt file 
 import os
 import re
+import json
 
 # Load config manually to get all values needed for the configuration
 def load_config_from_txt():
@@ -27,7 +28,7 @@ def load_config_from_txt():
                 elif value.startswith('"') and value.endswith('"'):
                     settings[key] = value[1:-1]
                 elif value.startswith('{') and value.endswith('}'):
-                    # For dictionaries, keep as string and process separately 
+                    # For dictionaries, we'll process separately to preserve structure
                     settings[key] = value
                 else:
                     # Try numeric conversion first, otherwise treat as string
@@ -48,14 +49,14 @@ def load_config_from_txt():
 config_dict = load_config_from_txt()
 
 # Standard configuration values  
-LLM_MODEL = config_dict.get('LLM_MODEL', 'gemma4-e2b-64k-utility:latest')
-LOG_DIR = config_dict.get('LOG_DIR', '/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/logs')  
-NEWS_DIR = config_dict.get('NEWS_DIR', '/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/news')
-MAX_VERSIONS = int(config_dict.get('MAX_VERSIONS', 5))
-TIMEZONE = config_dict.get('TIMEZONE', 'UTC')
-OLLAMA_HOST = config_dict.get('OLLAMA_HOST', 'http://192.168.4.52:11434')
-WEATHER_LAT = config_dict.get('WEATHER_LAT', '30.38')
-WEATHER_LON = config_dict.get('WEATHER_LON', '-95.69')
+LLM_MODEL = config_dict.get('LLM_MODEL')
+LOG_DIR = config_dict.get('LOG_DIR')  
+NEWS_DIR = config_dict.get('NEWS_DIR')
+MAX_VERSIONS = int(config_dict.get('MAX_VERSIONS'))
+TIMEZONE = config_dict.get('TIMEZONE')
+OLLAMA_HOST = config_dict.get('OLLAMA_HOST')
+WEATHER_LAT = config_dict.get('WEATHER_LAT')
+WEATHER_LON = config_dict.get('WEATHER_LON')
 
 # Create required directories if they don't exist
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -104,12 +105,12 @@ CATEGORY_SETTINGS = {
     "Hermes Agent News": {"max_stories": 5, "min_age_hours": 24}
 }
 
-MAX_STORIES_PER_CATEGORY = int(config_dict.get('MAX_STORIES_PER_CATEGORY', 10))
-DEDUPE_WINDOW_HOURS = int(config_dict.get('DEDUPE_WINDOW_HOURS', 24))
+MAX_STORIES_PER_CATEGORY = int(config_dict.get('MAX_STORIES_PER_CATEGORY'))
+DEDUPE_WINDOW_HOURS = int(config_dict.get('DEDUPE_WINDOW_HOURS'))
 
 # RSS Feed Settings 
-RSS_BASE = config_dict.get('RSS_BASE', 'https://news.google.com/rss/search?q=')
-RSS_PARAMS = config_dict.get('RSS_PARAMS', '&hl=en-US&gl=US&ceid=US:en')
+RSS_BASE = config_dict.get('RSS_BASE')
+RSS_PARAMS = config_dict.get('RSS_PARAMS')
 
 # Make sure all variables are available in global namespace for module imports 
 globals().update(locals())

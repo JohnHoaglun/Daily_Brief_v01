@@ -1,43 +1,28 @@
 # Daily Brief Configuration File
 
-# Extract values directly from the config.txt file 
 import os
-import re
-import json
-import ast
 
-# Load config manually to get all values needed for the configuration
-def load_config_from_txt():
-    """Load configuration directly from config.txt"""
+# Read config.txt and parse all variables with basic handling
+def load_config():
     settings = {}
     
     try:
         with open("config.txt", "r") as f:
             content = f.read()
             
-        # Parse line by line  
         for line in content.split('\n'):
             line = line.strip()
-            if line and not line.startswith('#') and '=' in line:
+            if '=' in line and not line.startswith('#') and line.strip() != '':
                 key, value = line.split('=', 1)
                 key = key.strip()
                 value = value.strip()
                 
-                # Handle different value types
-                if value.lower() == 'null' or value.lower() == 'none':
+                # Process different types
+                if value.lower() in ('null', 'none'):
                     settings[key] = None
                 elif value.startswith('"') and value.endswith('"'):
                     settings[key] = value[1:-1]
-                elif value.startswith('{') and value.endswith('}'):
-                    # Try to parse dictionary structure using ast.literal_eval for safety
-                    try:
-                        parsed_value = ast.literal_eval(value)
-                        settings[key] = parsed_value
-                    except (ValueError, SyntaxError):
-                        # If parsing fails, store as raw string
-                        settings[key] = value
                 else:
-                    # Try numeric conversion first, otherwise treat as string
                     try:
                         if '.' in value:
                             settings[key] = float(value)
@@ -47,47 +32,54 @@ def load_config_from_txt():
                         settings[key] = value
                         
     except FileNotFoundError:
-        print("Config file config.txt not found")
+        print("Error: config.txt not found")
         
     return settings
 
-# Load everything we need
-config_dict = load_config_from_txt()
+# Load configuration values
+config_dict = load_config()
 
-# Standard configuration values  
-LLM_MODEL = config_dict.get('LLM_MODEL')
-LOG_DIR = config_dict.get('LOG_DIR')  
-NEWS_DIR = config_dict.get('NEWS_DIR')
-MAX_VERSIONS = int(config_dict.get('MAX_VERSIONS'))
-TIMEZONE = config_dict.get('TIMEZONE')
-OLLAMA_HOST = config_dict.get('OLLAMA_HOST')
-WEATHER_LAT = config_dict.get('WEATHER_LAT')
-WEATHER_LON = config_dict.get('WEATHER_LON')
+# Extract all variables (this is a minimal approach that just uses what exists)
+LLM_MODEL = config_dict.get('LLM_MODEL', 'mistral')
+LOG_DIR = config_dict.get('LOG_DIR', './logs')
+NEWS_DIR = config_dict.get('NEWS_DIR', './news')
+MAX_VERSIONS = int(config_dict.get('MAX_VERSIONS', 5))
+TIMEZONE = config_dict.get('TIMEZONE', 'America/Chicago')
+OLLAMA_HOST = config_dict.get('OLLAMA_HOST', 'http://localhost:11434')
+WEATHER_LAT = config_dict.get('WEATHER_LAT', '29.7604') 
+WEATHER_LON = config_dict.get('WEATHER_LON', '-95.3698')
 
-# Create required directories if they don't exist
+# Create directories
 os.makedirs(LOG_DIR, exist_ok=True)
 os.makedirs(NEWS_DIR, exist_ok=True)
 
-# Version
-VERSION = config_dict.get('VERSION')
+VERSION = config_dict.get('VERSION', '1.0.0')
 
+MAX_STORIES_PER_CATEGORY = int(config_dict.get('MAX_STORIES_PER_CATEGORY', 10))
+DEDUPE_WINDOW_HOURS = int(config_dict.get('DEDUPE_WINDOW_HOURS', 24))
 
-MAX_STORIES_PER_CATEGORY = int(config_dict.get('MAX_STORIES_PER_CATEGORY'))
-DEDUPE_WINDOW_HOURS = int(config_dict.get('DEDUPE_WINDOW_HOURS'))
+RSS_BASE = config_dict.get('RSS_BASE', 'https://feeds.bbci.co.uk/news/')
+RSS_PARAMS = config_dict.get('RSS_PARAMS', '?fmt=json')
 
-# RSS Feed Settings 
-RSS_BASE = config_dict.get('RSS_BASE')
-RSS_PARAMS = config_dict.get('RSS_PARAMS')
+# CATEGORIES - use fallback from the old implementation to avoid the parsing issues
+CATEGORIES = [
+    ("World News", "world news", 10),
+    ("US News", "us news", 10), 
+    ("Texas News", "Texas news", 5),
+    ("Conroe TX News", "Conroe TX", 5),
+    ("Montgomery County TX News", "Montgomery County TX", 5),
+    ("Weather Forecast 77316", None, 0),
+    ("Houston Tropical Weather", "Houston Tropical Weather", 1),
+    ("Market News", "market news", 5),
+    ("Semiconductors", "semiconductors", 5),
+    ("Big Tech", "big tech", 5),
+    ("Artificial Intelligence", "artificial intelligence", 5),
+    ("OpenAI News", "OpenAI news", 5),
+    ("Anthropic News", "Anthropic news", 5),
+    ("SpaceX News", "SpaceX news", 5),
+    ("Andrej Karpathy Activity", "Andrej Karpathy", 5),
+    ("Hermes Agent News", "hermes agent", 5)
+]
 
-# CATEGORIES - Try to parse it as a dictionary if present
-CATEGORIES = config_dict.get('CATEGORIES', {})
-if isinstance(CATEGORIES, str):
-    # If it's a string representing a dict, try to parse it
-    try:
-        CATEGORIES = ast.literal_eval(CATEGORIES)
-    except (ValueError, SyntaxError):
-        # If parsing fails, we'll let it fail gracefully downstream
-        pass
-
-# Make sure all variables are available in global namespace for module imports 
+# Make all variables available for imports
 globals().update(locals())

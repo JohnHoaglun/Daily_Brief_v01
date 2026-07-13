@@ -70,6 +70,12 @@ Each file includes:
 - Clean separation between categories using horizontal rules
 - Full date+time formatting for all posts
 
+Each file includes:
+- Title and metadata
+- Category sections with stories listed as numbered items  
+- Clean separation between categories using horizontal rules
+- Full date+time formatting for all posts
+
 ## Files
 
 ```

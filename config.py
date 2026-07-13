@@ -1,16 +1,16 @@
 # Daily Brief Configuration File
 
 import os
+import ast
 
+# Read config.txt and parse all variables with basic handling
 def load_config():
-    """Load all configuration variables from config.txt"""
     settings = {}
     
     try:
         with open("config.txt", "r") as f:
             content = f.read()
             
-        # Parse line by line 
         for line in content.split('\n'):
             line = line.strip()
             if '=' in line and not line.startswith('#') and line.strip() != '':
@@ -18,18 +18,24 @@ def load_config():
                 key = key.strip()
                 value = value.strip()
                 
-                # Process different types based on format 
+                # Process different types
                 if value.lower() in ('null', 'none'):
                     settings[key] = None
                 elif value.startswith('"') and value.endswith('"'):
                     settings[key] = value[1:-1]
+                elif value == '{}':
+                    settings[key] = {}
                 else:
                     try:
-                        if '.' in value:
+                        # First, check if it looks like a dict/list by trying to parse it as such
+                        if value.startswith('{') or value.startswith('['):
+                            parsed_value = ast.literal_eval(value)
+                            settings[key] = parsed_value
+                        elif '.' in value:
                             settings[key] = float(value)
                         else:
                             settings[key] = int(value)
-                    except ValueError:
+                    except (ValueError, SyntaxError):
                         settings[key] = value
                         
     except FileNotFoundError:
@@ -37,12 +43,12 @@ def load_config():
         
     return settings
 
-# Load configuration  
+# Load configuration values
 config_dict = load_config()
 
-# Extract all variables
+# Extract all variables (this is a minimal approach that just uses what exists)
 LLM_MODEL = config_dict.get('LLM_MODEL', 'mistral')
-LOG_DIR = config_dict.get('LOG_DIR', './logs')  
+LOG_DIR = config_dict.get('LOG_DIR', './logs')
 NEWS_DIR = config_dict.get('NEWS_DIR', './news')
 MAX_VERSIONS = int(config_dict.get('MAX_VERSIONS', 5))
 TIMEZONE = config_dict.get('TIMEZONE', 'America/Chicago')
@@ -62,16 +68,51 @@ DEDUPE_WINDOW_HOURS = int(config_dict.get('DEDUPE_WINDOW_HOURS', 24))
 RSS_BASE = config_dict.get('RSS_BASE', 'https://feeds.bbci.co.uk/news/')
 RSS_PARAMS = config_dict.get('RSS_PARAMS', '?fmt=json')
 
-# CATEGORIES - properly read from the config file in dictionary format
-# The old approach was broken for parsing dictionary format with comments
-# But we don't want to hardcode values in final product
-
+# CATEGORIES - Try to parse it from config.txt as dictionary, with fallback to prevent failures
 try:
-    # This approach will attempt to load and convert using a better method 
-    # that avoids the error we were seeing
+    CATEGORIES_RAW = config_dict.get('CATEGORIES', {})
     
-    # Try direct import of config values but allow graceful fallback if complex parsing fails
-    temp_categories = [
+    # If the value is a string that looks like JSON/dict, try to parse it
+    if isinstance(CATEGORIES_RAW, str):
+        import ast
+        try:
+            parsed_dict = ast.literal_eval(CATEGORIES_RAW)
+            if isinstance(parsed_dict, dict):
+                CATEGORIES_RAW = parsed_dict
+            else:
+                # If it wasn't a dictionary after parsing, use fallback approach
+                raise ValueError("Not a dictionary")
+        except (ValueError, SyntaxError):
+            # If parsing failed, we'll just fall through to the fallback approach
+            pass
+    
+    # If we got a dictionary, transform the structure
+    if isinstance(CATEGORIES_RAW, dict):
+        # Transform the dictionary format to list of tuples (category_name, query, max_stories) 
+        CATEGORIES = []
+        for category_name, config_data in CATEGORIES_RAW.items():
+            if isinstance(config_data, dict):
+                query = config_data.get('query')
+                max_stories = int(config_data.get('max_stories', 5))
+            else:
+                # If format is not a dict, assume it's just the query string (old format)  
+                query = config_data
+                max_stories = 5  # Default
+            
+            CATEGORIES.append((category_name, query, max_stories))
+    elif isinstance(CATEGORIES_RAW, str) and CATEGORIES_RAW.strip() == '{}':
+        # Handle case where it's just an empty dictionary 
+        CATEGORIES = []
+    elif isinstance(CATEGORIES_RAW, list):
+        CATEGORIES = CATEGORIES_RAW
+    else:
+        # Handle case where it's not properly formatted - fallback to ensure we don't break the program  
+        raise ValueError(f"Unexpected CATEGORIES format: {type(CATEGORIES_RAW)}")
+        
+except Exception as e:
+    print(f"Warning: Could not parse CATEGORIES from config.txt - using fallback. Error: {e}")
+    # Basic fallback to ensure we don't break the program  
+    CATEGORIES = [
         ("World News", "world news", 10),
         ("US News", "us news", 10), 
         ("Texas News", "Texas news", 5),
@@ -89,14 +130,6 @@ try:
         ("Andrej Karpathy Activity", "Andrej Karpathy", 5),
         ("Hermes Agent News", "hermes agent", 5)
     ]
-    
-    CATEGORIES = temp_categories
-    
-except Exception as e:
-    print(f"Warning: Could not parse categories properly - using fallback. Error: {e}")
-    # Basic fallback to ensure we don't break the program
-    CATEGORIES = []
-
 
 # Make all variables available for imports
 globals().update(locals())

@@ -1,4 +1,4 @@
-# Daily Brief v0.2.5-BETA12
+# Daily Brief v1.0.1
 
 ## Overview
 
@@ -14,7 +14,7 @@ Daily Brief is an automated news aggregation and summarization system that colle
 - Automatic cleanup of old reports and logs
 - Weather data integration
 
-### New Features in v0.2.5-BETA12
+### New Features in v1.0.1
 
 1. **Configuration System** - Moved all settings to config.py for easier management  
 2. **Enhanced Date/Time Handling** - Shows full date+time instead of just date
@@ -22,6 +22,7 @@ Daily Brief is an automated news aggregation and summarization system that colle
 4. **Improved Cleanup Logic** - Maintains only MAX_VERSIONS (5) most recent files
 5. **Removed Alert System** - Alerts no longer displayed in output to reduce clutter
 6. **Enhanced Article Extraction** - Better handling of external URLs
+7. **Configuration Loading Fix** - Resolved circular import issue causing errors
 
 ## Requirements
 

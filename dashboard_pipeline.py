@@ -802,17 +802,35 @@ async def main():
             try:
                 # Ensure OUTPUT_DIR exists before trying to list it
                 os.makedirs(OUTPUT_DIR, exist_ok=True)
-                daily_brief_files = [f for f in os.listdir(OUTPUT_DIR) 
-                                   if f.startswith('DailyBrief-') and f.endswith('.md')]
-                daily_brief_files.sort(reverse=True)  # Newest first
                 
-                # Remove files exceeding MAX_VERSIONS limit
-                files_to_remove = daily_brief_files[MAX_VERSIONS:]
+                # Get all DailyBrief and run_log files
+                all_files = [f for f in os.listdir(OUTPUT_DIR) 
+                           if (f.startswith('DailyBrief-') or f.startswith('run_log_')) and f.endswith('.md')]
+                
+                # Sort by modification time (newest first)
+                all_files.sort(key=lambda x: os.path.getmtime(os.path.join(OUTPUT_DIR, x)), reverse=True)
+                
+                # Keep only MAX_VERSIONS most recent files
+                files_to_remove = all_files[MAX_VERSIONS:]
                 for old_file in files_to_remove:
                     os.remove(os.path.join(OUTPUT_DIR, old_file))
-                    log(f"Removed old DailyBrief file: {old_file}")
+                    log(f"Removed old file: {old_file}")
+                    
+                # Also cleanup logs directory - keep only 5 most recent run_log_ files
+                logs_dir = LOG_DIR if 'LOG_DIR' in globals() else '/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/logs'
+                os.makedirs(logs_dir, exist_ok=True)
+                log_files = [f for f in os.listdir(logs_dir) if f.startswith('run_log_') and f.endswith('.md')]
+                # Filter out any non-standard entries
+                valid_log_files = [f for f in log_files if 'run_log_' in f and f.endswith('.md')]
+                valid_log_files.sort(key=lambda x: os.path.getmtime(os.path.join(logs_dir, x)), reverse=True)
+                
+                # Keep only 5 most recent logs (same limit as DailyBrief)
+                logs_to_remove = valid_log_files[5:]
+                for old_log in logs_to_remove:
+                    os.remove(os.path.join(logs_dir, old_log))
+                    log(f"Removed old log file: {old_log}")
             except Exception as e:
-                print(f"Warning: Could not cleanup old DailyBrief files: {e}")
+                print(f"Warning: Could not cleanup old files: {e}")
 
         ordered_cats = [c[0] for c in CATEGORIES if c[1]]
         sections_map = {cn: sections.get(cn, []) for cn in ordered_cats}

@@ -65,45 +65,6 @@ os.makedirs(NEWS_DIR, exist_ok=True)
 # Version
 VERSION = config_dict.get('VERSION')
 
-# Process CATEGORIES manually since the dict parsing is complex - copy from config.txt directly
-CATEGORIES = [
-    ("World News", "world news", 10),
-    ("US News", "us news", 10),
-    ("Texas News", "Texas news", 5),
-    ("Conroe TX News", "Conroe TX", 5),
-    ("Montgomery County TX News", "Montgomery County TX", 5),
-    ("Weather Forecast 77316", "", 0),  # Special case - uses NWS API
-    ("Houston Tropical Weather", "Houston Tropical Weather", 1),
-    ("Market News", "market news", 5),
-    ("Semiconductors", "semiconductors", 5),
-    ("Big Tech", "big tech", 5),
-    ("Artificial Intelligence", "artificial intelligence", 5),
-    ("OpenAI News", "OpenAI news", 5),
-    ("Anthropic News", "Anthropic news", 5),
-    ("SpaceX News", "SpaceX news", 5),
-    ("Andrej Karpathy Activity", "Andrej Karpathy", 5),
-    ("Hermes Agent News", "hermes agent", 5)
-]
-
-# Category settings from config
-CATEGORY_SETTINGS = {
-    "World News": {"max_stories": 10, "min_age_hours": 24},
-    "US News": {"max_stories": 10, "min_age_hours": 24},
-    "Texas News": {"max_stories": 5, "min_age_hours": 24},
-    "Conroe TX News": {"max_stories": 5, "min_age_hours": 24},
-    "Montgomery County TX News": {"max_stories": 5, "min_age_hours": 24},
-    "Weather Forecast 77316": {"max_stories": 1, "min_age_hours": 8},
-    "Houston Tropical Weather": {"max_stories": 1, "min_age_hours": 24},
-    "Market News": {"max_stories": 5, "min_age_hours": 24},
-    "Semiconductors": {"max_stories": 5, "min_age_hours": 24},
-    "Big Tech": {"max_stories": 5, "min_age_hours": 24},
-    "Artificial Intelligence": {"max_stories": 5, "min_age_hours": 24},
-    "OpenAI News": {"max_stories": 5, "min_age_hours": 24},
-    "Anthropic News": {"max_stories": 5, "min_age_hours": 24},
-    "SpaceX News": {"max_stories": 5, "min_age_hours": 24},
-    "Andrej Karpathy Activity": {"max_stories": 5, "min_age_hours": 24},
-    "Hermes Agent News": {"max_stories": 5, "min_age_hours": 24}
-}
 
 MAX_STORIES_PER_CATEGORY = int(config_dict.get('MAX_STORIES_PER_CATEGORY'))
 DEDUPE_WINDOW_HOURS = int(config_dict.get('DEDUPE_WINDOW_HOURS'))

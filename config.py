@@ -4,6 +4,7 @@
 import os
 import re
 import json
+import ast
 
 # Load config manually to get all values needed for the configuration
 def load_config_from_txt():
@@ -28,8 +29,13 @@ def load_config_from_txt():
                 elif value.startswith('"') and value.endswith('"'):
                     settings[key] = value[1:-1]
                 elif value.startswith('{') and value.endswith('}'):
-                    # For dictionaries, we'll process separately to preserve structure
-                    settings[key] = value
+                    # Try to parse dictionary structure using ast.literal_eval for safety
+                    try:
+                        parsed_value = ast.literal_eval(value)
+                        settings[key] = parsed_value
+                    except (ValueError, SyntaxError):
+                        # If parsing fails, store as raw string
+                        settings[key] = value
                 else:
                     # Try numeric conversion first, otherwise treat as string
                     try:
@@ -72,6 +78,16 @@ DEDUPE_WINDOW_HOURS = int(config_dict.get('DEDUPE_WINDOW_HOURS'))
 # RSS Feed Settings 
 RSS_BASE = config_dict.get('RSS_BASE')
 RSS_PARAMS = config_dict.get('RSS_PARAMS')
+
+# CATEGORIES - Try to parse it as a dictionary if present
+CATEGORIES = config_dict.get('CATEGORIES', {})
+if isinstance(CATEGORIES, str):
+    # If it's a string representing a dict, try to parse it
+    try:
+        CATEGORIES = ast.literal_eval(CATEGORIES)
+    except (ValueError, SyntaxError):
+        # If parsing fails, we'll let it fail gracefully downstream
+        pass
 
 # Make sure all variables are available in global namespace for module imports 
 globals().update(locals())

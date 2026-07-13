@@ -44,14 +44,13 @@ import threading
 # Avoid circular imports and make sure all configuration is loaded before we start doing work
 from config import *
 
-# Ollama client -- network server at GX10 Ollama
-_OLLAMA_HOST = OLLAMA_HOST if 'OLLAMA_HOST' in globals() else "http://192.168.4.52:11434"
-_llm_client = ollama.Client(host=_OLLAMA_HOST, timeout=180)
+# Ollama client
+_llm_client = ollama.Client(host=OLLAMA_HOST, timeout=180)
 
 # Pull configuration values after importing config
-LLM_MODEL = LLM_MODEL if 'LLM_MODEL' in globals() else 'gemma4-e2b-64k-utility:latest'
-LOG_DIR = LOG_DIR if 'LOG_DIR' in globals() else '/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/logs'
-NEWS_DIR = NEWS_DIR if 'NEWS_DIR' in globals() else '/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/news'
+LLM_MODEL = LLM_MODEL
+LOG_DIR = LOG_DIR
+NEWS_DIR = NEWS_DIR
 OUTPUT_DIR = NEWS_DIR  # For backwards compatibility with existing code
 
 # Log file lives in the logs directory inside Obsidian vault (unique .md per run)
@@ -91,8 +90,8 @@ def log(msg):
 
 # -- CONFIGURATION ----------------------------------------------------------
 
-WEATHER_LAT = WEATHER_LAT if 'WEATHER_LAT' in globals() else "30.38"
-WEATHER_LON = WEATHER_LON if 'WEATHER_LON' in globals() else "-95.69"
+WEATHER_LAT = WEATHER_LAT
+WEATHER_LON = WEATHER_LON
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
 
 # Load categories from config if available and correctly processed
@@ -100,33 +99,14 @@ if 'CATEGORIES' in globals() and CATEGORIES:
     # If CATEGORIES is provided in config, use it directly
     pass  # Already loaded via config.py
 else:
-    # Fallback to hardcoded categories (in case config doesn't have them)
-    CATEGORIES = [
-        ("World News",              "world+news",                 10),
-        ("US News",                 "US+news",                    10),
-        ("Texas News",              "Texas+news",                   5),
-        ("Conroe TX News",          "news+Conroe+TX",               5),
-        ("Montgomery County TX News", "Montgomery+County+TX",       5),
-        ("Weather Forecast 77316",  None,                           0),
-        ("Houston Tropical Weather","Houston+hurricane+tropical",   5),
-        ("Market News",             "stock+market+economy",          5),
-        ("Semiconductors",          "semiconductor+chip+industry",   5),
-        ("Big Tech",                "big+tech",                      5),
-        ("Artificial Intelligence","artificial+intelligence+LLM",   5),
-        ("OpenAI News",             "OpenAI",                        5),
-        ("Anthropic News",          "Anthropic",                     5),
-        ("SpaceX News",             "SpaceX",                        5),
-        ("OpenCode News",           "opencode+ai",                   5),
-        ("Hermes Agent News",       "hermes+agent",                  5),
-        ("Andrej Karpathy Activity","Andrej Karpathy",               5),
-    ]
+    raise ValueError("CATEGORIES must be properly defined in config.py")
 
 # RSS configuration from config
-RSS_BASE = RSS_BASE if 'RSS_BASE' in globals() else "https://news.google.com/rss/search?q="
-RSS_PARAMS = RSS_PARAMS if 'RSS_PARAMS' in globals() else "&hl=en-US&gl=US&ceid=US:en"
+RSS_BASE = RSS_BASE
+RSS_PARAMS = RSS_PARAMS
 
 # Timezone from config
-TIMEZONE = TIMEZONE if 'TIMEZONE' in globals() else 'America/Chicago'
+TIMEZONE = TIMEZONE
 SUMMARY_PROMPT = (
     "You are an objective news editor. Write a detailed summary of at least 3 sentences covering the key facts of this article: "
     "what happened, who was involved, when and where.\n\n"

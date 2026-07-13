@@ -67,4 +67,5 @@ python dashboard_pipeline.py
 
 ## Current Status
 
-- v1.0.1: Fixed configuration loading issues and improved robustness.
+- v1.0.1: Fixed configuration loading issues and improved robustness. 
+- Version has been tagged and committed to git repository.

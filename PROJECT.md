@@ -7,7 +7,7 @@ Automated daily news brief generator that fetches news from 17 content categorie
 - **RSS Feed Integration**: Pulls news from multiple sources using feedparser
 - **Content Processing**: Batch summarization via Ollama (one call per category) 
 - **Data Organization**: Stories grouped by 17 categories including World News, US News, Texas News, etc.
-- **Output Generation**: Creates structured Markdown reports with AI summaries
+- **Tagging System**: Automatic keyword-based tagging of stories using predefined mappings
 
 ## 🔧 Configuration
 The project uses a configuration file (`config.txt`) that defines all settings:
@@ -23,6 +23,7 @@ The project uses a configuration file (`config.txt`) that defines all settings:
 - Configurable story limits per category
 - Performance optimized with batched LLM calls
 - Weather data integration 
+- Automatic keyword-based tagging of stories
 
 ## 📈 Status
 Fully functional and working correctly. The pipeline successfully fetches weather data, pulls news from RSS feeds, processes stories with LLM summarization via batch processing, and generates output reports.

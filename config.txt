@@ -32,7 +32,7 @@ CATEGORIES = {
     "Texas News": {"query": "Texas news", "max_stories": 5},
     "Conroe TX News": {"query": "Conroe TX", "max_stories": 5},
     "Montgomery County TX News": {"query": "Montgomery County TX", "max_stories": 5},
-    "Weather Forecast 77316": {"query": null, "max_stories": 0},  # Special case - uses NWS API
+    "Weather Forecast 77316": {"query": "", "max_stories": 0},  # Special case - uses NWS API
     "Houston Tropical Weather": {"query": "Houston Tropical Weather", "max_stories": 1},
     "Market News": {"query": "market news", "max_stories": 5},
     "Semiconductors": {"query": "semiconductors", "max_stories": 5},

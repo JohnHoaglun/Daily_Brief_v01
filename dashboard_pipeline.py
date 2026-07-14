@@ -825,11 +825,30 @@ async def main():
         md.append("content_age_window: 24 hours")
         md.append(f"story_count_total: {total_after_dedup}")
         md.append("categories: 17")
-        # Add tags for each news brief
+        
+        # Create a set to collect all unique tags from story titles
+        all_tags = set(["daily-brief", "news-summary", "ai-generated"])
+        
+        # Process category sections to extract story tags for frontmatter
+        section_tag_map = {}
+        for cn in ordered_cats:
+            cat_stories = sections_map.get(cn, [])
+            for st in cat_stories:
+                if "title" in st and st["title"]:
+                    title = st["title"]
+                    story_tags = tag_story_with_keywords(title)
+                    # Extract just the tag names from the string (e.g., "#AI #tech" -> ["#AI", "#tech"])
+                    individual_tags = [tag.strip() for tag in story_tags.split() if tag.startswith('#')]
+                    for tag in individual_tags:
+                        all_tags.add(tag.lstrip('#'))  # Remove the '#' prefix and add to set
+            section_tag_map[cn] = cat_stories
+            
+        # Add tags to YAML frontmatter (remove duplicates and sort)
         md.append("tags:")
-        md.append("  - daily-brief")
-        md.append("  - news-summary")
-        md.append("  - ai-generated")
+        sorted_tags = sorted(list(all_tags))
+        for tag in sorted_tags:
+            md.append(f"  - {tag}")
+        
         md.append("---")
         md.append("")
         md.append(f"# Daily Brief -- {now.strftime('%B %d, %Y')}")
@@ -845,8 +864,11 @@ async def main():
                 url_val = st["link"]
                 link_md = f"[{title_text}]({url_val})" if url_val and url_val != "#" else title_text
                 pub_line = f"\n*Originally published on:* {st['pub_date']}" if st.get("pub_date") else ""
-                # Add tags to each summary
-                tags_md = "  #news  #daily-brief"
+                # Add tags to each summary - use the tag_story_with_keywords function for meaningful keywords-based tags
+                tags_md = ""
+                if "title" in st and st["title"]:
+                    title = st["title"]
+                    tags_md = tag_story_with_keywords(title)
                 md.append("")
                 # Remove the H3 header for cleaner look, use regular text instead
                 md.append(f"{idx + 1}. {link_md}")

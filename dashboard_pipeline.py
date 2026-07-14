@@ -517,33 +517,103 @@ def parse_alert_batch_response(response):
     return results
 
 
-def tag_story_with_keywords(story_title):
-    """Generate meaningful tags for a story based on its title."""
-    # Keywords mapping to tags
+def tag_story_with_keywords(story_title, category=None):
+    """Generate meaningful tags for a story based on its title using enhanced keyword matching."""
+    
+    # Expanded keywords mapping with more comprehensive coverage
     keywords_to_tags = {
-        'AI': ['artificial intelligence', 'machine learning', 'neural network', 'llm', 'transformer'],
-        'tech': ['technology', 'digital', 'software', 'programming'],
-        'economy': ['economy', 'market', 'finance', 'stock', 'invest', 'trade'],
-        'weather': ['weather', 'climate', 'storm', 'rain', 'snow','hurricane','tornado'],
-        'politics': ['election', 'government', 'politic', 'policy', 'congress', 'senate'],
-        'science': ['science', 'research', 'discovery', 'study', 'experiment'],
-        'health': ['health', 'medical', 'hospital', 'doctor', 'treatment', 'vaccine'],
-        'space': ['space', 'rocket', 'astronaut', 'nasa', 'mission']
+        # Existing broad tags (expanded)
+        'AI': ['artificial intelligence', 'machine learning', 'neural network', 'llm', 'transformer', 'ai', 'deep learning', 'generative ai', 'model', 'algorithm'],
+        'tech': ['technology', 'digital', 'software', 'programming', 'computing', 'cloud', 'data', 'startup', 'innovation'],
+        'economy': ['economy', 'market', 'finance', 'stock', 'invest', 'trade', 'business', 'growth', 'earnings', 'revenue'],
+        'weather': ['weather', 'climate', 'storm', 'rain', 'snow', 'hurricane', 'tornado', 'forecast', 'temperature', 'atmospheric'],
+        'politics': ['election', 'government', 'politic', 'policy', 'congress', 'senate', 'president', 'regulation', 'law'],
+        'science': ['science', 'research', 'discovery', 'study', 'experiment', 'physics', 'biology', 'breakthrough'],
+        'health': ['health', 'medical', 'hospital', 'doctor', 'treatment', 'vaccine', 'disease', 'pandemic', 'pharma'],
+        'space': ['space', 'rocket', 'astronaut', 'nasa', 'mission', 'satellite', 'launch', 'orbit', 'lunar'],
+        
+        # New category-specific tags
+        'semiconductors': ['semiconductor', 'chip', 'processor', 'gpu', 'cpu', 'transistor', 'fab', 'manufacturing', 'intel', 'nvidia', 'tsmc', 'qualcomm', 'amd'],
+        'energy': ['energy', 'power', 'renewable', 'solar', 'wind', 'grid', 'electric', 'battery', 'charging', 'fuel cell'],
+        'infrastructure': ['infrastructure', 'construction', 'development', 'project', 'building', 'road', 'bridge', 'transit'],
+        'security': ['security', 'cybersecurity', 'privacy', 'breach', 'hacking', 'encryption', 'data protection', 'threat'],
+        'companies': ['company', 'corporation', 'startup', 'ipo', 'acquisition', 'merger', 'partnership', 'venture'],
+        'people': ['founder', 'ceo', 'entrepreneur', 'investor', 'researcher', 'scientist'],
+        
+        # Company/entity-specific tags
+        'openai': ['openai', 'chatgpt', 'gpt-4', 'gpt-5'],
+        'anthropic': ['anthropic', 'claude'],
+        'spacex': ['spacex', 'starship', 'elon musk', 'falcon'],
+        'big-tech': ['google', 'meta', 'apple', 'microsoft', 'amazon', 'meta'],
+        
+        # Geographic tags (especially relevant given your local focus)
+        'local': ['houston', 'texas', 'conroe', 'montgomery county', 'tx', 'houston metro', 'galveston'],
+        'us-focused': ['united states', 'us', 'america', 'american', 'washington dc', 'dc'],
+        'international': ['world', 'global', 'international', 'foreign', 'european', 'asian', 'global'],
+        
+        # Meta/cross-cutting tags
+        'regulatory': ['regulation', 'legal', 'law', 'legislation', 'lawsuit', 'compliance', 'ruling', 'court'],
+        'innovation': ['innovation', 'new', 'novel', 'breakthrough', 'first', 'advancement', 'unveil'],
+        'market-impact': ['market', 'stock', 'trading', 'investment', 'return', 'valuation', 'earnings'],
+        'environment': ['environment', 'climate', 'sustainability', 'carbon', 'emissions', 'green', 'ecological'],
     }
     
     # Convert title to lowercase for matching
     title_lower = story_title.lower()
     
-    tags = []
-    for tag, keywords in keywords_to_tags.items():
-        if any(keyword in title_lower for keyword in keywords):
-            tags.append(f"#{tag}")
+    # Initialize scoring system
+    tag_scores = {}
     
-    # If no tags found, return a default tag
-    if not tags:
-        tags.append("#news")
+    # Score each tag based on keyword matches
+    for tag, keywords in keywords_to_tags.items():
+        score = 0
+        for keyword in keywords:
+            if keyword in title_lower:
+                # Position-based boosting (higher weight for keywords early in title)
+                pos = title_lower.find(keyword)
+                if pos >= 0:
+                    # Boost score for matches in first 100 characters
+                    boost = 2.0 if pos < 100 else 1.0
+                    # Add partial score based on how many keywords match
+                    score += boost * (1.0 / len(keyword))  # Normalize by keyword length
         
-    return " ".join(tags)
+        # Apply category-specific boosting if available
+        if category:
+            category_boosts = {
+                'OpenAI News': ['openai', 'chatgpt'],
+                'Anthropic News': ['anthropic', 'claude'],
+                'SpaceX News': ['spacex', 'starship'],
+                'Big Tech': ['google', 'meta', 'apple', 'microsoft', 'amazon']
+            }
+            
+            if category in category_boosts:
+                for keyword in category_boosts[category]:
+                    if keyword in title_lower:
+                        score += 2.0  # Strong boost for category-specific matches
+        
+        # Store final score
+        if score > 0:
+            tag_scores[tag] = min(score, 5.0)  # Cap at 5.0 to avoid extreme values
+    
+    # Return the tags sorted by score (highest first)
+    sorted_tags = sorted(tag_scores.items(), key=lambda x: x[1], reverse=True)
+    
+    # Apply maximum limit and return just tag names
+    max_tags = 5
+    if len(sorted_tags) <= max_tags:
+        tag_list = [tag for tag, score in sorted_tags]
+    else:
+        tag_list = [tag for tag, score in sorted_tags[:max_tags]] 
+    
+    # If no tags found but we have a category, return at least the category tag
+    if not tag_list and category:
+        # Convert category name to appropriate tag format (e.g., "World News" -> "world-news")
+        category_tag = category.lower().replace(' ', '-').replace('/', '-')
+        tag_list = [category_tag]
+    
+    # Return joined tags with spaces
+    return " ".join(tag_list) if tag_list else "#news"
+
 
 
 def is_realt_estate_title(title):
@@ -836,7 +906,8 @@ async def main():
             for st in cat_stories:
                 if "title" in st and st["title"]:
                     title = st["title"]
-                    story_tags = tag_story_with_keywords(title)
+                    # Pass category to enable category-specific boosting
+                    story_tags = tag_story_with_keywords(title, cn)
                     # Extract just the tag names from the string (e.g., "#AI #tech" -> ["#AI", "#tech"])
                     individual_tags = [tag.strip() for tag in story_tags.split() if tag.startswith('#')]
                     for tag in individual_tags:
@@ -868,7 +939,8 @@ async def main():
                 tags_md = ""
                 if "title" in st and st["title"]:
                     title = st["title"]
-                    tags_md = tag_story_with_keywords(title)
+                    # Pass category to enable category-specific boosting
+                    tags_md = tag_story_with_keywords(title, cn)
                 md.append("")
                 # Remove the H3 header for cleaner look, use regular text instead
                 md.append(f"{idx + 1}. {link_md}")

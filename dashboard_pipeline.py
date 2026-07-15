@@ -611,8 +611,9 @@ def tag_story_with_keywords(story_title, category=None):
         category_tag = category.lower().replace(' ', '-').replace('/', '-')
         tag_list = [category_tag]
     
-    # Return joined tags with spaces
-    return " ".join(tag_list) if tag_list else "#news"
+    # Return joined tags with spaces, formatted as Obsidian wiki links
+    formatted_tags = ["[[%s]]" % tag for tag in tag_list]
+    return " ".join(formatted_tags) if formatted_tags else "#news"
 
 
 
@@ -908,10 +909,18 @@ async def main():
                     title = st["title"]
                     # Pass category to enable category-specific boosting
                     story_tags = tag_story_with_keywords(title, cn)
-                    # Extract just the tag names from the string (e.g., "#AI #tech" -> ["#AI", "#tech"])
-                    individual_tags = [tag.strip() for tag in story_tags.split() if tag.startswith('#')]
+                    # Extract just the tag names from the string (handle both #tag and [[tag]] formats)
+                    individual_tags = []
+                    for tag in story_tags.split():
+                        tag = tag.strip()
+                        if tag.startswith('#'):
+                            individual_tags.append(tag.lstrip('#'))
+                        elif tag.startswith('[') and tag.endswith(']'):
+                            # Handle [[tag]] format
+                            tag_content = tag[2:-2]  # Remove [[ and ]]
+                            individual_tags.append(tag_content)
                     for tag in individual_tags:
-                        all_tags.add(tag.lstrip('#'))  # Remove the '#' prefix and add to set
+                        all_tags.add(tag.lower())  # Add to set (normalized to lowercase)
             section_tag_map[cn] = cat_stories
             
         # Add tags to YAML frontmatter (remove duplicates and sort)

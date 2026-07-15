@@ -4,7 +4,7 @@
 VERSION = "1.0.1"
 
 # LLM Model Settings
-LLM_MODEL = "gemma4-e2b-64k-utility:latest"
+LLM_MODEL = "den-gemma4-e2b-8k-utility:latest"
 
 # Ollama Server Settings
 OLLAMA_HOST = "http://192.168.4.52:11434"

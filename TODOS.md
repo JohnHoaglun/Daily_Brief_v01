@@ -39,3 +39,9 @@
 - [ ] Fix story tags to be meaningful again (they currently have worthless tags like "daily-brief, news-summary, ai-generated")
 - [ ] Ensure exactly 5 log files and DailyBrief files are maintained (currently seeing 6 files) - needs verification
 - [ ] Validate that configuration system properly parses all dictionary-type values from config.txt (critical issue with CATEGORIES parsing - multiline dictionaries still problematic)
+- [ ] Only 3 tags in the header summary. None of them relevent to the actually stories.
+- [ ] The "tags" tied to the story summaries are still only text, not tags
+- [ ] Still only 1-2 "text tags" tied to each story summary
+- [x] Format story tags as Obsidian wiki links [[AI]] [[international]] instead of plain text "AI international"
+- [x] Test that updated tagging system produces clickable Obsidian links
+- [x] Update project documentation to reflect the new tag formatting

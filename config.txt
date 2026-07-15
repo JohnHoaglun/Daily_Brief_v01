@@ -4,7 +4,7 @@
 VERSION = "1.0.1"
 
 # LLM Model Settings
-LLM_MODEL = "gemma4-e2b-64k-utility:latest"
+LLM_MODEL = "den-gemma4-e2b-8k-utility:latest"
 
 # Ollama Server Settings
 OLLAMA_HOST = "http://192.168.4.52:11434"
@@ -32,7 +32,7 @@ CATEGORIES = {
     "Texas News": {"query": "Texas news", "max_stories": 5},
     "Conroe TX News": {"query": "Conroe TX", "max_stories": 5},
     "Montgomery County TX News": {"query": "Montgomery County TX", "max_stories": 5},
-    "Weather Forecast 77316": {"query": null, "max_stories": 0},  # Special case - uses NWS API
+    "Weather Forecast 77316": {"query": "", "max_stories": 0},  # Special case - uses NWS API
     "Houston Tropical Weather": {"query": "Houston Tropical Weather", "max_stories": 1},
     "Market News": {"query": "market news", "max_stories": 5},
     "Semiconductors": {"query": "semiconductors", "max_stories": 5},

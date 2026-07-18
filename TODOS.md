@@ -1,44 +1,28 @@
-# Daily Brief v1.0.0 - Weather Migration & Config Hardening Plan
+# Daily Brief v1.0.6 - Weather Migration & Config Hardening
 
 ## Done
 - [x] Refactored `config.py` loader to parse multiline dict/list values in `config.txt`.
 - [x] Added runtime constants to `config.py` for prompts, context/summary limits, thresholds, frontmatter defaults, and weather source metadata.
-- [x] Added matching values in `config.txt` (weather sources, lake URLs, WunderGround config, prompt/options defaults, tag defaults, cleanup defaults).
-- [x] Removed hardcoded:
-  - `ZoneInfo("America/Chicago")` → `ZoneInfo(TIMEZONE)`.
-  - hardcoded frontmatter `content_age_window` and `categories`.
-  - hardcoded tag seed/fallback values.
-  - hardcoded cleanup limit `5` for daily/log retention.
-  - hardcoded summary fallback tag.
-- [x] Repaired `batch_summarize_all` context loop indentation and `parse_feed_date` indentation bug so parser no longer has syntax-risk.
-- [x] Wired alert batch to use `SYSTEM_ALERT_PROMPT` config value.
+- [x] Added matching values in `config.txt` (weather sources, lake URLs, WU config, prompt/options defaults, tag defaults, cleanup defaults).
+- [x] Removed hardcoded weather and date behaviors from pipeline logic (ZoneInfo, tags, cleanup limits, summary fallback tags, etc.).
+- [x] Repaired `batch_summarize_all` context loop indentation and `parse_feed_date` indentation bug.
+- [x] Wired alert batch to use `SYSTEM_ALERT_PROMPT`.
 - [x] Implemented dynamic weather fetch orchestration (forecast + station + lake) in `dashboard_pipeline.py`.
-- [x] Added dynamic date-label utility for Today/Tomorrow/In 2 Days using `DATE_OVERRIDE`/timezone-aware current date.
-- [x] Added weather markdown render block at top of output with forecast, station metrics, and lake percentages.
-- [x] Added fallback-safe weather parsing so missing data returns `"Dynamic"` placeholders instead of crashing.
+- [x] Added run-date labels for Today / Tomorrow / In 2 Days via `DATE_OVERRIDE`/timezone.
+- [x] Added weather markdown block at top of output with forecast, station metrics, and lake percentages.
+- [x] Enforced 3-sentence summary output format and ensured weather headlines are not reused as summaries.
+- [x] Fixed weather section order to align with `Requirements/DailyBrief-Weather Example1.md` and `Example2.md`.
+- [x] Fixed station metrics parsing:
+  - `Average Temperature for 77316`
+  - `Average Monthly rainfall for 77316`
+  - `Current Monthly rainfall for 77316` (from wunderground monthly summary URL)
+- [x] Fixed lake trend extraction to return separate values for Today / 1 Week Ago / 30 Days Ago for each lake.
+- [x] Documented new run/version details and requirements in project markdown files.
 
 ## To do (small, incremental)
-1. [x] Re-scan and replace remaining static weather strings in `dashboard_pipeline.py` with config-driven values (`WEATHER_*`, `USER_AGENT_*`, `DATE_OVERRIDE`).
-2. [x] Add a single utility for run-date labels (`Today`, `Tomorrow`, `In 2 Days`) sourced from system date / `DATE_OVERRIDE`.
-3. [x] Implement 3-day forecast parser in `dashboard_pipeline.py`:
-   - map date labels dynamically,
-   - extract Day/Night/High/Low/Precip/Wind fields.
-4. [x] Implement station metrics parser:
-   - average temp today,
-   - monthly avg rainfall for 77316,
-   - current monthly rainfall total from `WEATHER_WUNDERGROUND_STATION_ID`.
-5. [x] Implement lake metrics parser for:
-   - today,
-   - 1 week ago,
-   - 30 days ago,
-   using `WEATHER_LAKE_URLS`.
-6. [x] Render `## Weather for 77316` section in markdown in the same block order as `Example1.md` / `Example2.md`.
-7. [x] Add failure-safe fallbacks:
-   - log warning when any weather source fails,
-   - write explicit fallback values instead of blank cells.
-8. [ ] Add a targeted validation pass:
-   - compare produced file structure to `Requirements/DailyBrief-Weather Example2.md` placeholders then `Example1.md`,
-   - ensure section order, tag behavior, and frontmatter keys match.
-9. [ ] Add small parser-level tests/fixtures for forecast, wunderground, and lake pages.
-10. [ ] Update any docs (`PROJECT`/`README`/`PLAN`) with config keys and required weather input URLs.
+1. [ ] Add parser-level fixtures/tests for forecast, wunderground, and lake pages.
+2. [ ] Add automated output-shape validation against `Requirements/DailyBrief-Weather Example2.md` (then `Example1.md`) to catch ordering/format regressions.
+3. [ ] Add CI/nightly dry-run check that validates required weather sections exist before publish.
 
+## Version Notes
+- `README`, `PROJECT`, `SUMMARY`, and `PLAN` now aligned to **v1.0.6**.

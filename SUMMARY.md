@@ -4,6 +4,7 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries using Ollama.
 
 ## Change Log
+- [2026-07-18 20:00] Release - Documentation and validation backlog closure completed; version bumped to **v1.0.7**
 - [2026-07-18 19:40] Release - Weather data accuracy and reliability pass completed (dynamic monthly + lake period parsing), release tag prepared as v1.0.6
 - [2026-07-18 19:35] Fix - Station metrics corrected to use live monthly average and current monthly totals from wunderground summary
 - [2026-07-18 18:15] Fix - Lake trend table now reports separate values for Today / 1 Week Ago / 30 Days Ago
@@ -26,3 +27,5 @@ Automated daily news brief generator that fetches news from 17 content categorie
 
 ## Status
 Fully functional and working correctly. The pipeline produces daily reports with validated dynamic weather sections, improved summary constraints, and config-driven behavior.
+
+

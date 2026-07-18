@@ -1,4 +1,4 @@
-# Project: Daily Brief v01 (v1.0.6)
+# Project: Daily Brief v01 (v1.0.7)
 
 ## Overview
 Automated daily news brief generator that pulls category RSS stories and produces AI-summarized Markdown reports.
@@ -26,3 +26,4 @@ Primary runtime configuration is loaded from `config.txt` (parsed by `config.py`
 
 ## Status
 Functional and validated against current requirements. Pipeline now produces dynamic weather sections in example-matching layout, without hardcoded weather placeholders, and retains news pipeline behavior from `v1.0.x`.
+

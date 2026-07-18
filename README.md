@@ -1,4 +1,4 @@
-# Daily Brief v1.0.6
+# Daily Brief v1.0.7
 
 ## Overview
 
@@ -14,7 +14,7 @@ Daily Brief is an automated news aggregation and summarization system that colle
 - Automatic cleanup of old reports and logs
 - Weather data integration (dynamic forecast, station metrics, and lake percentages)
 
-### New Features in v1.0.6
+### New Features in v1.0.7
 
 1. **Configuration System** - Moved all settings to config.py for easier management  
 2. **Enhanced Date/Time Handling** - Shows full date+time instead of just date
@@ -25,6 +25,8 @@ Daily Brief is an automated news aggregation and summarization system that colle
 7. **Configuration Loading Fix** - Resolved circular import issue causing errors
 8. **Weather Pipeline Hardening** - Dynamic NWS forecast, station, and lake fetch flow with date-aware weather blocks.
 9. **Weather Data Accuracy Work** - 3-sentence summaries for news stories, section order fixed to match examples, station metrics and lake trend periods fetched dynamically.
+
+10. **Release/Docs Cleanup** - `TODOS.md` backlog cleared and version/docs aligned to v1.0.7 before release.
 
 ## Requirements
 
@@ -107,3 +109,6 @@ logs/                     # Log file directory
 ## License
 
 MIT License
+
+
+

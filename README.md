@@ -37,7 +37,19 @@ Daily Brief is an automated news aggregation and summarization system that colle
 1. Install required packages: `pip install aiohttp feedparser beautifulsoup4 ollama`
 2. Ensure Ollama server is running
 3. Set up `config.py` with your preferences
-4. Run the script with: `python dashboard_pipeline.py`
+4. Run the script with your installed Python:
+
+```powershell
+.\run_daily_brief.bat
+```
+
+If your Python path is different, replace with your local path.
+
+If tzdata is missing in that Python install, timezone fallback is handled to UTC in code, and you can optionally install tzdata:
+
+```powershell
+C:\Users\john\AppData\Local\Python\bin\python.exe -m pip install tzdata
+```
 
 ## Configuration
 
@@ -50,7 +62,8 @@ All configuration now resides in `config.py`. Key settings include:
 
 ## Usage
 
-Run the pipeline: `python dashboard_pipeline.py`
+Run the pipeline with:
+`.\run_daily_brief.bat`
 
 The script will:
 1. Collect news from RSS feeds

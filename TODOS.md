@@ -1,47 +1,44 @@
-# Daily Brief v1.0.0 - Complete Tracking List
+# Daily Brief v1.0.0 - Weather Migration & Config Hardening Plan
 
-## Done:
-- [x] Fixed import order issue in dashboard_pipeline.py 
-- [x] Improved configuration loading in config.py to properly parse variables  
-- [x] Moved Ollama host URL to config file (OLLAMA_HOST)
-- [x] Moved WEATHER_LAT and WEATHER_LON to config file  
-- [x] Moved CATEGORIES list to config file (as dictionary format)
-- [x] Moved RSS_BASE and RSS_PARAMS to config file
-- [x] Moved timezone to config file (TIMEZONE)
-- [x] Fixed cleanup parallel execution timing
-- [x] All configuration values now load from config.txt instead of being hardcoded
-- [x] Pipeline executes correctly with centralized configuration management
-- [x] Ensure version tracking is centralized in config file  
-- [x] Fix timing breakdowns across all pipeline phases
-- [x] Correct file naming conventions with date-based incrementing
-- [x] Move cleanup to start of job in parallel
-- [x] Eliminate hardcoded paths, all from config.py
-- [x] Move timezone configuration to config.txt
-- [x] Validate implementation actually runs and produces expected outputs
-- [x] Verify log files are created with correct naming convention (run_log_YYYY-MM-DD_v01.md)
-- [x] Verify DailyBrief files are created with correct naming convention (DailyBrief-YYYY-MM-DD_v01.md)
-- [x] Verify cleanup functionality works properly
-- [x] Verify timing breakdowns function correctly
-- [x] Create proper file structure for logs and news directories
-- [x] Implement phase timing tracking with PHASE_TIMINGS
-- [x] Build logging system that writes to configured LOG_DIR
-- [x] Implement proper cleanup logic using MAX_VERSIONS from config
-- [x] Implement parallel execution of cleanup at start of job
-- [x] Create main execution loop with all phases
-- [x] Test end-to-end pipeline execution
-- [x] Verify VERSION loaded correctly from config.txt  
-- [x] Verify LOG_DIR loaded correctly from config.py
-- [x] Verify NEWS_DIR loaded correctly from config.py
-- [x] Verify TIMEZONE loaded correctly from config.txt
-- [x] Verify LLM_MODEL loaded correctly from config.py
+## Done
+- [x] Refactored `config.py` loader to parse multiline dict/list values in `config.txt`.
+- [x] Added runtime constants to `config.py` for prompts, context/summary limits, thresholds, frontmatter defaults, and weather source metadata.
+- [x] Added matching values in `config.txt` (weather sources, lake URLs, WunderGround config, prompt/options defaults, tag defaults, cleanup defaults).
+- [x] Removed hardcoded:
+  - `ZoneInfo("America/Chicago")` → `ZoneInfo(TIMEZONE)`.
+  - hardcoded frontmatter `content_age_window` and `categories`.
+  - hardcoded tag seed/fallback values.
+  - hardcoded cleanup limit `5` for daily/log retention.
+  - hardcoded summary fallback tag.
+- [x] Repaired `batch_summarize_all` context loop indentation and `parse_feed_date` indentation bug so parser no longer has syntax-risk.
+- [x] Wired alert batch to use `SYSTEM_ALERT_PROMPT` config value.
+- [x] Implemented dynamic weather fetch orchestration (forecast + station + lake) in `dashboard_pipeline.py`.
+- [x] Added dynamic date-label utility for Today/Tomorrow/In 2 Days using `DATE_OVERRIDE`/timezone-aware current date.
+- [x] Added weather markdown render block at top of output with forecast, station metrics, and lake percentages.
+- [x] Added fallback-safe weather parsing so missing data returns `"Dynamic"` placeholders instead of crashing.
 
-## To Be Done:
-- [ ] Fix story tags to be meaningful again (they currently have worthless tags like "daily-brief, news-summary, ai-generated")
-- [ ] Ensure exactly 5 log files and DailyBrief files are maintained (currently seeing 6 files) - needs verification
-- [ ] Validate that configuration system properly parses all dictionary-type values from config.txt (critical issue with CATEGORIES parsing - multiline dictionaries still problematic)
-- [ ] Only 3 tags in the header summary. None of them relevent to the actually stories.
-- [ ] The "tags" tied to the story summaries are still only text, not tags
-- [ ] Still only 1-2 "text tags" tied to each story summary
-- [x] Format story tags as Obsidian wiki links [[AI]] [[international]] instead of plain text "AI international"
-- [x] Test that updated tagging system produces clickable Obsidian links
-- [x] Update project documentation to reflect the new tag formatting
+## To do (small, incremental)
+1. [x] Re-scan and replace remaining static weather strings in `dashboard_pipeline.py` with config-driven values (`WEATHER_*`, `USER_AGENT_*`, `DATE_OVERRIDE`).
+2. [x] Add a single utility for run-date labels (`Today`, `Tomorrow`, `In 2 Days`) sourced from system date / `DATE_OVERRIDE`.
+3. [x] Implement 3-day forecast parser in `dashboard_pipeline.py`:
+   - map date labels dynamically,
+   - extract Day/Night/High/Low/Precip/Wind fields.
+4. [x] Implement station metrics parser:
+   - average temp today,
+   - monthly avg rainfall for 77316,
+   - current monthly rainfall total from `WEATHER_WUNDERGROUND_STATION_ID`.
+5. [x] Implement lake metrics parser for:
+   - today,
+   - 1 week ago,
+   - 30 days ago,
+   using `WEATHER_LAKE_URLS`.
+6. [x] Render `## Weather for 77316` section in markdown in the same block order as `Example1.md` / `Example2.md`.
+7. [x] Add failure-safe fallbacks:
+   - log warning when any weather source fails,
+   - write explicit fallback values instead of blank cells.
+8. [ ] Add a targeted validation pass:
+   - compare produced file structure to `Requirements/DailyBrief-Weather Example2.md` placeholders then `Example1.md`,
+   - ensure section order, tag behavior, and frontmatter keys match.
+9. [ ] Add small parser-level tests/fixtures for forecast, wunderground, and lake pages.
+10. [ ] Update any docs (`PROJECT`/`README`/`PLAN`) with config keys and required weather input URLs.
+

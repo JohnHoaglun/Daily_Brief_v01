@@ -10,8 +10,15 @@ LLM_MODEL = "den-gemma4-e2b-8k-utility:latest"
 OLLAMA_HOST = "http://192.168.4.52:11434"
 
 # Directory Settings
-LOG_DIR = "C:\\Users\\john\\OneDrive\\Obsidian\\Shared_AI\\vault\\OpenCode\\Daily_Brief_v01\\logs"
-NEWS_DIR = "C:\\Users\\john\\OneDrive\\Obsidian\\Shared_AI\\vault\\OpenCode\\Daily_Brief_v01\\news"
+#Windows Paths:
+#LOG_DIR = "C:\\Users\\john\\OneDrive\\Obsidian\\Shared_AI\\vault\\OpenCode\\Daily_Brief_v01\\logs"
+#NEWS_DIR = "C:\\Users\\john\\OneDrive\\Obsidian\\Shared_AI\\vault\\OpenCode\\Daily_Brief_v01\\news"
+
+#Mac Paths:
+LOG_DIR = "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/logs"
+NEWS_DIR = "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/news"
+
+
 
 # Weather Settings
 WEATHER_LAT = "30.286"

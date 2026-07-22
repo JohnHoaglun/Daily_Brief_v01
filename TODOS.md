@@ -25,6 +25,10 @@
 - [ ] Migrate configuration format from custom text parsing to YAML (using `PyYAML`)
 - [ ] Move all hardcoded constants and static items from `dashboard_pipeline.py` and `config.py` into `config.yaml`
 - [ ] Refactor `dashboard_pipeline.py` by decomposing it into specialized modules: `rss_service.py`, `weather_service.py`, `llm_service.py`, and `report_generator.py`
+- [ ] Implement Python Dataclasses or Pydantic models for RSS stories, Weather, and Lake data to replace tuple/dict structures
+- [ ] Transition weather/climate scraping from Regex to CSS selectors (using BeautifulSoup)
+- [ ] Encapsulate blocking LLM calls within an `LLMService` with a unified `async` interface
+- [ ] Replace custom `log()` function with standard Python `logging` module and `RotatingFileHandler`
 
 ## Version Notes
 - `README`, `PROJECT`, `SUMMARY`, and `PLAN` now aligned to **v1.0.7**.

@@ -22,6 +22,12 @@
 - [x] Added Windows paths (commented out) and Mac paths to `config.txt` for cross-platform testing.
 
 ## To do
+### 🚀 Strategic Improvement Options
+- [ ] **Option 1: The "Structural Refactor" (High Impact)** - Modularize pipeline into `rss_service`, `weather_service`, etc., and implement Pydantic models.
+- [ ] **Option 2: The "Reliability & Observability" Update (Medium Impact)** - Standardize logging with `logging` module and use `BeautifulSoup` for robust scraping.
+- [ ] **Option 3: The "Configuration & Cleanup" Sweep (Low Impact)** - Complete migration of all constants/prompts to `config.yaml`.
+
+### Work Items
 - [~] Migrate configuration format from custom text parsing to YAML (using `PyYAML`)
 - [ ] Move all hardcoded constants and static items from `dashboard_pipeline.py` and `config.py` into `config.yaml`
 - [ ] Refactor `dashboard_pipeline.py` by decomposing it into specialized modules: `rss_service.py`, `weather_service.py`, `llm_service.py`, and `report_generator.py`

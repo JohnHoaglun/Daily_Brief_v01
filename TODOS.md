@@ -22,7 +22,7 @@
 - [x] Added Windows paths (commented out) and Mac paths to `config.txt` for cross-platform testing.
 
 ## To do
-- [ ] Migrate configuration format from custom text parsing to YAML (using `PyYAML`)
+- [~] Migrate configuration format from custom text parsing to YAML (using `PyYAML`)
 - [ ] Move all hardcoded constants and static items from `dashboard_pipeline.py` and `config.py` into `config.yaml`
 - [ ] Refactor `dashboard_pipeline.py` by decomposing it into specialized modules: `rss_service.py`, `weather_service.py`, `llm_service.py`, and `report_generator.py`
 - [ ] Implement Python Dataclasses or Pydantic models for RSS stories, Weather, and Lake data to replace tuple/dict structures

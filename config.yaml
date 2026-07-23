@@ -1,0 +1,120 @@
+version: "1.0.7"
+llm_model: "den-gemma4-e2b-8k-utility:latest"
+ollama_host: "http://192.168.4.52:11434"
+directories:
+  log_dir: "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/logs"
+  news_dir: "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/news"
+
+weather:
+  lat: 30.286
+  lon: -95.566
+  wunderground_station_id: "KTXMONTG645"
+  wunderground_monthly_template: "https://www.wunderground.com/dashboard/pws/{station_id}/graph/{date}/{date}/monthly"
+  lake_urls:
+    conroe: "https://waterdatafortexas.org/reservoirs/individual/conroe"
+    corpus_christi: "https://waterdatafortexas.org/reservoirs/individual/corpus-christi"
+    travis: "https://waterdatafortexas.org/reservoirs/individual/travis"
+
+rss:
+  base_url: "https://news.google.com/rss/search?q="
+  params: "&hl=en-US&gl=US&ceid=US:en"
+
+timezone: "America/Chicago"
+user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+user_agent_weather_suffix: "/DailyBrief/1.0"
+
+cleanup_policy:
+  max_log_versions: 5
+
+runtime_defaults:
+  frontmatter_tag_seeds: ["daily-intelligently", "news-summary", "ai-generated"]
+  frontmatter_fallback_tag: "#news"
+  llm_summary_context_chars: 6000
+  llm_context_preview_chars: 600
+  llm_summary_trim_min_chars: 100
+  llm_summary_options:
+    temperature: 0.3
+    top_p: 0.8
+    num_ctx: 8192
+  llm_alert_options:
+    temperature: 0.1
+    top_p: 0.3
+    num_ctx: 8192
+  default_content_age_window_hours: "24 hours"
+  default_categories_count: 17
+
+categories:
+  "World News":
+    query: "world news"
+    max_stories: 10
+    min_age_hours: 24
+  "US News":
+    query: "us news"
+    max_stories: 10
+    min_age_hours: 24
+  "Texas News":
+    query: "Texas news"
+    max_stories: 5
+    min_age_hours: 24
+  "Conroe TX News":
+    query: "Conroe TX"
+    max_stories: 5
+    min_age_hours: 24
+  "Montgomery County TX News":
+    query: "Montgomery County TX"
+    max_stories: 5
+    min_age_hours: 24
+  "Weather Forecast 77316":
+    query: ""
+    max_stories: 0
+    min_age_hours: 8
+  "Houston Tropical Weather":
+    query: "Houston Tropical Weather"
+    max_stories: 1
+    min_age_hours: 24
+  "Market News":
+    query: "market news"
+    max_stories: 5
+    min_age_hours: 24
+  "Semiconductors":
+    query: "semiconductors"
+    max_stories: 5
+    min_age_hours: 24
+  "Big Tech":
+    query: "big tech"
+    max_stories: 5
+    min_age_hours: 24
+  "Artificial Intelligence":
+    query: "artificial intelligence"
+    max_stories: 5
+    min_age_hours: 24
+  "OpenAI News":
+    query: "OpenAI news"
+    max_stories: 5
+    min_age_hours: 24
+  "Anthropic News":
+    query: "anthropic news"
+    max_stories: 5
+    min_age_hours: 24
+  "SpaceX News":
+    query: "SpaceX news"
+    max_stories: 5
+    min_age_hours: 24
+  "Andrej Karpathy Activity":
+    query: "Andrej Karpathy"
+    max_stories: 5
+    min_age_hours: 24
+  "Hermes Agent News":
+    query: "herms agent"
+    max_stories: 5
+    min_age_hours: 24
+
+prompts:
+  summary: "You are an objective news editor. Write a detailed summary of at least 3 sentences covering the key facts of this article."
+  system_batch: "You are a concise news summarization engine.\nFor each story I list, output EXACTLY one numbered short summary block in this format:\nSTORY_0: <3-sentence summary>\nSTORY_1: <3-sentence summary>\n...\nSTORY_N: <3-sentence summary>\n\nDo not add any preamble, explanations, extra headings, markdown, or bullet points.\nEach summary must be 3 sentences whenever possible and should not equal the headline."
+  system_alert: "You are a news priority classifier. For EACH story provided, respond with exactly one line.\\nFormat: STORY_<number>: TRUE or FALSE\\nJudge: extreme weather (hurricane/tornado/flood/freeze in Houston/Texas/77316), major breakthroughs from top tech labs,\\ncritical economic disruption, geopolitical crises, or infrastructure failure.\\nBe conservative; only flag TRUE for genuinely important news. No preamble.\\n\\nUse EXACT format:\\nSTORY_0: TRUE\\nSTORY_1: FALSE\\nSTORY_2: TRUE"
+
+rss_settings:
+  default_age_window_hours: 24
+  dedupe_window_hours: 24
+  default_age_limit_hours: 24

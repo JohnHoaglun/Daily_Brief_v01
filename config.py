@@ -1,251 +1,123 @@
-# Daily Brief Configuration File
-
 import os
-import ast
-import re
+import yaml
+from pathlib import Path
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = Path(__file__).parent.resolve()
 
+DEFAULTS = {
+    "version": "1.0.8",
+    "llm_model": "den-gemma4-e2b-8k-utility:latest", 
+    "ollama_host": "http://localhost:11434/v1",
+    "directories": {
+        "log_dir": "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/logs",  
+        "news_dir": "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/news",   
+    }
+}
 
-def _parse_value(value):
-    value = value.strip()
-    if not value:
-        return ""
-    if value.lower() in ('null', 'none'):
-        return None
-    if value.lower() in ('true', 'false'):
-        return value.lower() == 'true'
-    if value.startswith('"') and value.endswith('"'):
-        return value[1:-1]
-    if value.startswith("'") and value.endswith("'"):
-        return value[1:-1]
-    if re.match(r"^[0-9]+(?:\.[0-9]+)?$", value):
-        if '.' in value:
-            return float(value)
-        return int(value)
-    try:
-        if value[0] in ('{', '[', '(') and value[-1] in ('}', ']', ')'):
-            return ast.literal_eval(value)
-    except Exception:
-        pass
-    return value
-
-
-def load_config():
-    """Load all configuration variables from config.txt (supports multiline dict/list blocks)."""
-    settings = {}
-
-    try:
-        with open("config.txt", "r", encoding="utf-8") as f:
-            lines = f.readlines()
-
-        current_key = None
-        block_lines = []
-        in_block = False
-
-        for raw in lines:
-            line = raw.rstrip("\n")
-            stripped = line.strip()
-
-            if not stripped or stripped.startswith('#'):
-                continue
-
-            if in_block:
-                block_lines.append(line)
-                if stripped.endswith('}') or stripped.endswith(']') or stripped.endswith(')'):
-                    # best-effort end-of-block: close when depth is balanced on this line
-                    combined = "\n".join(block_lines).strip()
-                    if combined.count('{') == combined.count('}') and combined.count('[') == combined.count(']') and combined.count('(') == combined.count(')'):
-                        settings[current_key] = _parse_value(combined)
-                        current_key = None
-                        block_lines = []
-                        in_block = False
-                continue
-
-            if '=' not in stripped:
-                continue
-
-            key, value = stripped.split('=', 1)
-            key = key.strip()
-            value = value.strip()
-
-            if value in ('{', '[', '(') or (
-                value.startswith('{') and not value.endswith('}')
-                or value.startswith('[') and not value.endswith(']')
-                or value.startswith('(') and not value.endswith(')')
-            ):
-                in_block = True
-                current_key = key
-                block_lines = [value]
-                combined = "\n".join(block_lines).strip()
-                if combined.count('{') == combined.count('}') and combined.count('[') == combined.count(']') and combined.count('(') == combined.count(')'):
-                    settings[current_key] = _parse_value(combined)
-                    current_key = None
-                    block_lines = []
-                    in_block = False
-            else:
-                settings[key] = _parse_value(value)
-
-        if in_block and current_key and block_lines:
-            settings[current_key] = _parse_value("\n".join(block_lines).strip())
-
+def load_config_yaml():
+    """Load configuration from config.yaml using PyYAML. Returns parsed dict with all keys.""" 
+    config_path = BASE_DIR / "config.yaml"
+    try: 
+        with open(config_path, 'r', encoding='utf-8') as filehandle:
+            return yaml.safe_load(filehandle) or {}
     except FileNotFoundError:
-        print("Error: config.txt not found")
+        print(f"Error: config.yaml not found")
+        return DEFAULTS
+    except Exception as exc:
+        print(f"YAML load error: {exc}")
+        return DEFAULTS
 
-    return settings
+CONFIG_YAML = load_config_yaml()
 
+def _get_nested(d, path):
+    """Extract a nested value using a dotted path eg directories.log_dir."""
+    if not d: return None
+    parts = path.split('.')
+    for part in parts:
+        if isinstance(d, dict) and part in d:
+            d = d[part]
+        else:
+            return None
+    return d
 
-def _safe_int(value, default):
-    try:
-        return int(value)
-    except Exception:
-        return default
+LLM_MODEL = _get_nested(CONFIG_YAML, 'llm_model') or DEFAULTS['llm_model']
+OLLAMA_HOST = _get_nested(CONFIG_YAML, 'ollama_host') or DEFAULTS['ollama_host']
+LOG_DIR = _get_nested(CONFIG_YAML, 'directories.log_dir') or DEFAULTS['directories']['log_dir']
+NEWS_DIR = _get_nested(CONFIG_YAML, 'directories.news_dir') or DEFAULTS['directories']['news_dir']
 
+VERSION = _get_nested(CONFIG_YAML, 'version') or DEFAULTS['version']
+WEATHER_LAT = float(_get_nested(CONFIG_YAML, 'weather.lat') or 30.286)
+WEATHER_LON = float(_get_nested(CONFIG_YAML, 'weather.lon') or -95.566)
 
-# Load configuration  
-config_dict = load_config()
+RSS_BASE = _get_nested(CONFIG_YAML, 'rss.base_url') or 'https://news.google.com/rss/search?q='
+RSS_PARAMS = _get_nested(CONFIG_YAML, 'rss.params') or '&hl=en-US&gl=US&ceid=US:en'
+TIMEZONE = _get_nested(CONFIG_YAML, 'timezone') or 'America/Chicago'
 
-# Extract all variables
-LLM_MODEL = config_dict.get('LLM_MODEL')
-LOG_DIR = config_dict.get('LOG_DIR')
-NEWS_DIR = config_dict.get('NEWS_DIR')
-MAX_VERSIONS = _safe_int(config_dict.get('MAX_VERSIONS', 5), 5)
-MAX_LOG_VERSIONS = _safe_int(config_dict.get('MAX_LOG_VERSIONS', 5), 5)
-TIMEZONE = config_dict.get('TIMEZONE', 'America/Chicago')
-OLLAMA_HOST = config_dict.get('OLLAMA_HOST')
-WEATHER_LAT = str(config_dict.get('WEATHER_LAT', '30.286'))
-WEATHER_LON = str(config_dict.get('WEATHER_LON', '-95.566'))
-WEATHER_POINT_URL = config_dict.get('WEATHER_POINT_URL', 'https://forecast.weather.gov/MapClick.php?lon=-95.566&lat=30.286')
-WEATHER_POINT_FORECAST_SUFFIX = config_dict.get('WEATHER_POINT_FORECAST_SUFFIX', 'forecast')
-WEATHER_WUNDERGROUND_STATION_ID = config_dict.get('WEATHER_WUNDERGROUND_STATION_ID', 'KTXMONTG645')
-WUNDERGROUND_MONTHLY_TEMPLATE = config_dict.get(
-    'WUNDERGROUND_MONTHLY_TEMPLATE',
-    'https://www.wunderground.com/dashboard/pws/{station_id}/graph/{date}/{date}/monthly'
-)
-WEATHER_LAKE_URLS = config_dict.get('WEATHER_LAKE_URLS', {
-    'conroe': 'https://waterdatafortexas.org/reservoirs/individual/conroe',
-    'corpus_christi': 'https://waterdatafortexas.org/reservoirs/individual/corpus-christi',
-    'travis': 'https://waterdatafortexas.org/reservoirs/individual/travis',
-})
+USER_AGENT = _get_nested(CONFIG_YAML, 'user_agent') or "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+USER_AGENT_WEATHER_SUFFIX = _get_nested(CONFIG_YAML, 'user_agent_weather_suffix') or "/DailyBrief/1.0"
 
-# Resolve and create configured directories in a project-safe way
-def _resolve_output_dir(path_value, fallback_name):
-    if not path_value:
-        return os.path.join(BASE_DIR, fallback_name)
+MAX_LOG_VERSIONS = _get_nested(CONFIG_YAML, 'cleanup_api.max_log_versions') or 5
+FRONTMATTER_TAG_SEEDS = _get_nested(CONFIG_YAML, 'runtime_defaults.frontmatter_tag_seeds') or ["daily-brief", "news-summary", "ai-generated"]
+FRONTMATTER_FALLBACK_TAG = _get_nested(CONFIG_YAML, 'runtime_defaults.frontmatter_fallback_tag') or "#news"
 
-    candidate = str(path_value).strip()
-    lower = candidate.lower()
+LLM_SUMMARY_CONTEXT_CHARS = _get_nested(CONFIG_YAML, 'runtime_defaults.llm_summary_context_chars') or 6000
+LLM_CONTEXT_PREVIEW_CHARS = _get_nested(CONFIG_YAML, 'runtime_defaults.llm_context_preview_chars') or 600
+LLM_SUMMARY_TRIM_MIN_CHARS = _get_nested(CONFIG_YAML, 'runtime_defaults.llm_summary_trim_min_chars') or 100
 
-    if candidate.startswith('/Users/'):
-        mapped = candidate.replace('/Users/', 'C:\\Users\\')
-        mapped = os.path.normpath(mapped)
-        if os.path.exists(mapped):
-            candidate = mapped
+LLM_SUMMARY_OPTIONS = _get_nested(CONFIG_YAML, 'runtime_defaults.llm_summary_options') or {"temperature": 0.3, "top_p": 0.8}
+LLM_ALERT_OPTIONS = _get_nested(CONFIG_YAML, 'runtime_defaults.llm_alert_options') or {"temperature": 0.1, "top_p": 0.3}
 
-    # Heuristic compatibility for old macOS/Linux-like paths accidentally carried into
-    # Windows configs (for example, /Users/...).
-    if candidate.startswith(("/", "\\")) or lower.startswith("/users/"):
-        if not os.path.exists(candidate):
-            return os.path.join(BASE_DIR, fallback_name)
+# Category definitions
+CATEGORIES_RAW = _get_nested(CONFIG_YAML, 'categories') or {}
+CATEGORY_SETTINGS = _get_nested(CONFIG_YAML, 'category_settings') or {}
 
-    if os.path.isabs(candidate):
-        return candidate
+# Build CATEGORIES as list of tuples for compatibility with existing codebase (name, query, max_stories)
+CATEGORIES = []
+for cat_name, cat_info in CATEGORIES_RAW.items():
+    query = cat_info.get('query', '')
+    max_stories = cat_info.get('max_stories', 10)
+    CATEGORIES.append((cat_name, query, max_stories))
 
-    return os.path.join(BASE_DIR, candidate)
+# Category age limits
+CATEGORY_AGE_LIMITS = {}
+for cat_name, cat_info in CATEGORIES_RAW.items():
+    min_age = 24 # default
+    if 'min_age_hours' in cat_info:
+        min_age = cat_info['min_age_hours']
+    elif 'category_settings' in CONFIG_YAML and cat_name in _get_nested(CONFIG_YAML, 'category_settings'):
+        pass 
+    CATEGORY_AGE_LIMITS[cat_name] = min_age
+# Create a compatibility alias for the pipeline which expects CATEGORY_AGE_LIMITS_EFFECTIVE
+CATEGORY_AGE_LIMITS_EFFECTIVE = CATEGORY_AGE_LIMITS
 
+# RSS helper settings from yaml
+RSS_SETTINGS = _get_nested(CONFIG_YAML, 'rss_settings') or {}
+DEFAULT_AGE_WINDOW_HOURS = RSS_SETTINGS.get('default_age_window_hours', 24)
+DEDUPE_WINDOW_HOURS = RSS_SETTINGS.get('dedupi_window_hours', 24)
+DEFAULT_AGE_LIMIT_HOURS = RSS_SETTINGS.get('default_age_limit_hours', 24)
 
-LOG_DIR = _resolve_output_dir(LOG_DIR, "logs")
-NEWS_DIR = _resolve_output_dir(NEWS_DIR, "news")
+# Allow for missing keys in YAML by providing defaults here if needed
+DEFAULT_CONTENT_AGE_WINDOW_HOURS = _get_nested(CONFIG_YAML, 'runtime_defaults.default_content_age_window_hours') or "24 hours"
+DEFAULT_CATEGORIES_COUNT = _get_nested(CONFIG_YAML, 'runtime_defaults.default_categories_count') or 17
 
-if LOG_DIR:
-    os.makedirs(LOG_DIR, exist_ok=True)
-if NEWS_DIR:
-    os.makedirs(NEWS_DIR, exist_ok=True)
+# Prompts
+PROMPTS = _get_nested(CONFIG_YAML, 'prompts') or {}
+SUMMARY_PROMPT = PROMPTS.get('summary', '')
+SYSTEM_BATCH_PROMPT = PROMPTS.get('system_batch', '')
+SYSTEM_ALERT_PROMPT = PROMPTS.get('system_alert', '')
 
-VERSION = config_dict.get('VERSION', '1.0.0')
+# Weather infrastructure
+WEATHER_WUNDERGROUND_STATION_ID = _get_nested(CONFIG_YAML, 'weather.wunderground_station_id') or "KTXMONTG645"
+WUNDERGROUND_MONTHLY_TEMPLATE = _get_nested(CONFIG_YAML, 'weather.wunderground_monthly_template') or "https://www.wunderground.com/dashboard/pws/{station_id}/graph/{date}/{date}/monthly"
+WEATHER_LAKE_URLS = _get_nested(CONFIG_YAML, 'weather.lake_urls') or {
+    "conroe": "https://waterdatafortexas.org/reservoirs/individual/conroe",
+    "corpus_christi": "https://waterdatafortexas.org/reservoirs/individual/corpus-christi",
+    "travis": "https://waterdata_texas.org/reservoirs/individual/travis"
+}
+WEATHER_POINT_URL = f"https://api.weather.gov/points/{WEATHER_LAT},{WEATHER_LON}"
+WEATHER_POINT_FORECAST_SUFFIX = "forecast"
+WEATHER_SECTION_TITLE = "Weather Forecast"
+DATE_OVERRIDE = None
 
-MAX_STORIES_PER_CATEGORY = _safe_int(config_dict.get('MAX_STORIES_PER_CATEGORY', 10), 10)
-DEDUPE_WINDOW_HOURS = _safe_int(config_dict.get('DEDUPE_WINDOW_HOURS', 24), 24)
-
-RSS_BASE = config_dict.get('RSS_BASE')
-RSS_PARAMS = config_dict.get('RSS_PARAMS')
-DEFAULT_AGE_LIMIT_HOURS = _safe_int(config_dict.get('DEFAULT_AGE_LIMIT_HOURS', DEDUPE_WINDOW_HOURS), 24)
-CATEGORY_AGE_LIMITS = config_dict.get('CATEGORY_AGE_LIMITS', {})
-CATEGORY_SETTINGS = config_dict.get('CATEGORY_SETTINGS', {})
-
-USER_AGENT = config_dict.get('USER_AGENT', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36')
-USER_AGENT_WEATHER_SUFFIX = config_dict.get('USER_AGENT_WEATHER_SUFFIX', '/DailyBrief/1.0')
-USER_AGENT_HINT = USER_AGENT_WEATHER_SUFFIX
-SUMMARY_PROMPT = config_dict.get('SUMMARY_PROMPT', 'You are an objective news editor. Write a detailed summary of at least 3 sentences covering the key facts of this article.')
-SYSTEM_BATCH_PROMPT = config_dict.get('SYSTEM_BATCH_PROMPT', 'You are a news summarization engine. For each story I list, produce a detailed summary.')
-SYSTEM_ALERT_PROMPT = config_dict.get('SYSTEM_ALERT_PROMPT', 'You are a news priority classifier. For EACH story provided, respond with exactly one line.')
-
-LLM_SUMMARY_CONTEXT_CHARS = _safe_int(config_dict.get('LLM_SUMMARY_CONTEXT_CHARS', 6000), 6000)
-LLM_CONTEXT_PREVIEW_CHARS = _safe_int(config_dict.get('LLM_CONTEXT_PREVIEW_CHARS', 600), 600)
-LLM_SUMMARY_TRIM_MIN_CHARS = _safe_int(config_dict.get('LLM_SUMMARY_TRIM_MIN_CHARS', 100), 100)
-LLM_SUMMARY_OPTIONS = config_dict.get('LLM_SUMMARY_OPTIONS', {
-    'temperature': 0.3,
-    'top_p': 0.8,
-    'num_ctx': 8192,
-})
-LLM_ALERT_OPTIONS = config_dict.get('LLM_ALERT_OPTIONS', {
-    'temperature': 0.1,
-    'top_p': 0.3,
-    'num_ctx': 8192,
-})
-
-DEFAULT_CONTENT_AGE_WINDOW_HOURS = config_dict.get('DEFAULT_CONTENT_AGE_WINDOW_HOURS', '24 hours')
-DEFAULT_CATEGORIES_COUNT = _safe_int(config_dict.get('DEFAULT_CATEGORIES_COUNT', 17), 17)
-FRONTMATTER_TAG_SEEDS = config_dict.get('FRONTMATTER_TAG_SEEDS', ['daily-brief', 'news-summary', 'ai-generated'])
-FRONTMATTER_FALLBACK_TAG = config_dict.get('FRONTMATTER_FALLBACK_TAG', '#news')
-WEATHER_SECTION_TITLE = config_dict.get('WEATHER_SECTION_TITLE', 'Weather for 77316')
-DATE_OVERRIDE = config_dict.get('DATE_OVERRIDE')
-
-# CATEGORIES - read from the config file as a dictionary
-# Try to parse as dictionary first, fallback to empty dict if not successful
-try:
-    categories_dict = config_dict.get('CATEGORIES', {})
-    if isinstance(categories_dict, str):
-        categories_dict = ast.literal_eval(categories_dict)
-    if not isinstance(categories_dict, dict):
-        raise ValueError
-    CATEGORIES = []
-    for cat_name, cat_info in categories_dict.items():
-        if not isinstance(cat_info, dict):
-            continue
-        CATEGORIES.append((cat_name, cat_info.get('query', ''), _safe_int(cat_info.get('max_stories', MAX_STORIES_PER_CATEGORY), MAX_STORIES_PER_CATEGORY)))
-except Exception:
-    print("Warning: Could not parse CATEGORIES from config.txt. Using fallback.")
-    CATEGORIES = [
-        ("World News", "world news", 10),
-        ("US News", "us news", 10),
-        ("Texas News", "Texas news", 5),
-        ("Conroe TX News", "Conroe TX", 5),
-        ("Montgomery County TX News", "Montgomery County TX", 5),
-        ("Weather Forecast 77316", None, 0),
-        ("Houston Tropical Weather", "Houston Tropical Weather", 1),
-        ("Market News", "market news", 5),
-        ("Semiconductors", "semiconductors", 5),
-        ("Big Tech", "big tech", 5),
-        ("Artificial Intelligence", "artificial intelligence", 5),
-        ("OpenAI News", "OpenAI news", 5),
-        ("Anthropic News", "Anthropic news", 5),
-        ("SpaceX News", "SpaceX news", 5),
-        ("Andrej Karpathy Activity", "Andrej Karpathy", 5),
-        ("Hermes Agent News", "hermes agent", 5)
-    ]
-
-# Derived per-category age limits: fallback to DEFAULT_AGE_LIMIT_HOURS
-CATEGORY_AGE_LIMITS_EFFECTIVE = {}
-for category_name, _query, _max in CATEGORIES:
-    age_hours = DEFAULT_AGE_LIMIT_HOURS
-    if isinstance(CATEGORY_SETTINGS, dict):
-        item = CATEGORY_SETTINGS.get(category_name)
-        if isinstance(item, dict) and 'min_age_hours' in item:
-            age_hours = _safe_int(item.get('min_age_hours'), age_hours)
-    if isinstance(CATEGORY_AGE_LIMITS, dict) and category_name in CATEGORY_AGE_LIMITS:
-        age_hours = _safe_int(CATEGORY_AGE_LIMITS.get(category_name), age_hours)
-    CATEGORY_AGE_LIMITS_EFFECTIVE[category_name] = age_hours
-
-# Make all variables available for imports
+# Universe of constants for the pipeline
 globals().update(locals())

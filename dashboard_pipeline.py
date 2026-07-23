@@ -49,6 +49,8 @@ from config import *
 _llm_client = ollama.Client(host=OLLAMA_HOST, timeout=180)
 
 # Pull configuration values after importing config
+# Note: These are already loaded globally by config.py via the globals().update(locals()) pattern. 
+# We just ensure they are available in the local scope if needed.
 LLM_MODEL = LLM_MODEL
 LOG_DIR = LOG_DIR
 NEWS_DIR = NEWS_DIR
@@ -149,11 +151,12 @@ def _present_weather_value(value, fallback="Unavailable"):
         return fallback
     try:
         text = str(value).strip()
+        if not text or text.lower() in {"none", "n/a", "na"}:
+            return fallback
+        # Do NOT replace "Dynamic" with the fallback. "Dynamic" is a valid placeholder used for forecasted periods.
+        return text
     except Exception:
         return fallback
-    if not text or text.lower() in {"dynamic", "none", "n/a", "na"}:
-        return fallback
-    return text
 
 
 def get_reference_datetime():
@@ -318,16 +321,24 @@ def _extract_first_match(text, patterns):
 
 async def _fetch_json(session, url, suffix=""):
     try:
-        async with session.get(url, headers={"User-Agent": USER_AGENT + suffix}, timeout=15) as resp:
-            return await resp.json()
+        async with session.get(url, headers={"User-Agent": USER_AGENT}, timeout=15) as resp:
+            if resp.status == 200:
+                return await resp.json()
+            else:
+                log(f"  [fetch_json error] {url} returned status {resp.status}")
+                return None
     except Exception:
         return None
 
 
 async def _fetch_text(session, url, suffix=""):
     try:
-        async with session.get(url, headers={"User-Agent": USER_AGENT + suffix}, timeout=15) as resp:
-            return await resp.text()
+        async with session.get(url, headers={"User-Agent": USER_AGENT}, timeout=15) as resp:
+            if resp.status == 200:
+                return await resp.text()
+            else:
+                log(f"  [fetch_text error] {url} returned status {resp.status}")
+                return None
     except Exception:
         return None
 
@@ -345,8 +356,13 @@ def _coerce_percent(value):
         return None
 
 
-def _coerce_temperature_f(text):
-    """Extract a Fahrenheit temperature and validate plausible station-temperature ranges."""
+def is_obituary_title(title):
+    """Check if a title contains obituary-related keywords."""
+    keywords = ["obituary", "passed away", "death notice", "funeral services for", "memorial service for"]
+    title_lower = title.lower()
+    return any(kw in title_lower for kw in keywords)
+
+
     if text is None:
         return None
     m = re.search(r"(-?\d{1,3}(?:\.\d+)?)", _safe_text(text))
@@ -633,7 +649,7 @@ def parse_batch_summary_response(response, count):
             if not idx:
                 continue
             idx = int(idx)
-            if idx > 0:
+            if m.group(1) is not None and idx > 0:
                 idx -= 1
             if 0 <= idx < count:
                 headers.append((i, idx, line))
@@ -737,12 +753,11 @@ async def _fetch_station_metrics(session, station_id, reference):
     payload["avg_temp_today"] = _extract_first_match(
         full_text,
         [
-            r"Average Temp(?:erature)?(?:\s*Today)?(?:\s*[^%\d]{0,80})?(\d+\.?\d*)\s*°?F",
-            r"Average Temperature(?:\s*[^%\d]{0,40})?(\d+\.?\d*)\s*°?F",
-            r"Avg\s*Temperature(?:\s*[^%\d]{0,40})?(\d+\.?\d*)\s*°?F",
+            r"Average Temp(?:erature)?(?:\s*Today)?(?:\s*[^%\d]{0,20})?(\d+\.?\d*)\s*°?F",
+            r"Average Temperature(?:\s*[^%\d]{0,20})?(\d+\.?\d*)\s*°?F",
+            r"Avg\s*Temperature(?:\s*[^%\d]{0,20})?(\d+\.?\d*)\s*°?F",
             r"Avg(?:erage)?\s*Temp(?:erature)?(?:\s*is|:)?\s*(\d+\.?\d*)\s*°?F",
             r"Temperature(?:\s*is|:)?\s*(\d+\.?\d*)\s*°?F",
-            r"(\d+\.?\d*)\s*°?F.*(?:average|avg).*temperature",
         ]
     )
     payload["avg_temp_today"] = _coerce_temperature_f(payload["avg_temp_today"])
@@ -881,17 +896,11 @@ async def fetch_weather(session, lat, lon):
         log(f"  [fetch_weather] Point URL: {weather_point_url}")
         point = await _fetch_json(session, weather_point_url)
         if not isinstance(point, dict) or "properties" not in point:
-            # Legacy/HTML map-point endpoints often return non-JSON for some environments.
-            # Fall back to official NWS points endpoint when needed.
-            fallback_point_url = f"https://api.weather.gov/points/{lat},{lon}"
-            log(f"  [fetch_weather] Point response invalid or missing properties; trying fallback: {fallback_point_url}")
-            point = await _fetch_json(session, fallback_point_url)
-            if not isinstance(point, dict) or "properties" not in point:
-                weather_data["errors"].append("NWS point returned invalid response")
-                log("  [fetch_weather] Fallback point response invalid or missing properties")
-                return weather_data
-
+            log("  [fetch_weather] Point response invalid or missing properties")
+            return weather_data
+ 
         fc_url = point["properties"].get("forecast")
+
         if not fc_url:
             fc_url = WEATHER_POINT_URL.split('?')[0] + WEATHER_POINT_FORECAST_SUFFIX
         if WEATHER_POINT_FORECAST_SUFFIX and not fc_url.rstrip("/").endswith(WEATHER_POINT_FORECAST_SUFFIX):
@@ -1136,6 +1145,9 @@ class StoryPipelineState:
 
 async def stage_extract_article(story, session):
     """Phase 3A: Fetch full article text from source URL for summary context when link is an external publisher URL."""
+    if is_obituary_title(story.title) and story.category in ["Conroe TX News", "Houston TX News"]:
+        return
+
     url = story.link.strip()
     if not url or url == "#" or url.startswith("#"):
         return
@@ -1228,33 +1240,25 @@ def batch_summarize_all(stories, session=None):
                     if not value:
                         return True
                     normalized = re.sub(r"\s+", " ", value).strip().lower()
-                    headline_norm = re.sub(r"\s+", " ", _safe_text(headline)).strip().lower()
+                    headline_norm = reed_safe(headline)
                     if normalized == headline_norm or normalized.startswith(headline_norm + "."):
                         return True
-                    return _count_sentences(value) < 3
+                    return _count_sentences(value) < 2
 
-                if summary and len(summary) >= 30:
-                    safe_summary = _safe_sentence_summary(summary)
-                    if not is_invalid_summary(safe_summary):
-                        s.summary = safe_summary
-                        total_parsed += 1
-                    else:
-                        s.summary = ""
-                if not s.summary:
-                    fallback = _summarize(
-                        f"Summarize this story into exactly 3 complete sentences for a daily brief:\nHeadline: {headline}\nContext: {build_context(s)}",
-                        min_chars=30,
-                    )
-                    if fallback and len(fallback) >= 30:
-                        fallback_summary = _safe_sentence_summary(fallback)
-                        if not is_invalid_summary(fallback_summary):
-                            s.summary = fallback_summary
-                            total_parsed += 1
-                        else:
-                            s.summary = f"[Headline] {cat_stories[idx].title}"
-                    else:
-                        s.summary = f"[Headline] {cat_stories[idx].title}"
-                        log(f"  [parse gap] {cat_name} story {idx+1}")
+                def reed_safe(text):
+                    return re.sub(r"\s+", " ", text).strip().lower()
+
+                if not summary or not summary.strip():
+                    s.summary = ""
+                    continue
+                
+                safe_summary = summary
+                if not is_invalid_summary(safe_summary):
+                    s.summary = safe_summary
+                    total_parsed += 1
+                else:
+                    s.summary = ""
+
             
         except Exception as e:
             log(f"BATCH SUMMARIZE ERROR ({cat_name}): {e}")
@@ -1499,6 +1503,24 @@ def tag_story_with_keywords(story_title, category=None):
 
 
 
+def _coerce_temperature_f(val):
+    """Safely convert temperature string/none to float and sanity check."""
+    if val is None:
+        return None
+    try:
+        # Remove non-numeric characters except for the decimal point
+        clean_val = re.sub(r"[^\d.]", "", str(val))
+        if not clean_val:
+            return None
+        temp = float(clean_val)
+        # Sanity check: Temperature should be within a reasonable range (-50 to 140 F)
+        if temp < -50 or temp > 140:
+            log(f"  WARNING: Extreme temperature detected and discarded: {temp}°F")
+            return None
+        return temp
+    except (ValueError, TypeError):
+        return None
+
 def is_realt_estate_title(title):
     """Check if a title contains real estate markers that should be filtered out."""
     if not title:
@@ -1509,6 +1531,17 @@ def is_realt_estate_title(title):
     ]
     title_lower = title.lower()
     return any(keyword in title_lower for keyword in realtor_keywords)
+
+def is_obituary_title(title):
+    """Check if a title contains mortality/obituary markers that should be filtered out."""
+    if not title:
+        return False
+    mortality_keywords = [
+        "obituary", "passed away", "died", "deceased", "funeral services", 
+        "death notice", "memorial service", "passed at age", "remembering"
+    ]
+    title_lower = title.lower()
+    return any(keyword in title_lower for keyword in mortality_keywords)
 
 
 # -- Main -------------------------------------------------------------------
@@ -1633,8 +1666,8 @@ async def main():
                     continue
                 seen_per_cat[cat_name].add(norm)
 
-                # 3. Filter out real estate listings for Conroe TX News (after dedup but before adding to deduped)
-                if cat_name == "Conroe TX News" and is_realt_estate_title(title):
+                # 3. Filter out real estate and mortality content (after dedup but before adding to deduped)
+                if is_realt_estate_title(title) or is_obituary_title(title):
                     continue
 
                 deduped.append((title, link, snippet, pub_dt, cat_name))

@@ -1,4 +1,4 @@
-# Project: Daily Brief v01 (v1.0.7)
+# Project: Daily Brief v01 (v1.0.8)
 
 ## Overview
 Automated daily news brief generator that pulls category RSS stories and produces AI-summarized Markdown reports.

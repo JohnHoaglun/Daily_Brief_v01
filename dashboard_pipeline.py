@@ -129,8 +129,11 @@ LLM_CONTEXT_PREVIEW_CHARS = LLM_CONTEXT_PREVIEW_CHARS
 LLM_SUMMARY_TRIM_MIN_CHARS = LLM_SUMMARY_TRIM_MIN_CHARS
 FRONTMATTER_TAG_SEEDS = FRONTMATTER_TAG_SEEDS
 FRONTMATTER_FALLBACK_TAG = FRONTMATTER_FALLBACK_TAG
-DEFAULT_CONTENT_AGE_WINDOW_HOURS = DEFAULT_CONTENT_AGE_WINDOW_HOURS
-DEFAULT_CATEGORIES_COUNT = DEFAULT_CATEGORIES_COUNT
+if 'DEFAULT_AGE_WINDOW_HOURS' in globals():
+    DEFAULT_CONTENT_AGE_WINDOW_HOURS = DEFAULT_AGE_WINDOW_HOURS
+else:
+    DEFAULT_CONTENT_AGE_WINDOW_HOURS = 24
+DEFAULT_CATEGORIES_COUNT = CONFIG_YAML.get("runtime_defaults", {}).get("default_categories_count", 17)
 MAX_LOG_VERSIONS = MAX_LOG_VERSIONS
 MAX_STORIES_PER_CATEGORY = MAX_STORIES_PER_CATEGORY if 'MAX_STORIES_PER_CATEGORY' in globals() else 10
 
@@ -1052,41 +1055,60 @@ def _build_weather_markdown(weather):
     md.append("")
     md.append("**3 Day forecast for 77316:**")
     md.append("")
-    md.append("| **Date** | **Day Condition** | **Night Condition** | **High Temp** | **Low Temp** | **Precip. Chance** | **Wind** |")
-    md.append("| --- | --- | --- | --- | --- | --- | --- |")
-    for row in rows[:3]:
-        md.append(
-            "| "
-            f"{_present_weather_value(row.get('date'), 'Unavailable')} | "
-            f"{_present_weather_value(row.get('day'), 'Unavailable')} | "
-            f"{_present_weather_value(row.get('night'), 'Unavailable')} | "
-            f"{_present_weather_value(row.get('high'), 'Unavailable')} | "
-            f"{_present_weather_value(row.get('low'), 'Unavailable')} | "
-            f"{_present_weather_value(row.get('precip'), 'Unavailable')} | "
-            f"{_present_weather_value(row.get('wind'), 'Unavailable')} |"
-        )
+
+    # Table Header
+    header = ["Date", "Day", "Night", "High", "Low", "Precip", "Wind"]
+    # Use WEATHER_LABELS if they exist, otherwise fallback to header
+    if 'titles' in WEATHER_LABELS and len(WEATHER_LABELS['titles']) == len(header):
+        header = WEATHER_LABELS['titles']
+    
+    md.append(f"| {' | '.join(header)} |")
+    md.append("| " + " | ".join(["---"] * len(header)) + " |")
+
+    # Rows
+    for r in rows:
+        row_vals = [
+            r.get("date", "N/A"),
+            r.get("day", "N/A"),
+            r.get("night", "N/A"),
+            r.get("high", "N/A"),
+            r.get("low", "N/A"),
+            r.get("precip", "N/A"),
+            r.get("wind", "N/A")
+        ]
+        md.append(f"| {' | '.join(row_vals)} |")
 
     md.append("")
     station = weather.get("station", {})
-    md.append(f"| Average Temperature for today 77316 | {_present_weather_value(station.get('avg_temp_today'), 'Unavailable')} |")
+    md.append(f"**Station Observations (77316):**")
+    md.append("")
+    md.append(f"| Metric | Value |")
     md.append("| --- | --- |")
-    md.append(f"| Average Monthly rainfall for 77316  | {_present_weather_value(station.get('avg_monthly_rainfall'), 'Unavailable')} |")
-    md.append(f"| Current Monthly rainfall for 77316  | {_present_weather_value(station.get('current_monthly_rainfall'), 'Unavailable')} |")
+    md.append(f"| Average Temperature Today | {_present_weather_append_value(station.get('avg_temp_today'), 'Unavailable')} |")
+    md.append(f"| Average Monthly Rainfall | {_present_weather_append_value(station.get('avg_monthly_rainfall'), 'Unavailable')} |")
+    md.append(f"| Current Monthly Rainfall | {_present_weather_append_value(station.get('current_monthly_rainfall'), 'Unavailable')} |")
+    md.append("")
+
+    md.append("**Lake Level Information:**")
     md.append("")
     md.append("| Where | Today | 1 Week Ago | 30 Days ago |")
     md.append("| --- | --- | --- | --- |")
     labels = {"conroe": "Lake Conroe", "corpus_christi": "Lake Corpus Christi", "travis": "Lake Travis"}
     for key, label in labels.items():
         vals = weather.get("lakes", {}).get(key, {})
-        md.append(
-            f"| {label} | {_present_weather_value(vals.get('today'), 'Unavailable')} | "
-            f"{_present_weather_value(vals.get('one_week_ago'), 'Unavailable')} | "
-            f"{_present_weather_value(vals.get('thirty_days_ago'), 'Unavailable')} |"
-        )
+        md.append(f"| {label} | {_present_weather_append_value(vals.get('today'), 'Unavailable')} | "
+                  f"{_present_weather_append_value(vals.get('one_week_ago'), 'Unavailable')} | "
+                  f"{_present_weather_append_value(vals.get('thirty_days_ago'), 'Unavailable')} |")
 
     md.append("")
     md.append("---")
     return md
+
+def _present_weather_append_value(val, fallback):
+    """Helper to present weather values safely."""
+    if val is None or val == "" or str(val).lower() == "unavailable":
+        return fallback
+    return str(val)
 
 
 # -- Ollama helpers (blocking, run in thread pool) -------------------------
@@ -1283,74 +1305,68 @@ def batch_evaluate_alerts(stories):
     # Process each category separately to avoid hitting context limits or timeouts
     all_alerts = {}
     for cat_name, cat_stories in by_category.items():
-        # Build input text â€” only include stories that have valid summaries
-        labeled_summaries = []
-        summary_indices = []  # Track which stories are included
-        idx = 0
-        
-        for s in cat_stories:
-            if not s.summary or s.summary.startswith("[") or "unavailable" in s.summary.lower():
+        try:
+            # Build input text — only include stories that have valid summaries
+            labeled_summaries = []
+            story_mapping = [] # List of (story_object, label)
+            idx = 0
+            
+            for s in cat_stories:
+                if not s.summary or s.summary.startswith("[") or "unavailable" in s.summary.lower():
+                    continue
+                label = f"STORY_{idx}"
+                entry = f"{label} | Headline: {s.title}\nSummary: {s.summary}"
+                labeled_summaries.append(entry)
+                story_mapping.append((s, label))
+                idx += 1
+
+            if not labeled_summaries:
                 continue
-            label = f"STORY_{idx}"
-            entry = f"{label} | Headline: {s.title}\nSummary: {s.summary}"
-            labeled_summaries.append(entry)
-            s._alert_idx = idx  # Tag the story with its batch index
-            summary_indices.append(idx)
-            idx += 1
-        
-        if not labeled_summaries:
-            continue
 
-        alert_text = "\n\n".join(labeled_summaries)
-        
-        SYSTEM_ALERT_BATCH = SYSTEM_ALERT_PROMPT
-
-        for attempt in range(2):
-            try:
-                t0 = time.time()
-                r = _llm_client.chat(
-                    model=LLM_MODEL,
-                    messages=[
-                {"role": "system", "content": SYSTEM_ALERT_BATCH},
-                {"role": "user", "content": alert_text}
-            ],
-                    options=LLM_ALERT_OPTIONS
-                )
-                log(f"BATCH ALERT EVAL ({cat_name}, {len(labeled_summaries)} stories): {time.time() - t0:.2f}s")
-                
-                resp_text = r["message"]["content"]
-                alert_results = parse_alert_batch_response(resp_text)
-                
-                # Map results back to stories
-                alerts_flagged = 0
-                for s in cat_stories:
-                    if hasattr(s, '_alert_idx') and s._alert_idx in alert_results:
-                        s.is_alert = alert_results[s._alert_idx]
-                        if s.is_alert:
-                            alerts_flagged += 1
+            batch_text = "\n".join(labeled_summaries)
+            prompt = f"Evaluate the following news stories for high alert priority (True/False). Output only the index in format 'STORY_{index}: TRUE' or 'STORY_{index}: FALSE'.\n\n{batch_text}"
+            
+            # Using a retry loop with limited attempts
+            attempt = 0
+            max_attempts = 2
+            alert_results = {}
+            
+            while attempt < max_attempts:
+                try:
+                    r = _llm_client.chat(
+                        model=LLM_MODEL,
+                        messages=[{"role": "user", "content": prompt}],
+                        options=LLM_ALERT_OPTIONS
+                    )
+                    resp_text = r["message"]["content"] if r.get("message", {}).get("content") else ""
+                    log(f"BATCH ALERT OUTPUT ({cat_name}): {resp_text[:500]}")
+                    alert_results = parse_alert_batch_response(resp_text)
+                    break 
+                except Exception as e:
+                    attempt += 1
+                    if attempt < max_attempts:
+                        log(f"BATCH ALERT EVAL ({cat_name}) attempt {attempt} failed ({e}), retrying...")
+                        time.sleep(3)
                     else:
-                        s.is_alert = False
-                
-                break  # Success, exit retry loop
-            except Exception as e:
-                if attempt == 0:
-                    log(f"BATCH ALERT EVAL ({cat_name}) attempt 1 failed ({e}), retrying...")
-                    time.sleep(3)
-                else:
-                    log(f"BATCH ALERT ERROR ({cat_name}, final): {e}")
-                    # Even if we fail, continue to next category - don't crash the whole pipeline
-                    for s in cat_stories:
-                        s.is_alert = False
-    
-    # Build return dict mapping global index â†’ bool for all stories
-    alert_index = {}
-    for i, s in enumerate(stories):
-        if hasattr(s, "is_alert"):
-            alert_index[i] = s.is_alert
-        else:
-            alert_index[i] = False
-    
-    return alert_index
+                        log(f"BATCH ALERT ERROR ({cat_name}, final): {e}")
+                        alert_results = {}
+
+            # Apply results back to the stories in this category using the mapping
+            for s, label in story_mapping:
+                # Extract index from label (e.g., 'STORY_0' -> 0)
+                try:
+                    label_idx = int(label.replace('STORY_', ''))
+                    s.is_alert = alert_results.get(label_idx, False)
+                except Exception:
+                    s.is_alert = False
+            
+        except Exception as e:
+            log(f"BATCH ALERT ERROR ({cat_name}): {e}")
+            for s in cat_stories:
+                s.is_alert = False
+
+    return all_alerts
+
 
 
 def parse_alert_batch_response(response):
@@ -1525,23 +1541,15 @@ def is_realt_estate_title(title):
     """Check if a title contains real estate markers that should be filtered out."""
     if not title:
         return False
-    realtor_keywords = [
-        "realtor", "zillow", "redfin", "listing", "for sale", "house for", 
-        "home for", "property", "$"
-    ]
     title_lower = title.lower()
-    return any(keyword in title_lower for keyword in realtor_keywords)
+    return any(keyword in title_lower for keyword in REAL_ESTATE_KEYWORDS)
 
 def is_obituary_title(title):
     """Check if a title contains mortality/obituary markers that should be filtered out."""
     if not title:
         return False
-    mortality_keywords = [
-        "obituary", "passed away", "died", "deceased", "funeral services", 
-        "death notice", "memorial service", "passed at age", "remembering"
-    ]
     title_lower = title.lower()
-    return any(keyword in title_lower for keyword in mortality_keywords)
+    return any(keyword in title_lower for keyword in OBITUARY_KEYWORDS)
 
 
 # -- Main -------------------------------------------------------------------
@@ -1877,7 +1885,8 @@ async def main():
                 # Remove the H3 header for cleaner look, use regular text instead
                 md.append(f"{idx + 1}. {link_md}")
                 md.append(st["summary"] + pub_line)
-                md.append(tags_md)  # Add tags after each story summary
+                if tags_md:
+                    md.append(tags_md)
             
             # Add horizontal rule between categories
             md.append("---")

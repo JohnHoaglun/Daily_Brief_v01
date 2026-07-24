@@ -90,15 +90,20 @@ for cat_name, cat_info in CATEGORIES_RAW.items():
 # Create a compatibility alias for the pipeline which expects CATEGORY_AGE_LIMITS_EFFECTIVE
 CATEGORY_AGE_LIMITS_EFFECTIVE = CATEGORY_AGE_LIMITS
 
-# RSS helper settings from yaml
+# RSS and Filtering configuration from yaml
 RSS_SETTINGS = _get_nested(CONFIG_YAML, 'rss_settings') or {}
 DEFAULT_AGE_WINDOW_HOURS = RSS_SETTINGS.get('default_age_window_hours', 24)
 DEDUPE_WINDOW_HOURS = RSS_SETTINGS.get('dedupi_window_hours', 24)
 DEFAULT_AGE_LIMIT_HOURS = RSS_SETTINGS.get('default_age_limit_hours', 24)
 
-# Allow for missing keys in YAML by providing defaults here if needed
-DEFAULT_CONTENT_AGE_WINDOW_HOURS = _get_nested(CONFIG_YAML, 'runtime_defaults.default_content_age_window_hours') or "24 hours"
-DEFAULT_CATEGORIES_COUNT = _get_nested(CONFIG_YAML, 'runtime_defaults.default_categories_count') or 17
+FILTERING_KEYWORDS = _get_nested(CONFIG_YAML, 'filtering_keywords') or {}
+REAL_ESTATE_KEYWORDS = FILTERING_KEYWORDS.get('real_estate', [])
+OBITUARY_KEYWORDS = FILTERING_KEYWORDS.get('obituary', [])
+
+TAGGING_MAPPINGS = _get_nested(CONFIG_YAML, 'tagging_mappings') or {}
+CATEGORY_PRIORITY = _get_nested(CONFIG_YAML, 'category_priority') or []
+WEATHER_LABELS = _get_nested(CONFIG_YAML, 'weather_labels') or {}
+
 
 # Prompts
 PROMPTS = _get_nested(CONFIG_YAML, 'prompts') or {}

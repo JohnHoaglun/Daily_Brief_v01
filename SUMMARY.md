@@ -4,7 +4,7 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries using Ollama.
 
 ## Change Log
-- [2026-07-23 02:25] Fix - Resolved extreme weather parsing bug and added obituary content filtering; version bumped to **v1.0.8**
+- [2026-07-24 00:15] Fix - Resolved NameError in dashboard_pipeline.py (DEFAULT_CATEGORIES_COUNT) and verified end-to-end execution; version bumped to **v1.0.9**
 - [2026-07-18 20:00] Release - Documentation and validation backlog closure completed; version bumped to **v1.0.7**
 - [2026-07-18 19:35] Fix - Station metrics corrected to use live monthly average and current monthly totals from wunderground summary
 - [2026-07-18 18:15] Fix - Lake trend table now reports separate values for Today / 1 Week Ago / 30 Days Ago

@@ -118,3 +118,58 @@ rss_settings:
   default_age_window_hours: 24
   dedupe_window_hours: 24
   default_age_limit_hours: 24
+
+filtering_keywords:
+  real_estate: ["realtor", "z10", "redfin", "listing", "for sale", "house for", "home for", "property", "$"]
+  obituary: ["obituary", "passed away", "died", "deceased", "funeral services", "death notice", "memorial service", "passed at age", "remembering"]
+
+tagging_mappings:
+  AI: ['artificial intelligence', 'machine learning', 'neural network', 'llm', 'transformer', 'ai', 'deep learning', 'generative ai', 'model', 'algorithm']
+  tech: ['technology', 'digital', 'software', 'programming', 'computing', 'cloud', 'data', 'startup', 'innovation']
+  economy: ['economy', 'market', 'finance', 'stock', 'invest', 'trade', 'business', 'growth', 'earnings', 'revenue']
+  weather: ['weather', 'climate', 'storm', 'rain', 'snow', 'hurricane', 'tornado', 'forecast', 'temperature', 'atmospheric']
+  politics: ['election', 'government', 'politic', 'policy', 'congress', 'senate', 'president', 'regulation', 'law']
+  science: ['science', 'research', 'discovery', 'study', 'experiment', 'physics', 'biology', 'breakthrough']
+  health: ['health', 'medical', 'hospital', 'doctor', 'treatment', 'vaccine', 'disease', 'pandemic', 'pharma']
+  space: ['space', 'rocket', 'astronaut', 'nasa', 'mission', 'satellite', 'launch', 'orbit', 'lunar']
+  semiconductors: ['semiconductor', 'chip', 'processor', 'gpu', 'cpu', 'transistor', 'fab', 'manufacturing', 'intel', 'nvidia', 'tsmc', 'qualcomm', 'amd']
+  energy: ['energy', 'power', 'renewable', 'solar', 'wind', 'grid', 'electric', 'battery', 'charging', 'fuel cell']
+  infrastructure: ['infrastructure', 'construction', 'development', 'project', 'building', 'road', 'bridge', 'transit']
+  security: ['security', 'cybersecurity', 'privacy', 'breach', 'hacking', 'encryption', 'data protection', 'threat']
+  companies: ['company', 'corporation', 'startup', 'ipo', 'acquisition', 'merger', 'partnership', 'venture']
+  people: ['founder', 'ceo', 'entrepreneur', 'investor', 'researcher', 'scientist']
+  openai: ['openai', 'chatgpt', 'gpt-4', 'gpt-5']
+  anthropic: ['anthropic', 'claude']
+  spacex: ['spacex', 'starship', 'elon musk', 'falcon']
+  big-tech: ['google', 'congo', 'meta', 'apple', 'microsoft', 'amazon', 'meta']
+  local: ['houston', 'texas', 'conroe', 'montgomery county', 'tx', 'houston metro', 'galveston']
+  us-focused: ['united states', 'us', 'america', 'american', 'washington dc', 'dc']
+  international: ['world', 'global', 'international', 'foreign', 'european', 'asian', 'global']
+  regulatory: ['regulation', 'legal', 'law', 'legislation', 'lawsuit', 'compliance', 'ruling', 'court']
+  innovation: ['innovation', 'new', 'novel', 'breakthrough', 'first', 'advancement', 'unveil']
+  market-impact: ['market', 'stock', 'trading', 'investment', 'return', 'valuation', 'earnings']
+  environment: ['environment', 'climate', 'sustainability', 'carbon', 'emissions', 'green', 'ecological']
+
+category_priority:
+  - "Conroe TX News"
+  - "Houston Tropical Weather"
+  - "Montgomery County TX News"
+  - "World News"
+  - "US News"
+  - "Texas News"
+  - "Market News"
+  - "Semiconductors"
+  - "Big Tech"
+  - "Artificial Intelligence"
+  - "OpenAI News"
+  - "Anthropic News"
+  - "SpaceX News"
+  - "Andrej Karpathy Activity"
+  - "Hermes Agent News"
+  - "Weather Forecast 77316"
+
+weather_labels:
+  titles: ["Date", "Day Condition", "Night Condition", "High Temp", "Low Temp", "Precip. Chance", "Wind"]
+  station_rows: ["Average Temperature for today 77316", "Average Monthly rainfall for 77316", "Current Monthly rainfall for 77316"]
+  lake_headers: ["Where", "Today", "1 Week Ago", "30 Days ago"]
+

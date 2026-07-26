@@ -752,11 +752,12 @@ async def _fetch_station_metrics(session, station_id, reference):
     payload["avg_temp_today"] = _extract_first_match(
         full_text,
         [
-            r"Average Temp(?:erature)?(?:\s*Today)?(?:\s*[^%\d]{0,20})?(\d+\.?\d*)\s*°?F",
-            r"Average Temperature(?:\s*[^%\d]{0,20})?(\d+\.?\d*)\s*°?F",
-            r"Avg\s*Temperature(?:\s*[^%\d]{0,20})?(\d+\.?\d*)\s*°?F",
+            r"Average Temp(?:erature)?(?:\s*Today)?(?:\s*[^%\d]{0,80})?(\d+\.?\d*)\s*°?F",
+            r"Average Temperature(?:\s*[^%\d]{0,40})?(\d+\.?\d*)\s*°?F",
+            r"Avg\s*Temperature(?:\s*[^%\d]{0,40})?(\d+\.?\d*)\s*°?F",
             r"Avg(?:erage)?\s*Temp(?:erature)?(?:\s*is|:)?\s*(\d+\.?\d*)\s*°?F",
             r"Temperature(?:\s*is|:)?\s*(\d+\.?\d*)\s*°?F",
+            r"(\d+\.?\d*)\s*°?F.*(?:average|avg).*temperature",
         ]
     )
     payload["avg_temp_today"] = _coerce_temperature_f(payload["avg_temp_today"])
@@ -984,6 +985,7 @@ async def fetch_weather(session, lat, lon):
             f"avg={station_monthly.get('avg_monthly_rainfall', 'Dynamic')} "
             f"current={station_monthly.get('current_monthly_rainfall', 'Dynamic')}"
         )
+        # Merge monthly rainfall from station_monthly into station data
         if station_monthly.get("avg_monthly_rainfall") and not weather_data["station"].get("avg_monthly_rainfall"):
             weather_data["station"]["avg_monthly_rainfall"] = f"{station_monthly['avg_monthly_rainfall']} Inches"
         if station_monthly.get("current_monthly_rainfall") and not weather_data["station"].get("current_monthly_rainfall"):

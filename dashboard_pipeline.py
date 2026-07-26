@@ -997,16 +997,22 @@ async def fetch_weather(session, lat, lon):
         if station_monthly.get("current_monthly_rainfall") and not weather_data["station"].get("current_monthly_rainfall"):
             weather_data["station"]["current_monthly_rainfall"] = f"{station_monthly['current_monthly_rainfall']} Inches"
 
-        # Fallback: ensure temperature is populated from forecast if station scraping is unavailable.
+        # Fetch climate normal (historical average high for this date) from Open-Meteo
+        climate_high = await _fetch_climate_normal_high(session)
+        if climate_high is not None:
+            weather_data["station"]["avg_temp_today"] = f"{climate_high}°F"
+        
+        # Only apply fallback if climate normal failed
         if weather_data["station"]:
             station = weather_data["station"]
             if not station.get("avg_temp_today") and weather_data["forecast"]:
+                log("  [fetch_weather] Climate normal unavailable, falling back to forecast high")
                 first_row = weather_data["forecast"][0]
                 temp_candidates = [first_row.get("high"), first_row.get("low")]
                 for val in temp_candidates:
                     m = re.search(r"(-?\d+(?:\.\d+)?)", _safe_text(val, ""))
                     if m:
-                        station["avg_temp_today"] = f"{m.group(0)}°F"
+                        station["avg_temp_today"] = f"{m.group(0)}°F (forecast fallback)"
                         break
             if station.get("avg_monthly_rainfall") == station.get("current_monthly_rainfall"):
                 station["current_monthly_rainfall"] = None
@@ -1015,12 +1021,24 @@ async def fetch_weather(session, lat, lon):
                 if not station.get(key):
                     station[key] = "Unavailable"
 
-            log(
-                "  [fetch_weather] Station fallback-applied: "
-                f"avg_temp_today={station.get('avg_temp_today')} "
-                f"avg_monthly_rainfall={station.get('avg_monthly_rainfall')} "
-                f"current_monthly_rainfall={station.get('current_monthly_rainfall')}"
-            )
+            # Log actual source for each value
+            has_fallback = any("(forecast fallback)" in str(station.get(k, "")) for k in ("avg_temp_today",))
+            has_missing = any(k == "Unavailable" for k in ("avg_temp_today", "avg_monthly_rainfall", "current_monthly_rainfall") if station.get(k) == "Unavailable")
+            
+            if has_fallback or has_missing:
+                log(
+                    "  [fetch_weather] Station data (partial/missing): "
+                    f"avg_temp_today={station.get('avg_temp_today')} "
+                    f"avg_monthly_rainfall={station.get('avg_monthly_rainfall')} "
+                    f"current_monthly_rainfall={station.get('current_monthly_rainfall')}"
+                )
+            else:
+                log(
+                    "  [fetch_weather] Station data complete: "
+                    f"avg_temp_today={station.get('avg_temp_today')} "
+                    f"avg_monthly_rainfall={station.get('avg_monthly_rainfall')} "
+                    f"current_monthly_rainfall={station.get('current_monthly_rainfall')}"
+                )
 
         for key in ("conroe", "corpus_christi", "travis"):
             url = WEATHER_LAKE_URLS.get(key)
@@ -1596,7 +1614,7 @@ async def main():
             station = weather.get("station", {})
             station_keys = ("avg_temp_today", "avg_monthly_rainfall", "current_monthly_rainfall")
             station_partial = any(
-                not station.get(k) or station[k] == "Unavailable"
+                not station.get(k) or station[k] == "Unavailable" or "(fallback)" in str(station.get(k, ""))
                 for k in station_keys
             )
             station_label = "station (partial — fallback applied)" if station_partial else "station"

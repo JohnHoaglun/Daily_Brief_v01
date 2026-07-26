@@ -14,8 +14,8 @@ llm:
   summary_trim_min_chars: 100
 
 directories:
-  log_dir: "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/logs"
-  news_dir: "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/news"
+  log_dir: "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/Dev/logs"
+  news_dir: "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/Dev/news"
 
 weather:
   lat: 30.286

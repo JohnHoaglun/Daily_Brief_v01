@@ -4,6 +4,11 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries using Ollama.
 
 ## Change Log
+- [2026-07-26 02:10] Fix — Rewrote `_fetch_station_metrics` with BeautifulSoup table parser (commit df49693). Replaces broken regex that misread "Elev 187 ft" as temperature. New parser reads Wunderground monthly dashboard table rows for Temperature avg and Precipitation current. Verified: `avg_temp_today=83.3°F`, `current_monthly_rainfall=7.42 Inches`.
+- [2026-07-26 02:10] Fix — Updated "Weather OK" summary line to report "Weather PARTIAL" when any station value is "Unavailable" or fallback-derived (commit a72e559). Added check over all 3 station keys (`avg_temp_today`, `avg_monthly_rainfall`, `current_monthly_rainfall`).
+- [2026-07-26 02:10] Cleanup — Deleted debug scripts: `debug_station.py`, `debug_tables.py`, `test_station.py`.
+- [2026-07-26 02:10] Verification — Ran full pipeline end-to-end: 55 stories, 0 failures, real station data throughout, no extreme-temperature warnings. Pipeline time: 10.4s.
+- [2026-07-26 02:10] Version bump to **v1.0.10**
 - [2026-07-24 00:15] Fix - Resolved NameError in dashboard_pipeline.py (DEFAULT_CATEGORIES_COUNT) and verified end-to-end execution; version bumped to **v1.0.9**
 - [2026-07-18 20:00] Release - Documentation and validation backlog closure completed; version bumped to **v1.0.7**
 - [2026-07-18 19:35] Fix - Station metrics corrected to use live monthly average and current monthly totals from wunderground summary

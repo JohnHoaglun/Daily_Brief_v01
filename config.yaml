@@ -86,6 +86,17 @@ tagging_mappings:
   market-impact: ['market', 'stock', 'trading', 'investment', 'return', 'valuation', 'earnings']
   environment: ['environment', 'climate', 'sustainability', 'carbon', 'emissions', 'green', 'ecological']
 
+tagging_config:
+  max_tags: 5
+  score_cap: 5.0
+  score_threshold: 0.0
+
+category_boosts:
+  "OpenAI News": ['openai', 'chatgpt']
+  "Anthropic News": ['anthropic', 'claude']
+  "SpaceX News": ['spacex', 'starship']
+  "Big Tech": ['google', 'meta', 'apple', 'microsoft', 'amazon']
+
 category_priority:
   - "Conroe TX News"
   - "Houston Tropical Weather"

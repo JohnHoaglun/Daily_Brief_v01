@@ -37,6 +37,9 @@ from email.utils import parsedate_to_datetime
 import threading
 import re
 
+# Ensure src/ is on path for daily_brief package imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
+
 # Load configuration at the top to avoid import issues
 # We import config after defining all the necessary functions and constants
 # Then set all values from config properly
@@ -44,6 +47,8 @@ import re
 # The main fix: properly load config at the beginning and only once
 # Avoid circular imports and make sure all configuration is loaded before we start doing work
 from config import *
+from daily_brief.categorization import ordered_categories_for_render as _ordered_categories_for_render
+from daily_brief.tagging import tag_story_with_keywords as _tag_story_with_keywords
 
 # OpenAI-compatible client (works with vLLM, Ollama, cloud providers)
 _llm_client = OpenAI(api_key="not-needed", base_url=OLLAMA_HOST + "/v1" if "/v1" not in OLLAMA_HOST else OLLAMA_HOST, timeout=180)
@@ -1390,129 +1395,13 @@ def parse_alert_batch_response(response):
 
 
 def ordered_categories_for_render(all_cats):
-    """Keep local/priority categories near the front to match requirement examples."""
-    preferred = [
-        "Conroe TX News",
-        "Houston Tropical Weather",
-        "Montgomery County TX News",
-        "World News",
-        "US News",
-        "Texas News",
-        "Market News",
-        "Semiconductors",
-        "Big Tech",
-        "Artificial Intelligence",
-        "OpenAI News",
-        "Anthropic News",
-        "SpaceX News",
-        "Andrej Karpathy Activity",
-        "Hermes Agent News",
-        "Weather Forecast 77316",
-    ]
-    ordered = [c for c in preferred if c in all_cats]
-    for c in all_cats:
-        if c not in ordered:
-            ordered.append(c)
-    return ordered
+    """Thin wrapper — delegates to daily_brief.categorization (reads config.yaml:category_priority)."""
+    return _ordered_categories_for_render(all_cats)
 
 
 def tag_story_with_keywords(story_title, category=None):
-    """Generate meaningful tags for a story based on its title using enhanced keyword matching."""
-    
-    # Expanded keywords mapping with more comprehensive coverage
-    keywords_to_tags = {
-        # Existing broad tags (expanded)
-        'AI': ['artificial intelligence', 'machine learning', 'neural network', 'llm', 'transformer', 'ai', 'deep learning', 'generative ai', 'model', 'algorithm'],
-        'tech': ['technology', 'digital', 'software', 'programming', 'computing', 'cloud', 'data', 'startup', 'innovation'],
-        'economy': ['economy', 'market', 'finance', 'stock', 'invest', 'trade', 'business', 'growth', 'earnings', 'revenue'],
-        'weather': ['weather', 'climate', 'storm', 'rain', 'snow', 'hurricane', 'tornado', 'forecast', 'temperature', 'atmospheric'],
-        'politics': ['election', 'government', 'politic', 'policy', 'congress', 'senate', 'president', 'regulation', 'law'],
-        'science': ['science', 'research', 'discovery', 'study', 'experiment', 'physics', 'biology', 'breakthrough'],
-        'health': ['health', 'medical', 'hospital', 'doctor', 'treatment', 'vaccine', 'disease', 'pandemic', 'pharma'],
-        'space': ['space', 'rocket', 'astronaut', 'nasa', 'mission', 'satellite', 'launch', 'orbit', 'lunar'],
-        
-        # New category-specific tags
-        'semiconductors': ['semiconductor', 'chip', 'processor', 'gpu', 'cpu', 'transistor', 'fab', 'manufacturing', 'intel', 'nvidia', 'tsmc', 'qualcomm', 'amd'],
-        'energy': ['energy', 'power', 'renewable', 'solar', 'wind', 'grid', 'electric', 'battery', 'charging', 'fuel cell'],
-        'infrastructure': ['infrastructure', 'construction', 'development', 'project', 'building', 'road', 'bridge', 'transit'],
-        'security': ['security', 'cybersecurity', 'privacy', 'breach', 'hacking', 'encryption', 'data protection', 'threat'],
-        'companies': ['company', 'corporation', 'startup', 'ipo', 'acquisition', 'merger', 'partnership', 'venture'],
-        'people': ['founder', 'ceo', 'entrepreneur', 'investor', 'researcher', 'scientist'],
-        
-        # Company/entity-specific tags
-        'openai': ['openai', 'chatgpt', 'gpt-4', 'gpt-5'],
-        'anthropic': ['anthropic', 'claude'],
-        'spacex': ['spacex', 'starship', 'elon musk', 'falcon'],
-        'big-tech': ['google', 'meta', 'apple', 'microsoft', 'amazon', 'meta'],
-        
-        # Geographic tags (especially relevant given your local focus)
-        'local': ['houston', 'texas', 'conroe', 'montgomery county', 'tx', 'houston metro', 'galveston'],
-        'us-focused': ['united states', 'us', 'america', 'american', 'washington dc', 'dc'],
-        'international': ['world', 'global', 'international', 'foreign', 'european', 'asian', 'global'],
-        
-        # Meta/cross-cutting tags
-        'regulatory': ['regulation', 'legal', 'law', 'legislation', 'lawsuit', 'compliance', 'ruling', 'court'],
-        'innovation': ['innovation', 'new', 'novel', 'breakthrough', 'first', 'advancement', 'unveil'],
-        'market-impact': ['market', 'stock', 'trading', 'investment', 'return', 'valuation', 'earnings'],
-        'environment': ['environment', 'climate', 'sustainability', 'carbon', 'emissions', 'green', 'ecological'],
-    }
-    
-    # Convert title to lowercase for matching
-    title_lower = story_title.lower()
-    
-    # Initialize scoring system
-    tag_scores = {}
-    
-    # Score each tag based on keyword matches
-    for tag, keywords in keywords_to_tags.items():
-        score = 0
-        for keyword in keywords:
-            if keyword in title_lower:
-                # Position-based boosting (higher weight for keywords early in title)
-                pos = title_lower.find(keyword)
-                if pos >= 0:
-                    # Boost score for matches in first 100 characters
-                    boost = 2.0 if pos < 100 else 1.0
-                    # Add partial score based on how many keywords match
-                    score += boost * (1.0 / len(keyword))  # Normalize by keyword length
-        
-        # Apply category-specific boosting if available
-        if category:
-            category_boosts = {
-                'OpenAI News': ['openai', 'chatgpt'],
-                'Anthropic News': ['anthropic', 'claude'],
-                'SpaceX News': ['spacex', 'starship'],
-                'Big Tech': ['google', 'meta', 'apple', 'microsoft', 'amazon']
-            }
-            
-            if category in category_boosts:
-                for keyword in category_boosts[category]:
-                    if keyword in title_lower:
-                        score += 2.0  # Strong boost for category-specific matches
-        
-        # Store final score
-        if score > 0:
-            tag_scores[tag] = min(score, 5.0)  # Cap at 5.0 to avoid extreme values
-    
-    # Return the tags sorted by score (highest first)
-    sorted_tags = sorted(tag_scores.items(), key=lambda x: x[1], reverse=True)
-    
-    # Apply maximum limit and return just tag names
-    max_tags = 5
-    if len(sorted_tags) <= max_tags:
-        tag_list = [tag for tag, score in sorted_tags]
-    else:
-        tag_list = [tag for tag, score in sorted_tags[:max_tags]] 
-    
-    # If no tags found but we have a category, return at least the category tag
-    if not tag_list and category:
-        # Convert category name to appropriate tag format (e.g., "World News" -> "world-news")
-        category_tag = category.lower().replace(' ', '-').replace('/', '-')
-        tag_list = [category_tag]
-    
-    # Return joined tags with spaces, formatted as Obsidian wiki links
-    formatted_tags = ["[[%s]]" % tag for tag in tag_list]
-    return " ".join(formatted_tags) if formatted_tags else FRONTMATTER_FALLBACK_TAG
+    """Delegate to the new tagging module. Kept as wrapper for backwards-compatibility."""
+    return _tag_story_with_keywords(story_title, category=category)
 
 
 

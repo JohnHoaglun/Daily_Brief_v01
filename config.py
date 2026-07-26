@@ -117,7 +117,7 @@ SYSTEM_BATCH_PROMPT = PROMPTS.get('system_batch', '')
 SYSTEM_ALERT_PROMPT = PROMPTS.get('system_alert', '')
 
 # Weather infrastructure
-WEATHER_WUNDERGROUND_STATION_ID = _get_nested(CONFIG_YAML, 'weather.wundereground_station_id') or "KTXMONTG645"
+WEATHER_WUNDERGROUND_STATION_ID = _get_nested(CONFIG_YAML, 'weather.wunderground_station_id') or "KTXMONTG645"
 WUNDERGROUND_MONTHLY_TEMPLATE = _get_nested(CONFIG_YAML, 'weather.wunderground_monthly_template') or "https://www.wunderground.com/dashboard/pws/{station_id}/graph/{date}/{date}/monthly"
 WEATHER_LAKE_URLS = _get_nested(CONFIG_YAML, 'weather.lake_urls') or {
     "conroe": "https://waterdatafortexas.org/reservoirs/individual/conroe",

@@ -11,10 +11,10 @@
 ## Active Work: Architectural Refactoring
 
 ### P0 — Immediate Cleanup (Priority: Critical, Effort: 15 min, Risk: Zero)
-- `[ ]` Delete dead code at `dashboard_pipeline.py:365-376` (orphaned function body, no definition)
-- `[ ]` Remove duplicate `is_obituary_title` at `dashboard_pipeline.py:1561` (first definition at line 358)
-- `[ ]` Fix typo `config.py:120` — `wundereground_station_id` → `wunderground_station_id`
-- `[ ]` Delete `debug_climate.py` (dead debug script)
+- `[x]` Delete dead code at `dashboard_pipeline.py:365-376` (orphaned function body, no definition)
+- `[x]` Remove duplicate `is_obituary_title` at `dashboard_pipeline.py:1561` (first definition at line 358)
+- `[x]` Fix typo `config.py:120` — `wundereground_station_id` → `wunderground_station_id`
+- `[x]` Delete `debug_climate.py` (dead debug script) — already deleted in commit `72e15d2`
 
 ### P1 — Foundation Extraction (Priority: High, Effort: 3 hrs, Risk: Zero)
 - `[ ]` Create `daily_brief/` package — `__init__.py`, `__main__.py`
@@ -201,6 +201,7 @@ Daily_Brief_v01/
 ---
 
 ## Recent Updates
+- [2026-07-26 16:20] **P0 cleanup complete** — Deleted dead code (12 lines), removed duplicate `is_obituary_title` (11 lines), fixed typo `wundereground` → `wunderground` in `config.py`. Full pipeline verified: 55 stories, 0 failures. Line count: 1944 → 1921.
 - [2026-07-26 03:30] **Refactoring plan added** — Full modularization plan (P0-P6), testing strategy (Tiers 1-4), config UI options, proposed file structure. Target: 18 files, 40-250 lines each. ~35 hours total.
 - [2026-07-26 03:25] **Weather fallback fix** — Removed unconditional "fallback-applied" log. Climate normal (Open-Meteo ERA5) now called before any forecast fallback. "Weather OK" summary properly detects fallback markers and reports PARTIAL.
 - [2026-07-26 03:05] **ERA5 climate normal restored** — `_fetch_climate_normal_high` back in flow, UTC date sync with report date. Labels moved to `config.yaml:weather_labels.station_rows` (commit 299f4a0).

@@ -362,19 +362,6 @@ def is_obituary_title(title):
     return any(kw in title_lower for kw in keywords)
 
 
-    if text is None:
-        return None
-    m = re.search(r"(-?\d{1,3}(?:\.\d+)?)", _safe_text(text))
-    if not m:
-        return None
-    try:
-        val = float(m.group(1))
-        if 30.0 <= val <= 140.0:
-            return f"{int(val) if val.is_integer() else val}"
-    except Exception:
-        return None
-        return None
-
 
 def _parse_climate_summary(text, current_month):
     """Parse Houston HGX climate summary text for monthly normals and current values.
@@ -1558,16 +1545,6 @@ def is_realt_estate_title(title):
     title_lower = title.lower()
     return any(keyword in title_lower for keyword in realtor_keywords)
 
-def is_obituary_title(title):
-    """Check if a title contains mortality/obituary markers that should be filtered out."""
-    if not title:
-        return False
-    mortality_keywords = [
-        "obituary", "passed away", "died", "deceased", "funeral services", 
-        "death notice", "memorial service", "passed at age", "remembering"
-    ]
-    title_lower = title.lower()
-    return any(keyword in title_lower for keyword in mortality_keywords)
 
 
 # -- Main -------------------------------------------------------------------

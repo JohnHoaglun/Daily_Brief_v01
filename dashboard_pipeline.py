@@ -738,118 +738,57 @@ def parse_batch_summary_response(response, count):
     return results
 
 
-async def _fetch_climate_normal_high(session):
-    """Fetch today's climate normal high temperature from Open-Meteo (free, no API key).
-    Uses ERA5 reanalysis model for historical average for today's date.
-    """
-    today_str = datetime.now(ACTIVE_TIMEZONE).strftime("%Y-%m-%d")
-    try:
-        geo_url = "https://geocoding-api.open-meteo.com/v1/search"
-        async with session.get(geo_url, params={"name": "77316", "count": 1, "language": "en", "format": "json"}, timeout=10) as resp:
-            geo = await resp.json()
-        if not geo.get("results"):
-            return None
-        lat = geo["results"][0]["latitude"]
-        lon = geo["results"][0]["longitude"]
-
-        archive_url = "https://archive-api.open-meteo.com/v1/era5"
-        params = {
-            "latitude": lat,
-            "longitude": lon,
-            "start_date": today_str,
-            "end_date": today_str,
-            "daily": "temperature_2m_max",
-            "temperature_unit": "fahrenheit"
-        }
-        async with session.get(archive_url, params=params, timeout=10) as resp:
-            climate = await resp.json()
-        daily = climate.get("daily", {})
-        temps = daily.get("temperature_2m_max", [])
-        if temps:
-            val = round(temps[0])
-            return val
-    except Exception as e:
-        log(f"  WARNING Open-Meteo climate normal fetch failed: {e}")
-    return None
-
-
 async def _fetch_station_metrics(session, station_id, reference):
-    """Fetch station metrics from Wunderground monthly dashboard table.
+    """Fetch station metrics from Wunderground daily + monthly dashboard tables.
 
-    Returns avg_temp_today (from the Average Temperature row) and
-    current_monthly_rainfall (from the Precipitation row).
-    avg_monthly_rainfall is NOT available on this page — it comes from
+    Returns avg_temp_today (from the Daily view Temperature High row) and
+    current_monthly_rainfall (from the Monthly view Precipitation row).
+    avg_monthly_rainfall is NOT available on these pages — it comes from
     _fetch_station_monthly_rainfall via climate.gov.
     """
     payload = {"avg_temp_today": None, "avg_monthly_rainfall": None, "current_monthly_rainfall": None}
     template_date = reference.strftime("%Y-%m-%d")
-    url = WUNDERGROUND_MONTHLY_TEMPLATE.format(station_id=station_id, date=template_date)
-    html = await _fetch_text(session, url)
-    if not html:
-        log("  WARNING Weather station metrics unavailable (no content).")
-        return payload
 
-    soup = BeautifulSoup(html, "html.parser")
+    # First, fetch daily view for today's high temperature
+    daily_url = WUNDERGROUND_MONTHLY_TEMPLATE.format(station_id=station_id, date=template_date).replace("/monthly", "/daily")
+    daily_html = await _fetch_text(session, daily_url)
+    if daily_html:
+        soup = BeautifulSoup(daily_html, "html.parser")
+        avg_temp = None
+        for table in soup.find_all("table"):
+            rows = [[c.get_text(strip=True) for c in tr.find_all(["td", "th"])] for tr in table.find_all("tr")]
+            for r in rows:
+                if len(r) >= 4 and "temperature" in r[0].lower():
+                    m = re.search(r"(\d+\.?\d*)", r[1])
+                    if m:
+                        avg_temp = float(m.group(1))
+                        break
+            if avg_temp is not None:
+                break
+        avg_temp = _coerce_temperature_f(avg_temp)
+        if avg_temp is not None:
+            payload["avg_temp_today"] = f"{avg_temp}°F"
 
-    # Parse the monthly summary table:
-    # Structure: tr[0] = ['', 'High', 'Low', 'Average'] (header)
-    #            tr[1..] = ['Temperature', '101.8°F', '72.1°F', '83.1°F'] (data rows)
-    avg_temp = None
-    current_precip = None
-
-    for table in soup.find_all("table"):
-        all_rows = []
-        for row in table.find_all("tr"):
-            cells = [c.get_text(" ", strip=True) for c in row.find_all(["td", "th"])]
-            if len(cells) >= 4:
-                all_rows.append(cells)
-        if not all_rows:
-            continue
-
-        # The first row is the header: ['', 'High', 'Low', 'Average']
-        # Data rows start from index 1
-        header_text = " ".join(c.lower() for c in all_rows[0])
-        if "average" not in header_text:
-            continue
-        if "high" not in header_text and "low" not in header_text:
-            continue
-
-        # Data rows start at index 1
-        for row in all_rows[1:]:
-            label = row[0].lower()
-            # Extract numeric values from cells (skip first cell which is the label)
-            values = []
-            for cell in row[1:]:
-                m = re.search(r"(\d+\.?\d*)", cell)
-                if m:
-                    values.append(float(m.group(1)))
-                else:
-                    values.append(None)
-
-            if "temperature" in label:
-                # Average temp is the last value (column: High, Low, Average)
-                if len(values) >= 3 and values[2] is not None:
-                    avg_temp = values[2]
-                elif values and values[-1] is not None:
-                    avg_temp = values[-1]
-            elif "precipitation" in label or "rain" in label:
-                # Current monthly total is the first numeric value
-                if values and values[0] is not None:
-                    current_precip = values[0]
-
-    # Coerce temperature
-    avg_temp = _coerce_temperature_f(avg_temp)
-    if avg_temp is not None:
-        payload["avg_temp_today"] = f"{avg_temp}°F"
-
-    # Coerce precipitation
-    if current_precip is not None:
-        try:
+    # Then fetch monthly view for current monthly rainfall
+    monthly_url = WUNDERGROUND_MONTHLY_TEMPLATE.format(station_id=station_id, date=template_date)
+    monthly_html = await _fetch_text(session, monthly_url)
+    if monthly_html:
+        soup = BeautifulSoup(monthly_html, "html.parser")
+        current_precip = None
+        for table in soup.find_all("table"):
+            rows = [[c.get_text(strip=True) for c in tr.find_all(["td", "th"])] for tr in table.find_all("tr")]
+            for r in rows:
+                if len(r) >= 4 and ("precipitation" in r[0].lower() or "rain" in r[0].lower()):
+                    m = re.search(r"(\d+\.?\d*)", r[1])
+                    if m:
+                        current_precip = float(m.group(1))
+                        break
+            if current_precip is not None:
+                break
+        if current_precip is not None:
             val = float(current_precip)
             if 0.0 <= val <= 60.0:
                 payload["current_monthly_rainfall"] = f"{val} Inches"
-        except Exception:
-            pass
 
     return payload
 
@@ -1015,12 +954,6 @@ async def fetch_weather(session, lat, lon):
 
         weather_data["station"] = await _fetch_station_metrics(session, WEATHER_WUNDERGROUND_STATION_ID, now_ref)
         log("  [fetch_weather] Completed station fetch")
-        
-        # Override avg_temp_today with Open-Meteo climate normal (historical average high for today)
-        climate_high = await _fetch_climate_normal_high(session)
-        if climate_high is not None:
-            weather_data["station"]["avg_temp_today"] = f"{climate_high}°F"
-        
         log(
             "  Weather station data: "
             f"avg_temp_today={weather_data['station'].get('avg_temp_today', 'Dynamic')} "

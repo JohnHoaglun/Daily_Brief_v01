@@ -1,6 +1,6 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
-Daily Brief Pipeline v1.0.0
+Daily Brief Pipeline v1.0.11
 ============================
 
 Full working base model.
@@ -27,7 +27,7 @@ import feedparser
 from concurrent.futures import ThreadPoolExecutor
 from functools import cmp_to_key
 from bs4 import BeautifulSoup
-import ollama
+from openai import OpenAI
 import sys
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
@@ -45,10 +45,12 @@ import re
 # Avoid circular imports and make sure all configuration is loaded before we start doing work
 from config import *
 
-# Ollama client
-_llm_client = ollama.Client(host=OLLAMA_HOST, timeout=180)
+# OpenAI-compatible client (works with vLLM, Ollama, cloud providers)
+_llm_client = OpenAI(api_key="not-needed", base_url=OLLAMA_HOST + "/v1" if "/v1" not in OLLAMA_HOST else OLLAMA_HOST, timeout=180)
 
 # Pull configuration values after importing config
+# Note: These are already loaded globally by config.py via the globals().update(locals()) pattern. 
+# We just ensure they are available in the local scope if needed.
 LLM_MODEL = LLM_MODEL
 LOG_DIR = LOG_DIR
 NEWS_DIR = NEWS_DIR
@@ -127,10 +129,9 @@ LLM_CONTEXT_PREVIEW_CHARS = LLM_CONTEXT_PREVIEW_CHARS
 LLM_SUMMARY_TRIM_MIN_CHARS = LLM_SUMMARY_TRIM_MIN_CHARS
 FRONTMATTER_TAG_SEEDS = FRONTMATTER_TAG_SEEDS
 FRONTMATTER_FALLBACK_TAG = FRONTMATTER_FALLBACK_TAG
-DEFAULT_CONTENT_AGE_WINDOW_HOURS = DEFAULT_CONTENT_AGE_WINDOW_HOURS
-DEFAULT_CATEGORIES_COUNT = DEFAULT_CATEGORIES_COUNT
 MAX_LOG_VERSIONS = MAX_LOG_VERSIONS
-MAX_STORIES_PER_CATEGORY = MAX_STORIES_PER_CATEGORY if 'MAX_STORIES_PER_CATEGORY' in globals() else 10
+DEFAULT_CONTENT_AGE_WINDOW_HOURS = 48
+DEFAULT_CATEGORIES_COUNT = getattr(config, 'CATEGORIES', {}).get('count_for_report', 15) if 'config' in globals() else 15
 
 
 def _safe_text(value, fallback="N/A"):
@@ -149,11 +150,12 @@ def _present_weather_value(value, fallback="Unavailable"):
         return fallback
     try:
         text = str(value).strip()
+        if not text or text.lower() in {"none", "n/a", "na"}:
+            return fallback
+        # Do NOT replace "Dynamic" with the fallback. "Dynamic" is a valid placeholder used for forecasted periods.
+        return text
     except Exception:
         return fallback
-    if not text or text.lower() in {"dynamic", "none", "n/a", "na"}:
-        return fallback
-    return text
 
 
 def get_reference_datetime():
@@ -318,16 +320,24 @@ def _extract_first_match(text, patterns):
 
 async def _fetch_json(session, url, suffix=""):
     try:
-        async with session.get(url, headers={"User-Agent": USER_AGENT + suffix}, timeout=15) as resp:
-            return await resp.json()
+        async with session.get(url, headers={"User-Agent": USER_AGENT}, timeout=15) as resp:
+            if resp.status == 200:
+                return await resp.json()
+            else:
+                log(f"  [fetch_json error] {url} returned status {resp.status}")
+                return None
     except Exception:
         return None
 
 
 async def _fetch_text(session, url, suffix=""):
     try:
-        async with session.get(url, headers={"User-Agent": USER_AGENT + suffix}, timeout=15) as resp:
-            return await resp.text()
+        async with session.get(url, headers={"User-Agent": USER_AGENT}, timeout=15) as resp:
+            if resp.status == 200:
+                return await resp.text()
+            else:
+                log(f"  [fetch_text error] {url} returned status {resp.status}")
+                return None
     except Exception:
         return None
 
@@ -345,8 +355,13 @@ def _coerce_percent(value):
         return None
 
 
-def _coerce_temperature_f(text):
-    """Extract a Fahrenheit temperature and validate plausible station-temperature ranges."""
+def is_obituary_title(title):
+    """Check if a title contains obituary-related keywords."""
+    keywords = ["obituary", "passed away", "death notice", "funeral services for", "memorial service for"]
+    title_lower = title.lower()
+    return any(kw in title_lower for kw in keywords)
+
+
     if text is None:
         return None
     m = re.search(r"(-?\d{1,3}(?:\.\d+)?)", _safe_text(text))
@@ -633,7 +648,7 @@ def parse_batch_summary_response(response, count):
             if not idx:
                 continue
             idx = int(idx)
-            if idx > 0:
+            if m.group(1) is not None and idx > 0:
                 idx -= 1
             if 0 <= idx < count:
                 headers.append((i, idx, line))
@@ -723,74 +738,75 @@ def parse_batch_summary_response(response, count):
     return results
 
 
+async def _fetch_climate_normal_high(session):
+    """Fetch the historical average high temperature for today's date from Open-Meteo ERA5.
+    Returns the climate normal (long-term average) for this calendar date — NOT today's forecast.
+    """
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    try:
+        geo_url = "https://geocoding-api.open-meteo.com/v1/search"
+        async with session.get(geo_url, params={"name": "77316", "count": 1, "language": "en", "format": "json"}, timeout=10) as resp:
+            geo = await resp.json()
+        if not geo.get("results"):
+            return None
+        lat = geo["results"][0]["latitude"]
+        lon = geo["results"][0]["longitude"]
+
+        archive_url = "https://archive-api.open-meteo.com/v1/era5"
+        params = {
+            "latitude": lat,
+            "longitude": lon,
+            "start_date": today_str,
+            "end_date": today_str,
+            "daily": "temperature_2m_max",
+            "temperature_unit": "fahrenheit"
+        }
+        async with session.get(archive_url, params=params, timeout=10) as resp:
+            climate = await resp.json()
+        daily = climate.get("daily", {})
+        temps = daily.get("temperature_2m_max", [])
+        if temps:
+            val = round(temps[0])
+            log(f"  Climate normal high for {today_str}: {val}°F")
+            return val
+    except Exception as e:
+        log(f"  WARNING Open-Meteo climate normal fetch failed: {e}")
+    return None
+
+
 async def _fetch_station_metrics(session, station_id, reference):
+    """Fetch station metrics from Wunderground monthly dashboard table.
+
+    Returns current_monthly_rainfall (from the Precipitation row).
+    avg_temp_today is NOT fetched here — it comes from _fetch_climate_normal_high (Open-Meteo).
+    avg_monthly_rainfall comes from _fetch_station_monthly_rainfall (climate.gov).
+    """
     payload = {"avg_temp_today": None, "avg_monthly_rainfall": None, "current_monthly_rainfall": None}
     template_date = reference.strftime("%Y-%m-%d")
     url = WUNDERGROUND_MONTHLY_TEMPLATE.format(station_id=station_id, date=template_date)
     html = await _fetch_text(session, url)
     if not html:
-        log("  WARNING Weather station metrics unavailable (no content).")
+        log("  WARNING Weather station monthly data unavailable (no content).")
         return payload
 
-    full_text = BeautifulSoup(html, "html.parser").get_text(" ", strip=True)
+    soup = BeautifulSoup(html, "html.parser")
+    current_precip = None
 
-    payload["avg_temp_today"] = _extract_first_match(
-        full_text,
-        [
-            r"Average Temp(?:erature)?(?:\s*Today)?(?:\s*[^%\d]{0,80})?(\d+\.?\d*)\s*°?F",
-            r"Average Temperature(?:\s*[^%\d]{0,40})?(\d+\.?\d*)\s*°?F",
-            r"Avg\s*Temperature(?:\s*[^%\d]{0,40})?(\d+\.?\d*)\s*°?F",
-            r"Avg(?:erage)?\s*Temp(?:erature)?(?:\s*is|:)?\s*(\d+\.?\d*)\s*°?F",
-            r"Temperature(?:\s*is|:)?\s*(\d+\.?\d*)\s*°?F",
-            r"(\d+\.?\d*)\s*°?F.*(?:average|avg).*temperature",
-        ]
-    )
-    payload["avg_temp_today"] = _coerce_temperature_f(payload["avg_temp_today"])
+    for table in soup.find_all("table"):
+        rows = [[c.get_text(strip=True) for c in tr.find_all(["td", "th"])] for tr in table.find_all("tr")]
+        for r in rows:
+            if len(r) >= 4 and ("precipitation" in r[0].lower() or "rain" in r[0].lower()):
+                m = re.search(r"(\d+\.?\d*)", r[1])
+                if m:
+                    current_precip = float(m.group(1))
+                    break
+        if current_precip is not None:
+            break
 
-    payload["avg_monthly_rainfall"] = _extract_first_match(
-        full_text,
-        [
-            r"Average Monthly.*?Rainfall(?:\s*[^%\d]{0,80})?(\d+\.?\d*)\s*Inches",
-            r"Average Monthly Rainfall(?:\s*[^%\d]{0,40})?(\d+\.?\d*)\s*Inches",
-            r"average rainfall(?:\s*[^%\d]{0,40})?(\d+\.?\d*)\s*in",
-            r"Monthly Rainfall(?:\s*[^%\d]{0,40})?(\d+\.?\d*)\s*Inches",
-            r"Avg(?:erage)?\s*Monthly Rain(?:fall)?(?:\s*is|:)?\s*(\d+\.?\d*)\s*in",
-            r"(\d+\.?\d*)\s*Inches.*(?:average monthly|avg monthly|monthly average)",
-        ]
-    )
-    if payload["avg_monthly_rainfall"] is not None:
-        try:
-            val = float(payload["avg_monthly_rainfall"])
-            if not (0.0 <= val <= 40.0):
-                payload["avg_monthly_rainfall"] = None
-        except Exception:
-            payload["avg_monthly_rainfall"] = None
-
-    payload["current_monthly_rainfall"] = _extract_first_match(
-        full_text,
-        [
-            r"Current Monthly.*?Rainfall(?:\s*[^%\d]{0,80})?(\d+\.?\d*)\s*Inches",
-            r"Current Monthly Rainfall(?:\s*[^%\d]{0,40})?(\d+\.?\d*)\s*Inches",
-            r"current monthly(?:\s*[^%\d]{0,40})?(\d+\.?\d*)\s*in",
-            r"Current Rain(?:fall)?(?:\s*this month)?(?:\s*is|:)?\s*(\d+\.?\d*)\s*in",
-            r"Monthly Rain(?:fall)?\s*total(?:\s*is|:)?\s*(\d+\.?\d*)\s*in",
-            r"(\d+\.?\d*)\s*Inches.*(?:current monthly|monthly current)",
-        ]
-    )
-    if payload["current_monthly_rainfall"] is not None:
-        try:
-            val = float(payload["current_monthly_rainfall"])
-            if not (0.0 <= val <= 40.0):
-                payload["current_monthly_rainfall"] = None
-        except Exception:
-            payload["current_monthly_rainfall"] = None
-
-    if payload["avg_temp_today"] is not None:
-        payload["avg_temp_today"] = f"{payload['avg_temp_today']}°F"
-    if payload["avg_monthly_rainfall"] is not None:
-        payload["avg_monthly_rainfall"] = f"{payload['avg_monthly_rainfall']} Inches"
-    if payload["current_monthly_rainfall"] is not None:
-        payload["current_monthly_rainfall"] = f"{payload['current_monthly_rainfall']} Inches"
+    if current_precip is not None:
+        val = float(current_precip)
+        if 0.0 <= val <= 60.0:
+            payload["current_monthly_rainfall"] = f"{val} Inches"
 
     return payload
 
@@ -881,17 +897,11 @@ async def fetch_weather(session, lat, lon):
         log(f"  [fetch_weather] Point URL: {weather_point_url}")
         point = await _fetch_json(session, weather_point_url)
         if not isinstance(point, dict) or "properties" not in point:
-            # Legacy/HTML map-point endpoints often return non-JSON for some environments.
-            # Fall back to official NWS points endpoint when needed.
-            fallback_point_url = f"https://api.weather.gov/points/{lat},{lon}"
-            log(f"  [fetch_weather] Point response invalid or missing properties; trying fallback: {fallback_point_url}")
-            point = await _fetch_json(session, fallback_point_url)
-            if not isinstance(point, dict) or "properties" not in point:
-                weather_data["errors"].append("NWS point returned invalid response")
-                log("  [fetch_weather] Fallback point response invalid or missing properties")
-                return weather_data
-
+            log("  [fetch_weather] Point response invalid or missing properties")
+            return weather_data
+ 
         fc_url = point["properties"].get("forecast")
+
         if not fc_url:
             fc_url = WEATHER_POINT_URL.split('?')[0] + WEATHER_POINT_FORECAST_SUFFIX
         if WEATHER_POINT_FORECAST_SUFFIX and not fc_url.rstrip("/").endswith(WEATHER_POINT_FORECAST_SUFFIX):
@@ -962,6 +972,11 @@ async def fetch_weather(session, lat, lon):
 
         weather_data["station"] = await _fetch_station_metrics(session, WEATHER_WUNDERGROUND_STATION_ID, now_ref)
         log("  [fetch_weather] Completed station fetch")
+        
+        # Fetch climate normal (historical average high for this date)
+        climate_high = await _fetch_climate_normal_high(session)
+        if climate_high is not None:
+            weather_data["station"]["avg_temp_today"] = f"{climate_high}°F"
         log(
             "  Weather station data: "
             f"avg_temp_today={weather_data['station'].get('avg_temp_today', 'Dynamic')} "
@@ -976,21 +991,28 @@ async def fetch_weather(session, lat, lon):
             f"avg={station_monthly.get('avg_monthly_rainfall', 'Dynamic')} "
             f"current={station_monthly.get('current_monthly_rainfall', 'Dynamic')}"
         )
+        # Merge monthly rainfall from station_monthly into station data
         if station_monthly.get("avg_monthly_rainfall") and not weather_data["station"].get("avg_monthly_rainfall"):
             weather_data["station"]["avg_monthly_rainfall"] = f"{station_monthly['avg_monthly_rainfall']} Inches"
         if station_monthly.get("current_monthly_rainfall") and not weather_data["station"].get("current_monthly_rainfall"):
             weather_data["station"]["current_monthly_rainfall"] = f"{station_monthly['current_monthly_rainfall']} Inches"
 
-        # Fallback: ensure temperature is populated from forecast if station scraping is unavailable.
+        # Fetch climate normal (historical average high for this date) from Open-Meteo
+        climate_high = await _fetch_climate_normal_high(session)
+        if climate_high is not None:
+            weather_data["station"]["avg_temp_today"] = f"{climate_high}°F"
+        
+        # Only apply fallback if climate normal failed
         if weather_data["station"]:
             station = weather_data["station"]
             if not station.get("avg_temp_today") and weather_data["forecast"]:
+                log("  [fetch_weather] Climate normal unavailable, falling back to forecast high")
                 first_row = weather_data["forecast"][0]
                 temp_candidates = [first_row.get("high"), first_row.get("low")]
                 for val in temp_candidates:
                     m = re.search(r"(-?\d+(?:\.\d+)?)", _safe_text(val, ""))
                     if m:
-                        station["avg_temp_today"] = f"{m.group(0)}°F"
+                        station["avg_temp_today"] = f"{m.group(0)}°F (forecast fallback)"
                         break
             if station.get("avg_monthly_rainfall") == station.get("current_monthly_rainfall"):
                 station["current_monthly_rainfall"] = None
@@ -999,12 +1021,24 @@ async def fetch_weather(session, lat, lon):
                 if not station.get(key):
                     station[key] = "Unavailable"
 
-            log(
-                "  [fetch_weather] Station fallback-applied: "
-                f"avg_temp_today={station.get('avg_temp_today')} "
-                f"avg_monthly_rainfall={station.get('avg_monthly_rainfall')} "
-                f"current_monthly_rainfall={station.get('current_monthly_rainfall')}"
-            )
+            # Log actual source for each value
+            has_fallback = any("(forecast fallback)" in str(station.get(k, "")) for k in ("avg_temp_today",))
+            has_missing = any(k == "Unavailable" for k in ("avg_temp_today", "avg_monthly_rainfall", "current_monthly_rainfall") if station.get(k) == "Unavailable")
+            
+            if has_fallback or has_missing:
+                log(
+                    "  [fetch_weather] Station data (partial/missing): "
+                    f"avg_temp_today={station.get('avg_temp_today')} "
+                    f"avg_monthly_rainfall={station.get('avg_monthly_rainfall')} "
+                    f"current_monthly_rainfall={station.get('current_monthly_rainfall')}"
+                )
+            else:
+                log(
+                    "  [fetch_weather] Station data complete: "
+                    f"avg_temp_today={station.get('avg_temp_today')} "
+                    f"avg_monthly_rainfall={station.get('avg_monthly_rainfall')} "
+                    f"current_monthly_rainfall={station.get('current_monthly_rainfall')}"
+                )
 
         for key in ("conroe", "corpus_christi", "travis"):
             url = WEATHER_LAKE_URLS.get(key)
@@ -1059,10 +1093,11 @@ def _build_weather_markdown(weather):
 
     md.append("")
     station = weather.get("station", {})
-    md.append(f"| Average Temperature for today 77316 | {_present_weather_value(station.get('avg_temp_today'), 'Unavailable')} |")
+    md.append(f"| {WEATHER_LABELS.get('station_rows', ['Climate Normal High for today 77316'])[0]} | {_present_weather_value(station.get('avg_temp_today'), 'Unavailable')} |")
     md.append("| --- | --- |")
-    md.append(f"| Average Monthly rainfall for 77316  | {_present_weather_value(station.get('avg_monthly_rainfall'), 'Unavailable')} |")
-    md.append(f"| Current Monthly rainfall for 77316  | {_present_weather_value(station.get('current_monthly_rainfall'), 'Unavailable')} |")
+    station_rows = WEATHER_LABELS.get('station_rows', ["Climate Normal High for today 77316", "Average Monthly rainfall for 77316", "Current Monthly rainfall for 77316"])
+    md.append(f"| {station_rows[1]} | {_present_weather_value(station.get('avg_monthly_rainfall'), 'Unavailable')} |")
+    md.append(f"| {station_rows[2]} | {_present_weather_value(station.get('current_monthly_rainfall'), 'Unavailable')} |")
     md.append("")
     md.append("| Where | Today | 1 Week Ago | 30 Days ago |")
     md.append("| --- | --- | --- | --- |")
@@ -1089,16 +1124,16 @@ def _summarize(context, min_chars=LLM_SUMMARY_TRIM_MIN_CHARS):
     for attempt in range(2):
         try:
             t0 = time.time()
-            r = _llm_client.chat(
+            r = _llm_client.chat.completions.create(
                 model=LLM_MODEL,
                 messages=[
                     {"role": "system", "content": SUMMARY_PROMPT},
                     {"role": "user", "content": context[:LLM_SUMMARY_CONTEXT_CHARS]}
                 ],
-                options=LLM_SUMMARY_OPTIONS
+                **LLM_SUMMARY_OPTIONS
             )
             log(f"SUMMARIZE: {time.time() - t0:.2f}s")
-            summary_text = r["message"]["content"] or ""
+            summary_text = r.choices[0].message.content or ""
             summary_text = " ".join([ln.strip() for ln in str(summary_text).splitlines() if ln.strip()])
             return summary_text
         except Exception as e:
@@ -1136,6 +1171,9 @@ class StoryPipelineState:
 
 async def stage_extract_article(story, session):
     """Phase 3A: Fetch full article text from source URL for summary context when link is an external publisher URL."""
+    if is_obituary_title(story.title) and story.category in ["Conroe TX News", "Houston TX News"]:
+        return
+
     url = story.link.strip()
     if not url or url == "#" or url.startswith("#"):
         return
@@ -1206,18 +1244,18 @@ def batch_summarize_all(stories, session=None):
         # Make ONE batch call for this category
         try:
             t0 = time.time()
-            r = _llm_client.chat(
+            r = _llm_client.chat.completions.create(
                 model=LLM_MODEL,
                 messages=[
-                {"role": "system", "content": SYSTEM_BATCH},
-                {"role": "user", "content": batch_text}
-            ],
-                options=LLM_SUMMARY_OPTIONS
+                    {"role": "system", "content": SYSTEM_BATCH},
+                    {"role": "user", "content": batch_text}
+                ],
+                **LLM_SUMMARY_OPTIONS
             )
             elapsed = time.time() - t0
             log(f"BATCH SUMMARIZE ({cat_name}, {len(cat_stories)} stories): {elapsed:.1f}s")
             
-            resp_text = r["message"]["content"] if r.get("message", {}).get("content") else ""
+            resp_text = r.choices[0].message.content if r.choices else ""
             log(f"BATCH OUTPUT ({cat_name}, {len(resp_text)} chars): {resp_text[:500]}")
 
             parsed_summaries = parse_batch_summary_response(resp_text, len(cat_stories))
@@ -1228,33 +1266,25 @@ def batch_summarize_all(stories, session=None):
                     if not value:
                         return True
                     normalized = re.sub(r"\s+", " ", value).strip().lower()
-                    headline_norm = re.sub(r"\s+", " ", _safe_text(headline)).strip().lower()
+                    headline_norm = reed_safe(headline)
                     if normalized == headline_norm or normalized.startswith(headline_norm + "."):
                         return True
-                    return _count_sentences(value) < 3
+                    return _count_sentences(value) < 2
 
-                if summary and len(summary) >= 30:
-                    safe_summary = _safe_sentence_summary(summary)
-                    if not is_invalid_summary(safe_summary):
-                        s.summary = safe_summary
-                        total_parsed += 1
-                    else:
-                        s.summary = ""
-                if not s.summary:
-                    fallback = _summarize(
-                        f"Summarize this story into exactly 3 complete sentences for a daily brief:\nHeadline: {headline}\nContext: {build_context(s)}",
-                        min_chars=30,
-                    )
-                    if fallback and len(fallback) >= 30:
-                        fallback_summary = _safe_sentence_summary(fallback)
-                        if not is_invalid_summary(fallback_summary):
-                            s.summary = fallback_summary
-                            total_parsed += 1
-                        else:
-                            s.summary = f"[Headline] {cat_stories[idx].title}"
-                    else:
-                        s.summary = f"[Headline] {cat_stories[idx].title}"
-                        log(f"  [parse gap] {cat_name} story {idx+1}")
+                def reed_safe(text):
+                    return re.sub(r"\s+", " ", text).strip().lower()
+
+                if not summary or not summary.strip():
+                    s.summary = ""
+                    continue
+                
+                safe_summary = summary
+                if not is_invalid_summary(safe_summary):
+                    s.summary = safe_summary
+                    total_parsed += 1
+                else:
+                    s.summary = ""
+
             
         except Exception as e:
             log(f"BATCH SUMMARIZE ERROR ({cat_name}): {e}")
@@ -1304,17 +1334,17 @@ def batch_evaluate_alerts(stories):
         for attempt in range(2):
             try:
                 t0 = time.time()
-                r = _llm_client.chat(
+                r = _llm_client.chat.completions.create(
                     model=LLM_MODEL,
                     messages=[
-                {"role": "system", "content": SYSTEM_ALERT_BATCH},
-                {"role": "user", "content": alert_text}
-            ],
-                    options=LLM_ALERT_OPTIONS
+                        {"role": "system", "content": SYSTEM_ALERT_BATCH},
+                        {"role": "user", "content": alert_text}
+                    ],
+                    **LLM_ALERT_OPTIONS
                 )
                 log(f"BATCH ALERT EVAL ({cat_name}, {len(labeled_summaries)} stories): {time.time() - t0:.2f}s")
                 
-                resp_text = r["message"]["content"]
+                resp_text = r.choices[0].message.content
                 alert_results = parse_alert_batch_response(resp_text)
                 
                 # Map results back to stories
@@ -1499,6 +1529,24 @@ def tag_story_with_keywords(story_title, category=None):
 
 
 
+def _coerce_temperature_f(val):
+    """Safely convert temperature string/none to float and sanity check."""
+    if val is None:
+        return None
+    try:
+        # Remove non-numeric characters except for the decimal point
+        clean_val = re.sub(r"[^\d.]", "", str(val))
+        if not clean_val:
+            return None
+        temp = float(clean_val)
+        # Sanity check: Temperature should be within a reasonable range (-50 to 140 F)
+        if temp < -50 or temp > 140:
+            log(f"  WARNING: Extreme temperature detected and discarded: {temp}°F")
+            return None
+        return temp
+    except (ValueError, TypeError):
+        return None
+
 def is_realt_estate_title(title):
     """Check if a title contains real estate markers that should be filtered out."""
     if not title:
@@ -1509,6 +1557,17 @@ def is_realt_estate_title(title):
     ]
     title_lower = title.lower()
     return any(keyword in title_lower for keyword in realtor_keywords)
+
+def is_obituary_title(title):
+    """Check if a title contains mortality/obituary markers that should be filtered out."""
+    if not title:
+        return False
+    mortality_keywords = [
+        "obituary", "passed away", "died", "deceased", "funeral services", 
+        "death notice", "memorial service", "passed at age", "remembering"
+    ]
+    title_lower = title.lower()
+    return any(keyword in title_lower for keyword in mortality_keywords)
 
 
 # -- Main -------------------------------------------------------------------
@@ -1552,10 +1611,18 @@ async def main():
         t1 = time.time()
         weather = await fetch_weather(session, WEATHER_LAT, WEATHER_LON)
         if weather:
+            station = weather.get("station", {})
+            station_keys = ("avg_temp_today", "avg_monthly_rainfall", "current_monthly_rainfall")
+            station_partial = any(
+                not station.get(k) or station[k] == "Unavailable" or "(fallback)" in str(station.get(k, ""))
+                for k in station_keys
+            )
+            station_label = "station (partial — fallback applied)" if station_partial else "station"
+            status = "PARTIAL" if station_partial else "OK"
             log(
-                "  Weather OK -- "
+                f"  Weather {status} -- "
                 f"{len(weather.get('forecast', []))} forecast periods | "
-                f"{1 if weather.get('station') else 0} station record | "
+                f"1 {station_label} record | "
                 f"{len(weather.get('lakes', {}))} lake sources"
             )
         else:
@@ -1633,8 +1700,8 @@ async def main():
                     continue
                 seen_per_cat[cat_name].add(norm)
 
-                # 3. Filter out real estate listings for Conroe TX News (after dedup but before adding to deduped)
-                if cat_name == "Conroe TX News" and is_realt_estate_title(title):
+                # 3. Filter out real estate and mortality content (after dedup but before adding to deduped)
+                if is_realt_estate_title(title) or is_obituary_title(title):
                     continue
 
                 deduped.append((title, link, snippet, pub_dt, cat_name))

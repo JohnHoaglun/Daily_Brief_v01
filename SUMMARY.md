@@ -1,10 +1,19 @@
 # Project Summary: Daily_Brief_v01
 
 ## Overview
-Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries using Ollama.
+Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
-- [2026-07-18 19:40] Release - Weather data accuracy and reliability pass completed (dynamic monthly + lake period parsing), release tag prepared as v1.0.6
+- [2026-07-26 03:30] Plan — Adopted comprehensive refactoring plan (P0-P6): modularize 1,942-line monolith into 18 files (40-250 lines each), add testing framework (4 tiers), add config validation + CLI management. Target: 35 hours total across 9 phases. Version bumped to **v1.0.11**.
+- [2026-07-26 03:25] Fix — Removed unconditional "fallback-applied" log. Climate normal (Open-Meteo ERA5) now called before any forecast fallback. "Weather OK" summary properly detects `(fallback)` markers and reports PARTIAL.
+- [2026-07-26 02:54] Feature — Added Open-Meteo ERA5 climate normal fetch for `avg_temp_today` (replaces Wunderground's inaccurate daily-high approximation). Uses `temperature_2m_max` with UTC date sync. Weather labels driven by `config.yaml:weather_labels.station_rows` (commit 299f4a0).
+- [2026-07-26 02:32] Refactor — Switched from `import ollama` to `from openai import OpenAI`. Client init uses `base_url=...`, `timeout=180`. Removed `num_ctx` from `config.yaml` summary/alert options (vLLM rejects in API payload). Updated LLM response parsing from `r["message"]["content"]` to `r.choices[0].message.content`. Config defaults: `llm_model: "gemma4-e2b"` (commit cb52c50).
+- [2026-07-26 02:10] Fix — Rewrote `_fetch_station_metrics` with BeautifulSoup table parser (commit df49693). Replaces broken regex that misread "Elev 187 ft" as temperature. Verified: `avg_temp_today=83.3°F`, `current_monthly_rainfall=7.42 Inches`.
+- [2026-07-26 02:10] Fix — Updated "Weather OK" summary line to report "Weather PARTIAL" when any station value is "Unavailable" or fallback-derived (commit a72e559).
+- [2026-07-26 02:10] Cleanup — Deleted debug scripts: `debug_station.py`, `debug_tables.py`, `test_station.py`.
+- [2026-07-26 02:10] Verification — Ran full pipeline end-to-end: 55 stories, 0 failures, real station data throughout, no extreme-temperature warnings. Pipeline time: 10.4s. Bumped to **v1.0.10**.
+- [2026-07-24 00:15] Fix - Resolved NameError in dashboard_pipeline.py (DEFAULT_CATEGORIES_COUNT) and verified end-to-end execution; version bumped to **v1.0.9**
+- [2026-07-18 20:00] Release - Documentation and validation backlog closure completed; version bumped to **v1.0.7**
 - [2026-07-18 19:35] Fix - Station metrics corrected to use live monthly average and current monthly totals from wunderground summary
 - [2026-07-18 18:15] Fix - Lake trend table now reports separate values for Today / 1 Week Ago / 30 Days Ago
 - [2026-07-18 16:05] Fix - Weather section order aligned to requirements examples (Example1/Example2)
@@ -26,3 +35,5 @@ Automated daily news brief generator that fetches news from 17 content categorie
 
 ## Status
 Fully functional and working correctly. The pipeline produces daily reports with validated dynamic weather sections, improved summary constraints, and config-driven behavior.
+
+

@@ -106,7 +106,7 @@ category_priority:
 
 weather_labels:
   titles: ["Date", "Day Condition", "Night Condition", "High Temp", "Low Temp", "Precip. Chance", "Wind"]
-  station_rows: ["Average Temperature for today 77316", "Average Monthly rainfall for 77316", "Current Monthly rainfall for 77316"]
+  station_rows: ["Climate Normal High for today 77316", "Average Monthly rainfall for 77316", "Current Monthly rainfall for 77316"]
   lake_headers: ["Where", "Today", "1 Week Ago", "30 Days ago"]
 
 categories:

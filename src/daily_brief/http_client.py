@@ -14,14 +14,27 @@ import aiohttp
 logger = logging.getLogger(__name__)
 
 
-async def _fetch_json(session: aiohttp.ClientSession, url: str, suffix: str = "", timeout: int = 15) -> Optional[Dict[str, Any]]:
-    """Fetch JSON from URL, return dict or None on failure."""
+_DEFAULT_USER_AGENT = "DailyBrief/1.0"
+
+
+async def _fetch_json(
+    session: aiohttp.ClientSession,
+    url: str,
+    user_agent: str = _DEFAULT_USER_AGENT,
+    timeout: int = 15,
+    **params: Any,
+) -> Optional[Dict[str, Any]]:
+    """Fetch JSON from URL, return dict or None on failure.
+
+    Accepts arbitrary **params forwarded to session.get() (e.g. params=, ssl=).
+    """
     try:
-        async with session.get(
-            url,
-            headers={"User-Agent": f"{suffix}"},
+        kwargs: Dict[str, Any] = dict(
+            headers={"User-Agent": user_agent},
             timeout=aiohttp.ClientTimeout(total=timeout),
-        ) as resp:
+        )
+        kwargs.update(params)
+        async with session.get(url, **kwargs) as resp:
             if resp.status == 200:
                 return await resp.json()
             logger.warning(f"[fetch_json error] {url} returned status {resp.status}")
@@ -31,14 +44,24 @@ async def _fetch_json(session: aiohttp.ClientSession, url: str, suffix: str = ""
         return None
 
 
-async def _fetch_text(session: aiohttp.ClientSession, url: str, suffix: str = "", timeout: int = 15) -> Optional[str]:
-    """Fetch text from URL, return string or None on failure."""
+async def _fetch_text(
+    session: aiohttp.ClientSession,
+    url: str,
+    user_agent: str = _DEFAULT_USER_AGENT,
+    timeout: int = 15,
+    **params: Any,
+) -> Optional[str]:
+    """Fetch text from URL, return string or None on failure.
+
+    Accepts arbitrary **params forwarded to session.get().
+    """
     try:
-        async with session.get(
-            url,
-            headers={"User-Agent": f"{suffix}"},
+        kwargs: Dict[str, Any] = dict(
+            headers={"User-Agent": user_agent},
             timeout=aiohttp.ClientTimeout(total=timeout),
-        ) as resp:
+        )
+        kwargs.update(params)
+        async with session.get(url, **kwargs) as resp:
             if resp.status == 200:
                 return await resp.text()
             logger.warning(f"[fetch_text error] {url} returned status {resp.status}")

@@ -92,3 +92,35 @@ def _coerce_percent(value) -> Optional[str]:
         return f"{float(m.group(1)):.1f}%"
     except Exception:
         return None
+
+
+def _extract_first_match(text: str, patterns: list) -> Optional[str]:
+    """Return first regex match group from text against multiple patterns."""
+    if not text:
+        return None
+    for pat in patterns:
+        m = re.search(pat, text, flags=re.IGNORECASE | re.DOTALL)
+        if m:
+            return m.group(1)
+    return None
+
+
+def is_obituary_title(title: str) -> bool:
+    """Check if a title contains obituary-related keywords."""
+    if not title:
+        return False
+    keywords = ["obituary", "passed away", "death notice", "funeral services for", "memorial service for"]
+    title_lower = title.lower()
+    return any(kw in title_lower for kw in keywords)
+
+
+def is_realt_estate_title(title: str) -> bool:
+    """Check if a title contains real estate markers that should be filtered out."""
+    if not title:
+        return False
+    realtor_keywords = [
+        "realtor", "zillow", "redfin", "listing", "for sale", "house for",
+        "home for", "property", "$"
+    ]
+    title_lower = title.lower()
+    return any(keyword in title_lower for keyword in realtor_keywords)

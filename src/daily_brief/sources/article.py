@@ -1,0 +1,76 @@
+"""
+Daily Brief v1.0.13 — Article Extraction
+==========================================
+Fetch full article text and build story context for summarization.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+import aiohttp
+from bs4 import BeautifulSoup
+
+from config import LLM_CONTEXT_PREVIEW_CHARS, USER_AGENT
+from daily_brief.utils import is_obituary_title
+
+logger = logging.getLogger(__name__)
+
+
+async def stage_extract_article(story: Any, session: aiohttp.ClientSession) -> None:
+    """Phase 3A: Fetch full article text from source URL for summary context.
+
+    Skips obituary titles, invalid URLs, and Google News tracking links. On
+    success, populates ``story.context`` with cleaned text capped at the
+    configured preview length.
+    """
+    if is_obituary_title(story.title) and story.category in ("Conroe TX News", "Houston TX News"):
+        return
+
+    url = story.link.strip()
+    if not url or url == "#" or url.startswith("#"):
+        return
+    if "news.google.com" in url:
+        return
+
+    try:
+        async with session.get(
+            url,
+            headers={"User-Agent": USER_AGENT},
+            timeout=aiohttp.ClientTimeout(total=5),
+        ) as resp:
+            html = await resp.text()
+        soup = BeautifulSoup(html, "html.parser")
+        for tag in soup(["script", "style", "nav", "header", "footer", "aside"]):
+            tag.decompose()
+        text = soup.get_text(separator=" ", strip=True)
+        text = " ".join(text.split())[:LLM_CONTEXT_PREVIEW_CHARS]
+        if len(text) >= 50:
+            story.context = text
+    except Exception as exc:
+        logger.debug("  [extract error] '%s...': %s", story.title[:60], exc)
+
+
+def build_context(story: Any) -> str:
+    """Build text context for a single story.
+
+    Returns up to *LLM_CONTEXT_PREVIEW_CHARS* characters. Prefers ``story.context``
+    (extracted article text) when it is at least 50 characters; otherwise falls
+    back to ``snippet``, ``title``, and ``category``.
+    """
+    context = story.context
+    if context and len(str(context).strip()) >= 50:
+        return str(context).strip()[:LLM_CONTEXT_PREVIEW_CHARS]
+
+    parts = [
+        v.strip()
+        for v in (story.snippet, story.title)
+        if v and len((v or "").strip()) > 0
+    ]
+
+    if not parts:
+        return f"{story.category}: {story.title}"
+
+    inner = "\n---\n".join(parts + [f"Category: {story.category}"])
+    return inner[:LLM_CONTEXT_PREVIEW_CHARS]

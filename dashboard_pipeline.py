@@ -1595,10 +1595,18 @@ async def main():
         t1 = time.time()
         weather = await fetch_weather(session, WEATHER_LAT, WEATHER_LON)
         if weather:
+            station = weather.get("station", {})
+            station_keys = ("avg_temp_today", "avg_monthly_rainfall", "current_monthly_rainfall")
+            station_partial = any(
+                not station.get(k) or station[k] == "Unavailable"
+                for k in station_keys
+            )
+            station_label = "station (partial — fallback applied)" if station_partial else "station"
+            status = "PARTIAL" if station_partial else "OK"
             log(
-                "  Weather OK -- "
+                f"  Weather {status} -- "
                 f"{len(weather.get('forecast', []))} forecast periods | "
-                f"{1 if weather.get('station') else 0} station record | "
+                f"1 {station_label} record | "
                 f"{len(weather.get('lakes', {}))} lake sources"
             )
         else:

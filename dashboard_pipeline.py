@@ -613,11 +613,15 @@ def _count_sentences(text):
     return len(parts)
 
 
-def parse_batch_summary_response(response, count):
+def parse_batch_summary_response(response, count, story_headlines=None):
     """
     Parse summaries from flexible batch output formats:
       ### 1. ..., 1. ..., 1) ..., STORY_0 ...
+      STORY_N | <headline excerpt>=<summary>
     Returns list of length count.
+    
+    If story_headlines is provided (list of title strings), uses headline keyword
+    overlap to match summaries to the correct stories, tolerating out-of-order output.
     """
     results = ["" for _ in range(count)]
     if not response:
@@ -625,6 +629,106 @@ def parse_batch_summary_response(response, count):
 
     lines = response.splitlines()
 
+    # Extract STORY_N | <text> blocks (may or may not have = separator)
+    story_line_re = re.compile(
+        r"STORY[_\-\s]*(\d+)\s*\|?\s*(.*)$",
+        flags=re.IGNORECASE
+    )
+    
+    # Track which indices were matched by headline
+    matched_by_headline = set()
+    matched_by_summary_overlap = set()
+    
+    if story_headlines:
+        for line in lines:
+            m = story_line_re.match(line.strip())
+            if not m:
+                continue
+            
+            idx = int(m.group(1))
+            rest_text = m.group(2).strip()
+            
+            if not rest_text:
+                continue
+            
+            # Try to split at '=' first
+            summary_text = rest_text
+            if '=' in rest_text:
+                eq_parts = rest_text.split('=', 1)
+                summary_text = eq_parts[1].strip() if len(eq_parts) > 1 else rest_text
+            
+            # Clean summary: remove leading STORY_N numbers if present
+            summary_text = re.sub(r"^STORY[_\-\s]*\d+\s*\|?\s*", "", summary_text).strip()
+            
+            if not summary_text:
+                continue
+            
+            # Strategy 1: Match by summary-to-headline keyword overlap
+            # Find the best matching story by checking keyword overlap between
+            # the summary text and each headline
+            best_idx = None
+            best_score = 0.0
+            
+            # Extract significant words from summary (first 20 words only)
+            summary_words = set(re.findall(r'\b[a-z]{4,}\b', summary_text[:150].lower()))
+            
+            for si, sh in enumerate(story_headlines):
+                sh_words = set(re.findall(r'\b[a-z]{4,}\b', sh.lower()))
+                if not sh_words or not summary_words:
+                    continue
+                # Overlap: how many headline words appear in the summary
+                overlap = len(sh_words & summary_words) / len(sh_words)
+                if overlap > best_score:
+                    best_score = overlap
+                    best_idx = si
+            
+            # If >= 50% of headline words appear in summary, it's a match
+            if best_idx is not None and best_score >= 0.5 and best_idx < count:
+                cleaned_summary = _safe_sentence_summary(summary_text)
+                if cleaned_summary:
+                    results[best_idx] = cleaned_summary
+                    matched_by_headline.add(best_idx)
+                log(f"Parsed STORY_{idx} -> matched headline[{best_idx}] 'overlap {best_score:.2f}'")
+                continue
+            
+            # Strategy 2: If LLM includes headline excerpt, match by headline
+            # Split rest_text: first ~4-8 words are the headline excerpt, rest is summary
+            parts = rest_text.split()
+            if len(parts) > 8:
+                # Try first 4-10 words as headline excerpt
+                for excerpt_len in range(4, min(11, len(parts))):
+                    headline_excerpt = ' '.join(parts[:excerpt_len]).lower()
+                    excerpt_words = set(re.findall(r'\b[a-z]{4,}\b', headline_excerpt))
+                    
+                    if not excerpt_words:
+                        continue
+                    
+                    best_idx2 = None
+                    best_score2 = 0.0
+                    for si, sh in enumerate(story_headlines):
+                        sh_words = set(re.findall(r'\b[a-z]{4,}\b', sh.lower()))
+                        if not sh_words:
+                            continue
+                        overlap = len(sh_words & excerpt_words) / len(excerpt_words)
+                        if overlap > best_score2:
+                            best_score2 = overlap
+                            best_idx2 = si
+                    
+                    if best_idx2 is not None and best_score2 >= 0.5 and best_idx2 < count:
+                        summary_part = ' '.join(parts[excerpt_len:])
+                        cleaned_summary = _safe_sentence_summary(summary_part)
+                        if cleaned_summary and best_idx2 not in matched_by_headline:
+                            results[best_idx2] = cleaned_summary
+                            matched_by_headline.add(best_idx2)
+                        log(f"Parsed STORY_{idx} -> matched headline[{best_idx2}] 'excerpt overlap {best_score2:.2f}'")
+                        break
+    
+    # Log unmatched stories
+    unmatched = [i for i in range(count) if i not in matched_by_headline]
+    if unmatched:
+        log(f"Unmatched stories by headline: indices {unmatched} (will use fallback index matching)")
+    
+    # Fallback: original index-based parsing for unmatched stories
     heading_re = re.compile(
         r"^\s*(?:###\s*)?(?:\*\*)?(?:(\d+)[\)\.]\s*|STORY[_\-\s]*(\d+)\s*[:\)]?\s*)(.*)$",
         flags=re.IGNORECASE
@@ -696,6 +800,9 @@ def parse_batch_summary_response(response, count):
         return results
 
     for n, (line_idx, idx, raw) in enumerate(headers):
+        # Skip if already matched by headline
+        if idx in matched_by_headline:
+            continue
         start = line_idx
         end = len(lines)
         if n + 1 < len(headers):
@@ -1203,7 +1310,7 @@ def build_context(story):
 
 
 def batch_summarize_all(stories, session=None):
-    """One batch summarization call per category. Returns dict mapping story object -> summary text."""
+    """Batch summarization with sub-batches of max 3 stories for reliability. Returns dict mapping story object -> summary text."""
     if not stories:
         return {}
     
@@ -1215,74 +1322,83 @@ def batch_summarize_all(stories, session=None):
     all_summaries = {}
     
     SYSTEM_BATCH = SYSTEM_BATCH_PROMPT
+    BATCH_SIZE = 3  # Max stories per batch for reliable ordering
     
     total_parsed = 0
     for cat_name, cat_stories in by_category.items():
-        # Build contexts for this category's stories
-        context_lines = []
-        for idx, s in enumerate(cat_stories):
-            # Build a shorter context: title + first 400 chars of article if available
-            context_parts = [s.title]
-            content = build_context(s)  # This returns story.context if available and >= 50 chars, else snippet+title
-            if len(content) > LLM_CONTEXT_PREVIEW_CHARS:
-                content = content[:LLM_CONTEXT_PREVIEW_CHARS]
-            context_parts.append(content)
-            
-            entry = f"{idx + 1}. {cat_name}\n" + "\n".join(context_parts)
-            context_lines.append(entry)
+        # Split into sub-batches of BATCH_SIZE
+        sub_batches = []
+        for i in range(0, len(cat_stories), BATCH_SIZE):
+            sub_batches.append(cat_stories[i:i + BATCH_SIZE])
         
-        batch_text = "\n---\n\n".join(context_lines)
-        
-        # Make ONE batch call for this category
-        try:
-            t0 = time.time()
-            r = _llm_client.chat.completions.create(
-                model=LLM_MODEL,
-                messages=[
-                    {"role": "system", "content": SYSTEM_BATCH},
-                    {"role": "user", "content": batch_text}
-                ],
-                **LLM_SUMMARY_OPTIONS
-            )
-            elapsed = time.time() - t0
-            log(f"BATCH SUMMARIZE ({cat_name}, {len(cat_stories)} stories): {elapsed:.1f}s")
-            
-            resp_text = r.choices[0].message.content if r.choices else ""
-            log(f"BATCH OUTPUT ({cat_name}, {len(resp_text)} chars): {resp_text[:500]}")
-
-            parsed_summaries = parse_batch_summary_response(resp_text, len(cat_stories))
-            for idx, s in enumerate(cat_stories):
-                summary = parsed_summaries[idx] if idx < len(parsed_summaries) else ""
-                headline = s.title.strip()
-                def is_invalid_summary(value):
-                    if not value:
-                        return True
-                    normalized = re.sub(r"\s+", " ", value).strip().lower()
-                    headline_norm = reed_safe(headline)
-                    if normalized == headline_norm or normalized.startswith(headline_norm + "."):
-                        return True
-                    return _count_sentences(value) < 2
-
-                def reed_safe(text):
-                    return re.sub(r"\s+", " ", text).strip().lower()
-
-                if not summary or not summary.strip():
-                    s.summary = ""
-                    continue
+        for sub_batch in sub_batches:
+            # Build contexts for this sub-batch
+            context_lines = []
+            for idx, s in enumerate(sub_batch):
+                # Build a shorter context: title + first 400 chars of article if available
+                context_parts = [s.title]
+                content = build_context(s)
+                if len(content) > LLM_CONTEXT_PREVIEW_CHARS:
+                    content = content[:LLM_CONTEXT_PREVIEW_CHARS]
+                context_parts.append(content)
                 
-                safe_summary = summary
-                if not is_invalid_summary(safe_summary):
-                    s.summary = safe_summary
-                    total_parsed += 1
-                else:
-                    s.summary = ""
-
+                entry = f"{idx + 1}. {cat_name}\n" + "\n".join(context_parts)
+                context_lines.append(entry)
             
-        except Exception as e:
-            log(f"BATCH SUMMARIZE ERROR ({cat_name}): {e}")
-            # Set fallback summary for all stories in this category
-            for s in cat_stories:
-                s.summary = f"[Headline] {s.title}"
+            batch_text = "\n---\n\n".join(context_lines)
+            
+            # Make ONE batch call for this sub-batch
+            try:
+                t0 = time.time()
+                r = _llm_client.chat.completions.create(
+                    model=LLM_MODEL,
+                    messages=[
+                        {"role": "system", "content": SYSTEM_BATCH},
+                        {"role": "user", "content": batch_text}
+                    ],
+                    **LLM_SUMMARY_OPTIONS
+                )
+                elapsed = time.time() - t0
+                sub_batch_label = f"{cat_name} (batch {len(sub_batch)})"
+                log(f"BATCH SUMMARIZE ({sub_batch_label}): {elapsed:.1f}s")
+                
+                resp_text = r.choices[0].message.content if r.choices else ""
+                log(f"BATCH OUTPUT ({sub_batch_label}): {resp_text[:400]}")
+
+                parsed_summaries = parse_batch_summary_response(
+                    resp_text, len(sub_batch),
+                    story_headlines=[s.title for s in sub_batch]
+                )
+                for idx, s in enumerate(sub_batch):
+                    summary = parsed_summaries[idx] if idx < len(parsed_summaries) else ""
+                    headline = s.title.strip()
+                    
+                    def is_invalid_summary(value):
+                        if not value:
+                            return True
+                        normalized = re.sub(r"\s+", " ", value).strip().lower()
+                        headline_norm = reed_safe(headline)
+                        if normalized == headline_norm or normalized.startswith(headline_norm + "."):
+                            return True
+                        return _count_sentences(value) < 2
+
+                    def reed_safe(text):
+                        return re.sub(r"\s+", " ", text).strip().lower()
+
+                    if not summary or not summary.strip():
+                        s.summary = ""
+                        continue
+                    
+                    if not is_invalid_summary(summary):
+                        s.summary = summary
+                        total_parsed += 1
+                    else:
+                        s.summary = ""
+
+            except Exception as e:
+                log(f"BATCH SUMMARIZE ERROR ({cat_name}): {e}")
+                for s in sub_batch:
+                    s.summary = f"[Headline] {s.title}"
     
     return all_summaries
 
@@ -1799,18 +1915,154 @@ async def main():
         log(f"\nFile written to {filepath}")
         log(f"  Stories: {total_after_dedup} | Alerts: {len(alerts_list)} | Failed: {sum_fail}/{total} | Time: {elapsed:.1f}s")
         
-        # Add detailed timing breakdown at the end of log file
-        log("\n--- TIMING BREAKDOWN ---")
-        total_phase_time = 0
-        for phase, duration in PHASE_TIMINGS.items():
-            log(f"{phase}: ~{duration:.2f}s")
-            total_phase_time += duration
+        # --- Post-run validation ---
+        log("\n[Phase 5] Validating report...")
+        validation_passed, validation_issues = validate_report(filepath)
         
-        log(f"Total: ~{total_phase_time:.2f}s")
-        log("=" * 60)
+        if not validation_passed:
+            log("\n*** RUN VALIDATION FAILED — Report has broken summaries ***")
+            log(f"STATUS: FAILED ({len(validation_issues)} issues found)")
+            print(f"\n*** RUN FAILED — {len(validation_issues)} validation issues found ***")
+            print(f"File: {filepath}")
+            print(f"See run log for details: {os.environ.get('RUN_LOGFILE', 'unknown')}")
+        else:
+            log("\n=== PIPELINE COMPLETED SUCCESSFULLY ===")
+            print(f"\nDone. File: {filepath}")
+            print(f"  Stories: {total_after_dedup} | Alerts: {len(alerts_list)} | Failed: {sum_fail}/{total} | Time: {elapsed:.1f}s")
 
-        print(f"\nDone. File: {filepath}")
-        print(f"  Stories: {total_after_dedup} | Alerts: {len(alerts_list)} | Failed: {sum_fail}/{total} | Time: {elapsed:.1f}s")
+
+def validate_report(filepath):
+    """Validate the rendered markdown report. Returns (passed, issues) tuple.
+    
+    Checks each story for:
+    - Non-empty summary
+    - Minimum sentence count (2 sentences or more)
+    - Summary is not just the headline repeated
+    - Headline/summary topic overlap (keyword matching)
+    
+    Returns False if >10% of stories have broken summaries.
+    """
+    try:
+        with open(filepath, "r", encoding="utf-8") as fh:
+            content = fh.read()
+    except Exception as e:
+        log(f"VALIDATE ERROR: Cannot read {filepath}: {e}")
+        return False, [f"Cannot read file: {e}"]
+    
+    # Split into sections — find category headings
+    sections = re.split(r'^##\s+', content, flags=re.MULTILINE)
+    
+    stories = []
+    issues = []
+    
+    for section in sections:
+        section_text = section.strip()
+        if not section_text:
+            continue
+        
+        # Find numbered stories: "N. [Title](URL)"
+        story_blocks = re.split(r'\n(?=\d+\.\s+\[)', section_text)
+        
+        for block in story_blocks:
+            block = block.strip()
+            if not block:
+                continue
+            
+            # Extract title from first line
+            first_line_match = re.match(r'(\d+)\.\s+\[(.+?)\]\((.+?)\)', block)
+            if not first_line_match:
+                continue
+            
+            title = first_line_match.group(2).strip()
+            block_lines = block.split('\n')
+            if len(block_lines) < 2:
+                continue
+            
+            # Summary is everything after the title line, before meta lines
+            summary_lines = []
+            for line in block_lines[1:]:
+                line_stripped = line.strip()
+                if line_stripped.startswith('*Originally published') or \
+                   line_stripped.startswith('[[') or \
+                   line_stripped.startswith('---') or \
+                   line_stripped.startswith('##') or \
+                   line_stripped == '':
+                    continue
+                summary_lines.append(line_stripped)
+            
+            summary = ' '.join(summary_lines).strip()
+            stories.append((title, summary))
+    
+    if not stories:
+        log(f"VALIDATE: No stories found in report")
+        return False, ["No stories found in report"]
+    
+    total_stories = len(stories)
+    bad_stories = 0
+    
+    for title, summary in stories:
+        title_lower = title.lower()
+        
+        # Check 1: Empty summary
+        if not summary or not summary.strip():
+            issues.append(f"Empty summary for: {title[:80]}")
+            bad_stories += 1
+            continue
+        
+        summary_lower = summary.lower()
+        
+        # Check 2: Summary is just the headline
+        title_norm = re.sub(r'\s+', ' ', title_lower)
+        summary_norm = re.sub(r'\s+', ' ', summary_lower)
+        if summary_norm == title_norm or summary_norm.startswith(title_norm + '.'):
+            issues.append(f"Summary repeats headline: {title[:80]}")
+            bad_stories += 1
+            continue
+        
+        # Check 3: Minimum sentence count
+        sentence_count = _count_sentences(summary)
+        if sentence_count < 2:
+            issues.append(f"Too short ({sentence_count} sentences): {title[:80]}")
+            bad_stories += 1
+            continue
+        
+        # Check 4: Fallback markers
+        if summary.startswith("[Headline]") or "[unavailable" in summary_lower:
+            issues.append(f"Fallback marker present: {title[:80]}")
+            bad_stories += 1
+            continue
+        
+        # Check 5: Topic overlap — extract key words from headline, check presence in summary
+        headline_words = re.findall(r'\b[a-z]{4,}\b', title_lower)
+        # Remove common words
+        stop_words = {'news', 'says', 'live', 'update', 'updates', 'here', 'what', 'how', 'why', 'when', 'year', 'report', 'story', 'today'}
+        headline_words = [w for w in headline_words if w not in stop_words]
+        
+        if headline_words:
+            matching = [w for w in headline_words if w in summary_lower]
+            overlap_ratio = len(matching) / len(headline_words) if headline_words else 1.0
+            
+            # If <25% of significant headline words appear in summary, it's likely wrong
+            if overlap_ratio < 0.25:
+                issues.append(f"Topic mismatch (overlap {overlap_ratio:.0%}): {title[:80]}")
+                bad_stories += 1
+                continue
+    
+    fail_threshold = total_stories * 0.10  # 10% failure rate
+    total_bad_ratio = bad_stories / total_stories if total_stories > 0 else 0
+    
+    passed = bad_stories <= fail_threshold
+    status = "PASS" if passed else "FAIL"
+    log(f"VALIDATE: {total_stories} stories, {bad_stories} bad ({total_bad_ratio:.0%}), threshold {fail_threshold:.0f} — {status}")
+    
+    if issues:
+        log(f"VALIDATE ISSUES ({len(issues)}):")
+        for issue in issues[:20]:  # Log first 20 issues max
+            log(f"  - {issue}")
+        if len(issues) > 20:
+            log(f"  ... and {len(issues) - 20} more")
+    
+    return passed, issues
 
 
 if __name__ == "__main__":

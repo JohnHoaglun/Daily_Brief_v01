@@ -52,7 +52,7 @@ cleanup:
 
 prompts:
   summary: "You are an objective news editor. Write a detailed summary of at least 3 sentences covering the key facts of this article."
-  system_batch: "You are a concise news summarization engine.\nFor each story I list, output EXACTLY one numbered short summary block in this format:\nSTORY_0: <3-string summary>\nSTORY_1: <3-story summary>\n...\nSTORY_N: <3-story summary>\n\nDo not add any preamble, explanations, extra headings, markdown, or bullet points.\nEach summary must be 3 sentences whenever possible and should not equal the headline."
+  system_batch: "You are a concise news summarization engine.\nFor each story I list, output EXACTLY one numbered short summary block in this format:\nSTORY_0 | <first 4 words of headline>=<3-sentence summary>\nSTORY_1 | <first 4 words of headline>=<3-sentence summary>\n...\nSTORY_N | <first 4 words of headline>=<3-sentence summary>\n\nCRITICAL: Use the EXACT first 4 words from each headline after the number. This is the ONLY way we match summaries to the correct stories.\nDo not add any preamble, explanations, extra headings, markdown, or bullet points.\nEach summary must be 3 sentences whenever possible and should not equal the headline."
   system_alert: "You are a news priority classifier. For EACH story provided, respond with exactly one line.\\nFormat: STORY_<number>: TRUE or FALSE\\nJudge: extreme weather (hurricane/tornado/flood/freeze in Houston/Texas/77316), major breakthroughs from top tech labs,\\ncritcial economic disruption, geopolitical crises, or infrastructure failure.\\nBe conservative; only flag TRUE for genuinely important news. No preamble.\\n\\nUse EXACT format:\\nSTORY_0: TRUE\\nSTORY_1: FALSE\\nSTORY_2: TRUE"
 
 filtering_keywords:

@@ -36,8 +36,8 @@
 - `[x]` Migrate ~26 `log()` calls → Python `logging` (`logger.debug/warning`)
 - `[x]` Fix duplicate climate normal call (dead code in monolith line 988)
 - `[x]` Pipeline validated: 56 stories, 0 errors, 85.6s (end-to-end)
-- `[ ]` Fix `tagging.py` to read from `config.yaml:tagging_mappings` instead of inline dict
-- `[ ]` Fix `ordered_categories_for_render` to use `config.yaml:category_priority` instead of hardcoded list
+- `[x]` Fix `tagging.py` to read from `config.yaml:tagging_mappings` instead of inline dict — v1.0.15
+- `[x]` Fix `ordered_categories_for_render` to use `config.yaml:category_priority` instead of hardcoded list — v1.0.15
 
 ### P3 — LLM Module (Priority: High, Effort: 2 hrs, Risk: Low)
 - `[ ]` Extract `llm/client.py` (80L) — OpenAI client wrapper, retry logic, per-call timeout
@@ -58,8 +58,9 @@
 
 ### P6 — Config Management & Validation (Priority: High, Effort: 2 hrs, Risk: Zero)
 - `[ ]` Add config validation — check required keys, types, value ranges at startup
-- `[ ]` Make `tagging.py` read from `config.yaml:tagging_mappings` (not inline dict)
-- `[ ]` Make `ordered_categories_for_render` use `config.yaml:category_priority` (not hardcoded)
+- `[ ]` Add config validation — P6 (deferred to after P5)
+- `[x]` Make `tagging.py` read from `config.yaml:tagging_mappings` (not inline dict) — DONE v1.0.15 via P2
+- `[x]` Make `ordered_categories_for_render` use `config.yaml:category_priority` (not hardcoded) — DONE v1.0.15 via P2
 - `[ ]` Add CLI config command — `python -m daily_brief config show|validate|set|add-category`
 
 ---

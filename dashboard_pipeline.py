@@ -1559,12 +1559,17 @@ async def main():
     now_ts = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     global RUN_LOGFILE, OUTPUT_DIR
     
-    # Count existing files for the same date to get correct increment
+    # Find the highest existing version number for today's log files
     log_files = [f for f in os.listdir(LOG_DIR) if f.startswith('run_log_' + now_ts) and f.endswith('.md')]
-    file_count = len(log_files) + 1  # Start from v01
+    max_log_ver = 0
+    for lf in log_files:
+        m = re.search(r'_v(\d+)\.md$', lf)
+        if m:
+            max_log_ver = max(max_log_ver, int(m.group(1)))
+    log_ver = max_log_ver + 1  # Next version
     
     # Format with proper naming convention
-    run_log_name = f"run_log_{now_ts}_v{file_count:02d}.md"
+    run_log_name = f"run_log_{now_ts}_v{log_ver:02d}.md"
     RUN_LOGFILE = os.path.join(LOG_DIR, run_log_name)
     
     # Log startup
@@ -1771,13 +1776,18 @@ async def main():
         now = datetime.now(timezone.utc)
         fn_ts = now.strftime("%Y-%m-%d")
         
-        # Count existing files for the same date to get correct increment
-        daily_brief_files = [f for f in os.listdir(OUTPUT_DIR) if f.startswith('DailyBrief-' + fn_ts) and f.endswith('.md')]
-        file_count = len(daily_brief_files) + 1  # Start from v01
-        
-        # Format with proper naming convention  
-        filepath = os.path.join(OUTPUT_DIR, f"DailyBrief-{fn_ts}_v{file_count:02d}.md")
+        # Find the highest existing version number for today's output files
         os.makedirs(OUTPUT_DIR, exist_ok=True)
+        daily_brief_files = [f for f in os.listdir(OUTPUT_DIR) if f.startswith('DailyBrief-' + fn_ts) and f.endswith('.md')]
+        max_file_ver = 0
+        for bf in daily_brief_files:
+            mf = re.search(r'_v(\d+)\.md$', bf)
+            if mf:
+                max_file_ver = max(max_file_ver, int(mf.group(1)))
+        file_ver = max_file_ver + 1  # Next version
+        
+        # Format with proper naming convention
+        filepath = os.path.join(OUTPUT_DIR, f"DailyBrief-{fn_ts}_v{file_ver:02d}.md")
 
         # Cleanup old DailyBrief files (keep only MAX_LOG_VERSIONS most recent)
         if MAX_LOG_VERSIONS > 0:

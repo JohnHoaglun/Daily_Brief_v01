@@ -23,14 +23,19 @@
 - `[x]` Extract `http_client.py` — `_fetch_json`, `_fetch_text`, aiohttp session management
 - `[x]` Replace custom `log()` with standard Python `logging` + `RotatingFileHandler` in all new modules
 
-### P2 — Data Sources Split (Priority: High, Effort: 6 hrs, Risk: Low)
-- `[ ]` Create `sources/` package — `__init__.py`, `base.py` (DataSource ABC)
-- `[ ]` Extract `sources/weather.py` (250L) — NWS forecast fetch + parse, `_parse_climate_summary`
-- `[ ]` Extract `sources/wunderground.py` (120L) — station metrics scraping
-- `[ ]` Extract `sources/climate.py` (80L) — Open-Meteo ERA5 + climate.gov normals
-- `[ ]` Extract `sources/lakes.py` (80L) — reservoir level extraction
-- `[ ]` Extract `sources/rss.py` (150L) — feedparser + Google News URL building + dedup + filtering
-- `[ ]` Extract `sources/article.py` (60L) — full article content extraction
+### P2 — Data Sources Split (Priority: High, Effort: 6 hrs, Risk: Low) — v1.0.14
+- `[x]` Create `sources/` package — `__init__.py` (re-export chain)
+- `[x]` Extract `sources/weather.py` (262L) — NWS forecast fetch + parse, orchestrator
+- `[x]` Extract `sources/wunderground.py` (185L) — station metrics scraping
+- `[x]` Extract `sources/climate.py` (179L) — Open-Meteo ERA5 + climate.gov normals
+- `[x]` Extract `sources/lakes.py` (97L) — reservoir level extraction
+- `[x]` Extract `sources/rss.py` (151L) — feedparser + Google News URL building + dedup + filtering
+- `[x]` Extract `sources/article.py` (76L) — full article content extraction
+- `[x]` Fix http_client.py — proper `user_agent` param + `**params` passthrough
+- `[x]` Extend utils.py — `_extract_first_match`, `is_obituary_title`, `is_realt_estate_title`
+- `[x]` Migrate ~26 `log()` calls → Python `logging` (`logger.debug/warning`)
+- `[x]` Fix duplicate climate normal call (dead code in monolith line 988)
+- `[x]` Pipeline validated: 56 stories, 0 errors, 85.6s (end-to-end)
 - `[ ]` Fix `tagging.py` to read from `config.yaml:tagging_mappings` instead of inline dict
 - `[ ]` Fix `ordered_categories_for_render` to use `config.yaml:category_priority` instead of hardcoded list
 

@@ -738,6 +738,41 @@ def parse_batch_summary_response(response, count):
     return results
 
 
+async def _fetch_climate_normal_high(session):
+    """Fetch today's climate normal high temperature from Open-Meteo (free, no API key).
+    Uses ERA5 reanalysis model for historical average for today's date.
+    """
+    today_str = datetime.now(ACTIVE_TIMEZONE).strftime("%Y-%m-%d")
+    try:
+        geo_url = "https://geocoding-api.open-meteo.com/v1/search"
+        async with session.get(geo_url, params={"name": "77316", "count": 1, "language": "en", "format": "json"}, timeout=10) as resp:
+            geo = await resp.json()
+        if not geo.get("results"):
+            return None
+        lat = geo["results"][0]["latitude"]
+        lon = geo["results"][0]["longitude"]
+
+        archive_url = "https://archive-api.open-meteo.com/v1/era5"
+        params = {
+            "latitude": lat,
+            "longitude": lon,
+            "start_date": today_str,
+            "end_date": today_str,
+            "daily": "temperature_2m_max",
+            "temperature_unit": "fahrenheit"
+        }
+        async with session.get(archive_url, params=params, timeout=10) as resp:
+            climate = await resp.json()
+        daily = climate.get("daily", {})
+        temps = daily.get("temperature_2m_max", [])
+        if temps:
+            val = round(temps[0])
+            return val
+    except Exception as e:
+        log(f"  WARNING Open-Meteo climate normal fetch failed: {e}")
+    return None
+
+
 async def _fetch_station_metrics(session, station_id, reference):
     """Fetch station metrics from Wunderground monthly dashboard table.
 
@@ -980,6 +1015,12 @@ async def fetch_weather(session, lat, lon):
 
         weather_data["station"] = await _fetch_station_metrics(session, WEATHER_WUNDERGROUND_STATION_ID, now_ref)
         log("  [fetch_weather] Completed station fetch")
+        
+        # Override avg_temp_today with Open-Meteo climate normal (historical average high for today)
+        climate_high = await _fetch_climate_normal_high(session)
+        if climate_high is not None:
+            weather_data["station"]["avg_temp_today"] = f"{climate_high}°F"
+        
         log(
             "  Weather station data: "
             f"avg_temp_today={weather_data['station'].get('avg_temp_today', 'Dynamic')} "

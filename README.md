@@ -2,113 +2,98 @@
 
 ## Overview
 
-Daily Brief is an automated news aggregation and summarization system that collects articles from various sources, synthesizes them into concise summaries, and formats them into a daily markdown report.
+Automated daily news brief generator that fetches stories from 17 categories via Google News RSS, enriches them with AI-generated summaries, and produces a structured Markdown report with weather data, lake levels, and categorized news.
 
-## Features
+## Architecture
 
-- Automated RSS feed collection from Google News
-- Cross-category duplicate detection and filtering  
-- Article content extraction and summarization using LLM
-- Time-based filtering (last 24 hours by default)
-- Clean markdown output with category separation
-- Automatic cleanup of old reports and logs
-- Weather data integration (dynamic forecast, station metrics, and lake percentages)
-
-### New Features in v1.0.11
-
-1. **Configuration System** - Moved all settings to config.py for easier management  
-2. **Enhanced Date/Time Handling** - Shows full date+time instead of just date
-3. **Cleaner Output Formatting** - Removed H3 headers, uses numbered lists instead
-4. **Improved Cleanup Logic** - Maintains only MAX_VERSIONS (5) most recent files
-5. **Removed Alert System** - Alerts no longer displayed in output to reduce clutter
-6. **Enhanced Article Extraction** - Better handling of external URLs
-7. **Configuration Loading Fix** - Resolved circular import issue causing errors
-8. **Weather Pipeline Hardening** - Dynamic NWS forecast, station, and lake fetch flow with date-aware weather blocks.
-9. **Weather Data Accuracy Work** - 3-sentence summaries for news stories, section order fixed to match examples, station metrics and lake trend periods fetched dynamically.
-
-10. **Release/Docs Cleanup** - `TODOS.md` backlog cleared and version/docs aligned to v1.0.11 before release.
+- **RSS Feed Integration** — pulls and deduplicates stories from Google News RSS via `feedparser`
+- **Content Processing** — batched LLM summarization via vLLM (OpenAI-compatible client, one call per category)
+- **Weather Data** — NWS forecast, Wunderground station metrics, Open-Meteo ERA5 climate normals, Texas reservoir levels
+- **Tagging** — config-driven keyword-based tagging across 20+ topic categories
+- **Report Generation** — structured Markdown with frontmatter, weather tables, and category sections
 
 ## Requirements
 
 - Python 3.9+
-- Ollama server available at http://192.168.4.52:11434 (customizable)
-- Required models:
-  - gemma4:e2b (or specified in config.py)
-  - [additional models as needed]
+- vLLM server with OpenAI-compatible API (e.g., `http://192.168.4.52:8007`)
+- Required packages: `aiohttp`, `feedparser`, `beautifulsoup4`, `openai`, `pyyaml`
 
 ## Setup
 
-1. Install required packages: `pip install aiohttp feedparser beautifulsoup4 ollama`
-2. Ensure Ollama server is running
-3. Set up `config.py` with your preferences
-4. Run the script with your installed Python:
-
-```powershell
-.\run_daily_brief.bat
-```
-
-If your Python path is different, replace with your local path.
-
-If tzdata is missing in that Python install, timezone fallback is handled to UTC in code, and you can optionally install tzdata:
-
-```powershell
-C:\Users\john\AppData\Local\Python\bin\python.exe -m pip install tzdata
-```
+1. Install dependencies:
+   ```bash
+   pip install aiohttp feedparser beautifulsoup4 openai pyyaml
+   ```
+2. Ensure vLLM server is running with the configured model (default: `gemma4-e2b`)
+3. Configure `config.yaml` (see below)
+4. Run the pipeline:
+   ```bash
+   python3 dashboard_pipeline.py
+   ```
 
 ## Configuration
 
-All configuration now resides in `config.py`. Key settings include:
+All runtime configuration is in `config.yaml`. Key settings:
 
-- `LLM_MODEL`: The model to use for summarization  
-- `LOG_DIR`: Directory for log files
-- `NEWS_DIR`: Directory for output markdown files
-- `MAX_VERSIONS`: Maximum number of old files to keep (default 5)
+| Key | Description | Default |
+|---|---|---|
+| `version` | Pipeline version | `1.0.11` |
+| `llm.model` | Model for summarization | `gemma4-e2b` |
+| `llm.host` | vLLM API endpoint | `http://192.168.4.52:8007` |
+| `directories.log_dir` | Log file output directory | vault `Dev/logs/` |
+| `directories.news_dir` | Report output directory | vault `Dev/news/` |
+| `weather.lat` / `weather.lon` | Weather location | `30.286, -95.566` (Houston) |
+| `weather.wunderground_station_id` | Wunderground station | `KTXMONTG645` |
+| `categories.*` | 17 news categories with queries and limits | see `config.yaml` |
+| `weather_labels.station_rows` | Weather table row labels | configurable |
+| `tagging_mappings.*` | Keyword-to-tag mappings | 20+ categories |
 
 ## Usage
 
-Run the pipeline with:
-`.\run_daily_brief.bat`
-
-The script will:
-1. Collect news from RSS feeds
-2. Filter and deduplicate stories  
-3. Extract full article content
-4. Generate summaries using LLM
-5. Create markdown report with clean formatting
-6. Clean up old log and report files
-
-## Output Format
-
-Generated markdown files in `news/` directory named like `DailyBrief-2026-07-12_v01.md`
-
-Each file includes:
-- Title and metadata
-- Category sections with stories listed as numbered items  
-- Clean separation between categories using horizontal rules
-- Full date+time formatting for all posts
-
-## Files
-
-```
-dashboard_pipeline.py     # Main pipeline script
-config.py                 # Configuration settings
-config.txt                # Runtime config values
-README.md                 # This file
-news/                     # Output directory for reports  
-logs/                     # Log file directory
+```bash
+python3 dashboard_pipeline.py
 ```
 
-## Contributing
+The pipeline runs in phases:
+1. **Weather** — fetches NWS forecast, station metrics, climate normals, lake levels (async)
+2. **RSS** — fetches 16 Google News RSS feeds concurrently, deduplicates, filters
+3. **Enrich** — extracts full articles, batch-summarizes, evaluates alerts per category
+4. **Render** — assembles Markdown report with frontmatter, weather tables, category sections
+5. **Cleanup** — retains only the 5 most recent log/report files
 
-1. Fork the repository
-2. Create feature branch: `git checkout -b feature/your-feature`
-3. Commit changes: `git commit -am 'Add new feature'`  
-4. Push to branch: `git push origin feature/your-feature`
-5. Create pull request
+## Output
+
+Generated Markdown reports in the configured `directories.news_dir`, named `DailyBrief-YYYY-MM-DD_vNN.md`.
+
+Each report includes:
+- YAML frontmatter with tags
+- Weather section: 3-day forecast table, climate normal high, monthly rainfall, lake levels
+- Category sections with numbered stories, summaries, and tags
+- Horizontal rule separation between categories
+
+## File Structure
+
+```
+config.yaml                 # All runtime configuration
+config.py                   # YAML loader + validation
+dashboard_pipeline.py       # Main pipeline (1,942 lines — refactoring planned)
+PROJECT.md                  # Architecture and status
+SUMMARY.md                  # Changelog
+TODOS.md                    # Task board and refactoring plan (P0-P6)
+PLAN.md                     # Strategic decisions and blockers
+README.md                   # This file
+```
+
+## Refactoring (In Progress)
+
+The codebase is undergoing modularization (see `TODOS.md` for phases P0–P6):
+- Split `dashboard_pipeline.py` (1,942 lines) into 18 files (40–250 lines each)
+- Pluggable `sources/` for weather, RSS, lakes, climate
+- `llm/` module for summarization and alerting
+- `rendering/` for Markdown generation
+- Comprehensive test suite (unit, mocked, smoke, post-run validation)
+- Config validation and CLI management
 
 ## License
 
 MIT License
-
-
-

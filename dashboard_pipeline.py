@@ -27,7 +27,7 @@ import feedparser
 from concurrent.futures import ThreadPoolExecutor
 from functools import cmp_to_key
 from bs4 import BeautifulSoup
-import ollama
+from openai import OpenAI
 import sys
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
@@ -45,8 +45,8 @@ import re
 # Avoid circular imports and make sure all configuration is loaded before we start doing work
 from config import *
 
-# Ollama client
-_llm_client = ollama.Client(host=OLLAMA_HOST, timeout=180)
+# OpenAI-compatible client (works with vLLM, Ollama, cloud providers)
+_llm_client = OpenAI(api_key="not-needed", base_url=OLLAMA_HOST + "/v1" if "/v1" not in OLLAMA_HOST else OLLAMA_HOST, timeout=180)
 
 # Pull configuration values after importing config
 # Note: These are already loaded globally by config.py via the globals().update(locals()) pattern. 
@@ -1108,16 +1108,16 @@ def _summarize(context, min_chars=LLM_SUMMARY_TRIM_MIN_CHARS):
     for attempt in range(2):
         try:
             t0 = time.time()
-            r = _llm_client.chat(
+            r = _llm_client.chat.completions.create(
                 model=LLM_MODEL,
                 messages=[
                     {"role": "system", "content": SUMMARY_PROMPT},
                     {"role": "user", "content": context[:LLM_SUMMARY_CONTEXT_CHARS]}
                 ],
-                options=LLM_SUMMARY_OPTIONS
+                **LLM_SUMMARY_OPTIONS
             )
             log(f"SUMMARIZE: {time.time() - t0:.2f}s")
-            summary_text = r["message"]["content"] or ""
+            summary_text = r.choices[0].message.content or ""
             summary_text = " ".join([ln.strip() for ln in str(summary_text).splitlines() if ln.strip()])
             return summary_text
         except Exception as e:
@@ -1228,18 +1228,18 @@ def batch_summarize_all(stories, session=None):
         # Make ONE batch call for this category
         try:
             t0 = time.time()
-            r = _llm_client.chat(
+            r = _llm_client.chat.completions.create(
                 model=LLM_MODEL,
                 messages=[
-                {"role": "system", "content": SYSTEM_BATCH},
-                {"role": "user", "content": batch_text}
-            ],
-                options=LLM_SUMMARY_OPTIONS
+                    {"role": "system", "content": SYSTEM_BATCH},
+                    {"role": "user", "content": batch_text}
+                ],
+                **LLM_SUMMARY_OPTIONS
             )
             elapsed = time.time() - t0
             log(f"BATCH SUMMARIZE ({cat_name}, {len(cat_stories)} stories): {elapsed:.1f}s")
             
-            resp_text = r["message"]["content"] if r.get("message", {}).get("content") else ""
+            resp_text = r.choices[0].message.content if r.choices else ""
             log(f"BATCH OUTPUT ({cat_name}, {len(resp_text)} chars): {resp_text[:500]}")
 
             parsed_summaries = parse_batch_summary_response(resp_text, len(cat_stories))
@@ -1318,17 +1318,17 @@ def batch_evaluate_alerts(stories):
         for attempt in range(2):
             try:
                 t0 = time.time()
-                r = _llm_client.chat(
+                r = _llm_client.chat.completions.create(
                     model=LLM_MODEL,
                     messages=[
-                {"role": "system", "content": SYSTEM_ALERT_BATCH},
-                {"role": "user", "content": alert_text}
-            ],
-                    options=LLM_ALERT_OPTIONS
+                        {"role": "system", "content": SYSTEM_ALERT_BATCH},
+                        {"role": "user", "content": alert_text}
+                    ],
+                    **LLM_ALERT_OPTIONS
                 )
                 log(f"BATCH ALERT EVAL ({cat_name}, {len(labeled_summaries)} stories): {time.time() - t0:.2f}s")
                 
-                resp_text = r["message"]["content"]
+                resp_text = r.choices[0].message.content
                 alert_results = parse_alert_batch_response(resp_text)
                 
                 # Map results back to stories

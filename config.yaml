@@ -1,6 +1,18 @@
-version: "1.0.7"
-llm_model: "den-gemma4-e2b-8k-utility:latest"
-ollama_host: "http://192.168.4.52:11434"
+version: "1.0.8"
+
+llm:
+  model: "gemma4-e2b"
+  host: "http://192.168.4.52:8007"
+  summary_options:
+    temperature: 0.3
+    top_p: 0.8
+  alert_options:
+    temperature: 0.1
+    top_p: 0.3
+  context_preview_chars: 600
+  summary_context_chars: 6000
+  summary_trim_min_chars: 100
+
 directories:
   log_dir: "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/logs"
   news_dir: "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/news"
@@ -14,34 +26,88 @@ weather:
     conroe: "https://waterdatafortexas.org/reservoirs/individual/conroe"
     corpus_christi: "https://waterdatafortexas.org/reservoirs/individual/corpus-christi"
     travis: "https://waterdatafortexas.org/reservoirs/individual/travis"
+  forecast_suffix: "forecast"
+  section_title: "Weather Forecast"
 
 rss:
   base_url: "https://news.google.com/rss/search?q="
-  params: "&hl=en-US&gl=US&ceid=US:en"
+  params: "&hl=int-US&gl=US&ceid=US:en"
+  default_age_limit_hours: 24
+  dedupe_window_hours: 24
 
-timezone: "America/Chicago"
-user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
-user_agent_weather_suffix: "/DailyBrief/1.0"
+network:
+  user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+  weather_user_agent_suffix: "/DailyBrief/1.0"
 
-cleanup_policy:
+runtime:
+  timezone: "America/Chicago"
+  date_override: null
+  frontmatter_tag_segments: ["daily-intelligently", "news-summary", "ai-generated"]
+  frontmatter_fallback_tag: "#news"
+  thread_pool_size: 3
   max_log_versions: 5
 
-runtime_defaults:
-  frontmatter_tag_seeds: ["daily-intelligently", "news-summary", "ai-generated"]
-  frontmatter_fallback_tag: "#news"
-  llm_summary_context_chars: 6000
-  llm_context_preview_chars: 600
-  llm_summary_trim_min_chars: 100
-  llm_summary_options:
-    temperature: 0.3
-    top_p: 0.8
-    num_ctx: 8192
-  llm_alert_options:
-    temperature: 0.1
-    top_p: 0.3
-    num_ctx: 8192
-  default_content_age_window_hours: "24 hours"
-  default_categories_count: 17
+cleanup:
+  max_log_versions: 5
+
+prompts:
+  summary: "You are an objective news editor. Write a detailed summary of at least 3 sentences covering the key facts of this article."
+  system_batch: "You are a concise news summarization engine.\nFor each story I list, output EXACTLY one numbered short summary block in this format:\nSTORY_0: <3-string summary>\nSTORY_1: <3-story summary>\n...\nSTORY_N: <3-story summary>\n\nDo not add any preamble, explanations, extra headings, markdown, or bullet points.\nEach summary must be 3 sentences whenever possible and should not equal the headline."
+  system_alert: "You are a news priority classifier. For EACH story provided, respond with exactly one line.\\nFormat: STORY_<number>: TRUE or FALSE\\nJudge: extreme weather (hurricane/tornado/flood/freeze in Houston/Texas/77316), major breakthroughs from top tech labs,\\ncritcial economic disruption, geopolitical crises, or infrastructure failure.\\nBe conservative; only flag TRUE for genuinely important news. No preamble.\\n\\nUse EXACT format:\\nSTORY_0: TRUE\\nSTORY_1: FALSE\\nSTORY_2: TRUE"
+
+filtering_keywords:
+  real_estate: ["realtor", "z10", "redfin", "listing", "for sale", "house for", "home for", "property", "$"]
+  obituary: ["obituary", "passed away", "died", "deceased", "funeral services", "death notice", "memorial service", "passed at age", "remembering"]
+
+tagging_mappings:
+  AI: ['artificial intelligence', 'machine learning', 'neural network', 'llm', 'transformer', 'ai', 'deep learning', 'generative ai', 'model', 'algorithm']
+  tech: ['technology', 'digital', 'software', 'programming', 'computing', 'cloud', 'data', 'startup', 'innovation']
+  economy: ['economy', 'market', 'finance', 'stock', 'invest', 'trade', 'business', 'growth', 'earnings', 'revenue']
+  weather: ['weather', 'climate', 'storm', 'rain', 'snow', 'hurricane', 'tornado', 'forecast', 'temperature', 'atmospheric']
+  politics: ['election', 'government', 'politic', 'policy', 'congress', 'senate', 'president', 'regulation', 'law']
+  science: ['science', 'research', 'discovery', 'study', 'experiment', 'physics', 'biology', 'breakthrough']
+  health: ['health', 'medical', 'hospital', 'doctor', 'treatment', 'vaccine', 'disease', 'pandemic', 'pharma']
+  space: ['space', 'rocket', 'astronaut', 'nasa', 'mission', 'satellite', 'launch', 'orbit', 'lunar']
+  semiconductors: ['semiconductor', 'chip', 'processor', 'gpu', 'cpu', 'transistor', 'fab', 'manufacturing', 'intel', 'nvidia', 'tsmc', 'qualcomm', 'amd']
+  energy: ['energy', 'power', 'renewable', 'solar', 'wind', 'grid', 'electric', 'battery', 'charging', 'fuel cell']
+  infrastructure: ['infrastructure', 'construction', 'development', 'project', 'building', 'road', 'bridge', 'transit']
+  security: ['security', 'cybersecurity', 'privacy', 'breach', 'hacking', 'encryption', 'data protection', 'threat']
+  companies: ['company', 'corporation', 'startup', 'ipo', 'acquisition', 'merger', 'partnership', 'venture']
+  people: ['founder', 'ceo', 'entrepreneur', 'investor', 'researcher', 'scientist']
+  openai: ['openai', 'chatgpt', 'gpt-4', 'gpt-5']
+  anthropic: ['anthropic', 'claude']
+  spacex: ['spacex', 'starship', 'elon musk', 'falcon']
+  big-tech: ['google', 'meta', 'apple', 'microsoft', 'amazon', 'meta']
+  local: ['houston', 'texas', 'conroe', 'montgomery county', 'tx', 'houston metro', 'galveston']
+  us-focused: ['united states', 'us', 'america', 'american', 'washington dc', 'dc']
+  international: ['world', 'global', 'international', 'foreign', 'european', 'asian', 'global']
+  regulatory: ['regulation', 'legal', 'law', 'legislation', 'lawsuit', 'compliance', 'ruling', 'court']
+  innovation: ['innovation', 'new', 'novel', 'breakthrough', 'first', 'advancement', 'unveil']
+  market-impact: ['market', 'stock', 'trading', 'investment', 'return', 'valuation', 'earnings']
+  environment: ['environment', 'climate', 'sustainability', 'carbon', 'emissions', 'green', 'ecological']
+
+category_priority:
+  - "Conroe TX News"
+  - "Houston Tropical Weather"
+  - "Montgomery County TX News"
+  - "World News"
+  - "US News"
+  - "Texas News"
+  - "Market News"
+  - "Semiconductors"
+  - "Big Tech"
+  - "Artificial Intelligence"
+  - "OpenAI News"
+  - "Anthropic News"
+  - "SpaceX News"
+  - "Andrej Karpathy Activity"
+  - "Hermes Agent News"
+  - "Weather Forecast 77316"
+
+weather_labels:
+  titles: ["Date", "Day Condition", "Night Condition", "High Temp", "Low Temp", "Precip. Chance", "Wind"]
+  station_rows: ["Average Temperature for today 77316", "Average Monthly rainfall for 77316", "Current Monthly rainfall for 77316"]
+  lake_headers: ["Where", "Today", "1 Week Ago", "30 Days ago"]
 
 categories:
   "World News":
@@ -64,10 +130,6 @@ categories:
     query: "Montgomery County TX"
     max_stories: 5
     min_age_hours: 24
-  "Weather Forecast 77316":
-    query: ""
-    max_stories: 0
-    min_age_hours: 8
   "Houston Tropical Weather":
     query: "Houston Tropical Weather"
     max_stories: 1
@@ -108,68 +170,7 @@ categories:
     query: "herms agent"
     max_stories: 5
     min_age_hours: 24
-
-prompts:
-  summary: "You are an objective news editor. Write a detailed summary of at least 3 sentences covering the key facts of this article."
-  system_batch: "You are a concise news summarization engine.\nFor each story I list, output EXACTLY one numbered short summary block in this format:\nSTORY_0: <3-sentence summary>\nSTORY_1: <3-sentence summary>\n...\nSTORY_N: <3-sentence summary>\n\nDo not add any preamble, explanations, extra headings, markdown, or bullet points.\nEach summary must be 3 sentences whenever possible and should not equal the headline."
-  system_alert: "You are a news priority classifier. For EACH story provided, respond with exactly one line.\\nFormat: STORY_<number>: TRUE or FALSE\\nJudge: extreme weather (hurricane/tornado/flood/freeze in Houston/Texas/77316), major breakthroughs from top tech labs,\\ncritical economic disruption, geopolitical crises, or infrastructure failure.\\nBe conservative; only flag TRUE for genuinely important news. No preamble.\\n\\nUse EXACT format:\\nSTORY_0: TRUE\\nSTORY_1: FALSE\\nSTORY_2: TRUE"
-
-rss_settings:
-  default_age_window_hours: 24
-  dedupe_window_hours: 24
-  default_age_limit_hours: 24
-
-filtering_keywords:
-  real_estate: ["realtor", "z10", "redfin", "listing", "for sale", "house for", "home for", "property", "$"]
-  obituary: ["obituary", "passed away", "died", "deceased", "funeral services", "death notice", "memorial service", "passed at age", "remembering"]
-
-tagging_mappings:
-  AI: ['artificial intelligence', 'machine learning', 'neural network', 'llm', 'transformer', 'ai', 'deep learning', 'generative ai', 'model', 'algorithm']
-  tech: ['technology', 'digital', 'software', 'programming', 'computing', 'cloud', 'data', 'startup', 'innovation']
-  economy: ['economy', 'market', 'finance', 'stock', 'invest', 'trade', 'business', 'growth', 'earnings', 'revenue']
-  weather: ['weather', 'climate', 'storm', 'rain', 'snow', 'hurricane', 'tornado', 'forecast', 'temperature', 'atmospheric']
-  politics: ['election', 'government', 'politic', 'policy', 'congress', 'senate', 'president', 'regulation', 'law']
-  science: ['science', 'research', 'discovery', 'study', 'experiment', 'physics', 'biology', 'breakthrough']
-  health: ['health', 'medical', 'hospital', 'doctor', 'treatment', 'vaccine', 'disease', 'pandemic', 'pharma']
-  space: ['space', 'rocket', 'astronaut', 'nasa', 'mission', 'satellite', 'launch', 'orbit', 'lunar']
-  semiconductors: ['semiconductor', 'chip', 'processor', 'gpu', 'cpu', 'transistor', 'fab', 'manufacturing', 'intel', 'nvidia', 'tsmc', 'qualcomm', 'amd']
-  energy: ['energy', 'power', 'renewable', 'solar', 'wind', 'grid', 'electric', 'battery', 'charging', 'fuel cell']
-  infrastructure: ['infrastructure', 'construction', 'development', 'project', 'building', 'road', 'bridge', 'transit']
-  security: ['security', 'cybersecurity', 'privacy', 'breach', 'hacking', 'encryption', 'data protection', 'threat']
-  companies: ['company', 'corporation', 'startup', 'ipo', 'acquisition', 'merger', 'partnership', 'venture']
-  people: ['founder', 'ceo', 'entrepreneur', 'investor', 'researcher', 'scientist']
-  openai: ['openai', 'chatgpt', 'gpt-4', 'gpt-5']
-  anthropic: ['anthropic', 'claude']
-  spacex: ['spacex', 'starship', 'elon musk', 'falcon']
-  big-tech: ['google', 'congo', 'meta', 'apple', 'microsoft', 'amazon', 'meta']
-  local: ['houston', 'texas', 'conroe', 'montgomery county', 'tx', 'houston metro', 'galveston']
-  us-focused: ['united states', 'us', 'america', 'american', 'washington dc', 'dc']
-  international: ['world', 'global', 'international', 'foreign', 'european', 'asian', 'global']
-  regulatory: ['regulation', 'legal', 'law', 'legislation', 'lawsuit', 'compliance', 'ruling', 'court']
-  innovation: ['innovation', 'new', 'novel', 'breakthrough', 'first', 'advancement', 'unveil']
-  market-impact: ['market', 'stock', 'trading', 'investment', 'return', 'valuation', 'earnings']
-  environment: ['environment', 'climate', 'sustainability', 'carbon', 'emissions', 'green', 'ecological']
-
-category_priority:
-  - "Conroe TX News"
-  - "Houston Tropical Weather"
-  - "Montgomery County TX News"
-  - "World News"
-  - "US News"
-  - "Texas News"
-  - "Market News"
-  - "Semiconductors"
-  - "Big Tech"
-  - "Artificial Intelligence"
-  - "OpenAI News"
-  - "Anthropic News"
-  - "SpaceX News"
-  - "Andrej Karpathy Activity"
-  - "Hermes Agent News"
-  - "Weather Forecast 77316"
-
-weather_labels:
-  titles: ["Date", "Day Condition", "Night Condition", "High Temp", "Low Temp", "Precip. Chance", "Wind"]
-  station_rows: ["Average Temperature for today 77316", "Average Monthly rainfall for 77316", "Current Monthly rainfall for 77316"]
-  lake_headers: ["Where", "Today", "1 Week Ago", "30 Days ago"]
-
+  "Weather Forecast 77316":
+    query: ""
+    max_stories: 0
+    min_age_hours: 8

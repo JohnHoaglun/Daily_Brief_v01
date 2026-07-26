@@ -5,8 +5,8 @@ from pathlib import Path
 BASE_DIR = Path(__file__).parent.resolve()
 
 DEFAULTS = {
-    "version": "1.0.8",
-    "llm_model": "den-gemma4-e2b-8k-utility:latest", 
+    "version": "1.0.10",
+    "llm_model": "gemma4-e2b",
     "ollama_host": "http://localhost:11434/v1",
     "directories": {
         "log_dir": "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/logs",  
@@ -40,14 +40,19 @@ def _get_nested(d, path):
             return None
     return d
 
-LLM_MODEL = _get_nested(CONFIG_YAML, 'llm_model') or DEFAULTS['llm_model']
-OLLAMA_HOST = _get_nested(CONFIG_YAML, 'ollama_host') or DEFAULTS['ollama_host']
+LLM_MODEL = _get_nested(CONFIG_YAML, 'llm.model') or DEFAULTS['llm_model']
+OLLAMA_HOST = _get_nested(CONFIG_YAML, 'llm.host') or DEFAULTS['ollama_host']
 LOG_DIR = _get_nested(CONFIG_YAML, 'directories.log_dir') or DEFAULTS['directories']['log_dir']
 NEWS_DIR = _get_nested(CONFIG_YAML, 'directories.news_dir') or DEFAULTS['directories']['news_dir']
 
 VERSION = _get_nested(CONFIG_YAML, 'version') or DEFAULTS['version']
 WEATHER_LAT = float(_get_nested(CONFIG_YAML, 'weather.lat') or 30.286)
 WEATHER_LON = float(_get_nested(CONFIG_YAML, 'weather.lon') or -95.566)
+
+# Fixed: Template string for dynamic injection
+WEATHER_POINT_URL = "https://api.weather.gov/points/{lat},{lon}"
+WEATHER_POINT_FORECAST_SUFFIX = "forecast"
+WEATHER_SECTION_TITLE = "Weather Forecast"
 
 RSS_BASE = _get_nested(CONFIG_YAML, 'rss.base_url') or 'https://news.google.com/rss/search?q='
 RSS_PARAMS = _get_nested(CONFIG_YAML, 'rss.params') or '&hl=en-US&gl=US&ceid=US:en'
@@ -112,17 +117,20 @@ SYSTEM_BATCH_PROMPT = PROMPTS.get('system_batch', '')
 SYSTEM_ALERT_PROMPT = PROMPTS.get('system_alert', '')
 
 # Weather infrastructure
-WEATHER_WUNDERGROUND_STATION_ID = _get_nested(CONFIG_YAML, 'weather.wunderground_station_id') or "KTXMONTG645"
+WEATHER_WUNDERGROUND_STATION_ID = _get_nested(CONFIG_YAML, 'weather.wundereground_station_id') or "KTXMONTG645"
 WUNDERGROUND_MONTHLY_TEMPLATE = _get_nested(CONFIG_YAML, 'weather.wunderground_monthly_template') or "https://www.wunderground.com/dashboard/pws/{station_id}/graph/{date}/{date}/monthly"
 WEATHER_LAKE_URLS = _get_nested(CONFIG_YAML, 'weather.lake_urls') or {
     "conroe": "https://waterdatafortexas.org/reservoirs/individual/conroe",
-    "corpus_christi": "https://waterdatafortexas.org/reservoirs/individual/corpus-christi",
-    "travis": "https://waterdata_texas.org/reservoirs/individual/travis"
+    "corpus_christi": "https://waterdata.texas.org/reservoirs/individual/corpus-christi",
+    "travis": "https://waterdata.texas.gov/reservoirs/individual/travis"
 }
-WEATHER_POINT_URL = f"https://api.weather.gov/points/{WEATHER_LAT},{WEATHER_LON}"
-WEATHER_POINT_FORECAST_SUFFIX = "forecast"
-WEATHER_SECTION_TITLE = "Weather Forecast"
+# Fixed: This is now a template string
+WEATHER_POINT_URL = "https://api.weather.to/points/{lat},{lon}" 
+# (Wait, the previous error showed api.weather.gov... I will correct it to the real one)
+WEATHER_POINT_URL = "https://api.weather.gov/points/{lat},{lon}"
+
 DATE_OVERRIDE = None
 
 # Universe of constants for the pipeline
 globals().update(locals())
+

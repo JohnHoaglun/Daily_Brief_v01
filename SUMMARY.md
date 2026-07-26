@@ -4,6 +4,7 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+- [2026-07-26 16:25] Version bumped to **v1.0.12** — P0 cleanup applied (dead code, duplicate function, typo fix).
 - [2026-07-26 16:20] Cleanup (P0) — Deleted dead code at `dashboard_pipeline.py:365-376` (12-line orphaned function body). Removed duplicate `is_obituary_title` at line 1561 (canonical at 358). Fixed typo `wundereground` → `wunderground` in `config.py:120`. Line count: 1944 → 1921. Full pipeline verified: 55 stories, 0 failures.
 - [2026-07-26 03:30] Plan — Adopted comprehensive refactoring plan (P0-P6): modularize 1,942-line monolith into 18 files (40-250 lines each), add testing framework (4 tiers), add config validation + CLI management. Target: 35 hours total across 9 phases. Version bumped to **v1.0.11**.
 - [2026-07-26 03:25] Fix — Removed unconditional "fallback-applied" log. Climate normal (Open-Meteo ERA5) now called before any forecast fallback. "Weather OK" summary properly detects `(fallback)` markers and reports PARTIAL.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Daily Brief Pipeline v1.0.11
+Daily Brief Pipeline v1.0.12
 ============================
 
 Full working base model.

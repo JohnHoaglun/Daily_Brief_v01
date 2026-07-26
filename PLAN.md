@@ -2,7 +2,7 @@
 
 ## CURRENT STATUS --- Dynamic Weather Release
 
-Current baseline is now **v1.0.7** on branch `dev_codex`.
+Current baseline is now **v1.0.11** on branch `dev_opencode`.
 Weather section now includes dynamic forecast and station/lake metrics with example-aligned layout and no fake fallback values.
 
 ## Release Track

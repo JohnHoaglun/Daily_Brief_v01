@@ -739,6 +739,13 @@ def parse_batch_summary_response(response, count):
 
 
 async def _fetch_station_metrics(session, station_id, reference):
+    """Fetch station metrics from Wunderground monthly dashboard table.
+
+    Returns avg_temp_today (from the Average Temperature row) and
+    current_monthly_rainfall (from the Precipitation row).
+    avg_monthly_rainfall is NOT available on this page — it comes from
+    _fetch_station_monthly_rainfall via climate.gov.
+    """
     payload = {"avg_temp_today": None, "avg_monthly_rainfall": None, "current_monthly_rainfall": None}
     template_date = reference.strftime("%Y-%m-%d")
     url = WUNDERGROUND_MONTHLY_TEMPLATE.format(station_id=station_id, date=template_date)
@@ -747,65 +754,67 @@ async def _fetch_station_metrics(session, station_id, reference):
         log("  WARNING Weather station metrics unavailable (no content).")
         return payload
 
-    full_text = BeautifulSoup(html, "html.parser").get_text(" ", strip=True)
+    soup = BeautifulSoup(html, "html.parser")
 
-    payload["avg_temp_today"] = _extract_first_match(
-        full_text,
-        [
-            r"Average Temp(?:erature)?(?:\s*Today)?(?:\s*[^%\d]{0,80})?(\d+\.?\d*)\s*°?F",
-            r"Average Temperature(?:\s*[^%\d]{0,40})?(\d+\.?\d*)\s*°?F",
-            r"Avg\s*Temperature(?:\s*[^%\d]{0,40})?(\d+\.?\d*)\s*°?F",
-            r"Avg(?:erage)?\s*Temp(?:erature)?(?:\s*is|:)?\s*(\d+\.?\d*)\s*°?F",
-            r"Temperature(?:\s*is|:)?\s*(\d+\.?\d*)\s*°?F",
-            r"(\d+\.?\d*)\s*°?F.*(?:average|avg).*temperature",
-        ]
-    )
-    payload["avg_temp_today"] = _coerce_temperature_f(payload["avg_temp_today"])
+    # Parse the monthly summary table:
+    # Structure: tr[0] = ['', 'High', 'Low', 'Average'] (header)
+    #            tr[1..] = ['Temperature', '101.8°F', '72.1°F', '83.1°F'] (data rows)
+    avg_temp = None
+    current_precip = None
 
-    payload["avg_monthly_rainfall"] = _extract_first_match(
-        full_text,
-        [
-            r"Average Monthly.*?Rainfall(?:\s*[^%\d]{0,80})?(\d+\.?\d*)\s*Inches",
-            r"Average Monthly Rainfall(?:\s*[^%\d]{0,40})?(\d+\.?\d*)\s*Inches",
-            r"average rainfall(?:\s*[^%\d]{0,40})?(\d+\.?\d*)\s*in",
-            r"Monthly Rainfall(?:\s*[^%\d]{0,40})?(\d+\.?\d*)\s*Inches",
-            r"Avg(?:erage)?\s*Monthly Rain(?:fall)?(?:\s*is|:)?\s*(\d+\.?\d*)\s*in",
-            r"(\d+\.?\d*)\s*Inches.*(?:average monthly|avg monthly|monthly average)",
-        ]
-    )
-    if payload["avg_monthly_rainfall"] is not None:
+    for table in soup.find_all("table"):
+        all_rows = []
+        for row in table.find_all("tr"):
+            cells = [c.get_text(" ", strip=True) for c in row.find_all(["td", "th"])]
+            if len(cells) >= 4:
+                all_rows.append(cells)
+        if not all_rows:
+            continue
+
+        # The first row is the header: ['', 'High', 'Low', 'Average']
+        # Data rows start from index 1
+        header_text = " ".join(c.lower() for c in all_rows[0])
+        if "average" not in header_text:
+            continue
+        if "high" not in header_text and "low" not in header_text:
+            continue
+
+        # Data rows start at index 1
+        for row in all_rows[1:]:
+            label = row[0].lower()
+            # Extract numeric values from cells (skip first cell which is the label)
+            values = []
+            for cell in row[1:]:
+                m = re.search(r"(\d+\.?\d*)", cell)
+                if m:
+                    values.append(float(m.group(1)))
+                else:
+                    values.append(None)
+
+            if "temperature" in label:
+                # Average temp is the last value (column: High, Low, Average)
+                if len(values) >= 3 and values[2] is not None:
+                    avg_temp = values[2]
+                elif values and values[-1] is not None:
+                    avg_temp = values[-1]
+            elif "precipitation" in label or "rain" in label:
+                # Current monthly total is the first numeric value
+                if values and values[0] is not None:
+                    current_precip = values[0]
+
+    # Coerce temperature
+    avg_temp = _coerce_temperature_f(avg_temp)
+    if avg_temp is not None:
+        payload["avg_temp_today"] = f"{avg_temp}°F"
+
+    # Coerce precipitation
+    if current_precip is not None:
         try:
-            val = float(payload["avg_monthly_rainfall"])
-            if not (0.0 <= val <= 40.0):
-                payload["avg_monthly_rainfall"] = None
+            val = float(current_precip)
+            if 0.0 <= val <= 60.0:
+                payload["current_monthly_rainfall"] = f"{val} Inches"
         except Exception:
-            payload["avg_monthly_rainfall"] = None
-
-    payload["current_monthly_rainfall"] = _extract_first_match(
-        full_text,
-        [
-            r"Current Monthly.*?Rainfall(?:\s*[^%\d]{0,80})?(\d+\.?\d*)\s*Inches",
-            r"Current Monthly Rainfall(?:\s*[^%\d]{0,40})?(\d+\.?\d*)\s*Inches",
-            r"current monthly(?:\s*[^%\d]{0,40})?(\d+\.?\d*)\s*in",
-            r"Current Rain(?:fall)?(?:\s*this month)?(?:\s*is|:)?\s*(\d+\.?\d*)\s*in",
-            r"Monthly Rain(?:fall)?\s*total(?:\s*is|:)?\s*(\d+\.?\d*)\s*in",
-            r"(\d+\.?\d*)\s*Inches.*(?:current monthly|monthly current)",
-        ]
-    )
-    if payload["current_monthly_rainfall"] is not None:
-        try:
-            val = float(payload["current_monthly_rainfall"])
-            if not (0.0 <= val <= 40.0):
-                payload["current_monthly_rainfall"] = None
-        except Exception:
-            payload["current_monthly_rainfall"] = None
-
-    if payload["avg_temp_today"] is not None:
-        payload["avg_temp_today"] = f"{payload['avg_temp_today']}°F"
-    if payload["avg_monthly_rainfall"] is not None:
-        payload["avg_monthly_rainfall"] = f"{payload['avg_monthly_rainfall']} Inches"
-    if payload["current_monthly_rainfall"] is not None:
-        payload["current_monthly_rainfall"] = f"{payload['current_monthly_rainfall']} Inches"
+            pass
 
     return payload
 

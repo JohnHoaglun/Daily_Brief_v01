@@ -28,9 +28,9 @@ from config import (
 )
 
 try:
-    __ACTIVE_TIMEZONE = ZoneInfo(CONFIG_TIMEZONE)
+    _ACTIVE_TIMEZONE = ZoneInfo(CONFIG_TIMEZONE)
 except Exception:
-    __ACTIVE_TIMEZONE = timezone.utc
+    _ACTIVE_TIMEZONE = timezone.utc
 from daily_brief.http_client import _fetch_json, _fetch_text
 from daily_brief.sources.climate import _fetch_climate_normal_high
 from daily_brief.sources.lakes import _extract_lake_value
@@ -49,11 +49,11 @@ def get_reference_datetime() -> datetime:
         try:
             dt = datetime.fromisoformat(str(DATE_OVERRIDE))
             if dt.tzinfo is None:
-                return dt.replace(tzinfo=__ACTIVE_TIMEZONE)
-            return dt.astimezone(__ACTIVE_TIMEZONE)
+                return dt.replace(tzinfo=_ACTIVE_TIMEZONE)
+            return dt.astimezone(_ACTIVE_TIMEZONE)
         except Exception:
             pass
-    return datetime.now(__ACTIVE_TIMEZONE)
+    return datetime.now(_ACTIVE_TIMEZONE)
 
 
 def get_weather_label_for_offset(reference: datetime, offset_days: int, style: str = "long") -> str:

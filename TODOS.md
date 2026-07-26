@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 — v1.0.11
+# TODO: Daily Brief v01 — v1.0.13
 
 ## Status Legend
 - `[ ]` — TODO (not started)
@@ -17,11 +17,11 @@
 - `[x]` Delete `debug_climate.py` (dead debug script) — already deleted in commit `72e15d2`
 
 ### P1 — Foundation Extraction (Priority: High, Effort: 3 hrs, Risk: Zero)
-- `[ ]` Create `daily_brief/` package — `__init__.py`, `__main__.py`
-- `[ ]` Extract `utils.py` — move `_safe_text`, `strip_html`, `_present_weather_value`, `_clean_number`, `_safe_sentence_summary`, `_count_sentences`
-- `[ ]` Extract `models.py` — define dataclasses: `Story`, `WeatherData`, `LakeData`, `AlertResult`, `ForecastPeriod`
-- `[ ]` Extract `http_client.py` — move `_fetch_json`, `_fetch_text`, aiohttp session management
-- `[ ]` Replace custom `log()` with standard Python `logging` + `RotatingFileHandler`
+- `[x]` Create `daily_brief/` package — `__init__.py`, `__main__.py` (src/daily_brief/)
+- `[x]` Extract `utils.py` — `_safe_text`, `strip_html`, `_present_weather_value`, `_clean_number`, `_safe_sentence_summary`, `_count_sentences`, `_coerce_percent`
+- `[x]` Extract `models.py` — dataclasses: `Story`, `WeatherData`, `LakeData`, `AlertResult`, `ForecastPeriod`, `BriefOutput`
+- `[x]` Extract `http_client.py` — `_fetch_json`, `_fetch_text`, aiohttp session management
+- `[x]` Replace custom `log()` with standard Python `logging` + `RotatingFileHandler` in all new modules
 
 ### P2 — Data Sources Split (Priority: High, Effort: 6 hrs, Risk: Low)
 - `[ ]` Create `sources/` package — `__init__.py`, `base.py` (DataSource ABC)
@@ -201,6 +201,7 @@ Daily_Brief_v01/
 ---
 
 ## Recent Updates
+- [2026-07-26 16:30] **P1 foundation extraction complete** — Created `src/daily_brief/` package (5 files): `__init__.py`, `__main__.py`, `models.py` (6 dataclasses), `utils.py` (7 helpers), `http_client.py` (async fetch). All imports verified. Logging uses standard Python `logging` throughout.
 - [2026-07-26 16:20] **P0 cleanup complete** — Deleted dead code (12 lines), removed duplicate `is_obituary_title` (11 lines), fixed typo `wundereground` → `wunderground` in `config.py`. Full pipeline verified: 55 stories, 0 failures. Line count: 1944 → 1921.
 - [2026-07-26 03:30] **Refactoring plan added** — Full modularization plan (P0-P6), testing strategy (Tiers 1-4), config UI options, proposed file structure. Target: 18 files, 40-250 lines each. ~35 hours total.
 - [2026-07-26 03:25] **Weather fallback fix** — Removed unconditional "fallback-applied" log. Climate normal (Open-Meteo ERA5) now called before any forecast fallback. "Weather OK" summary properly detects fallback markers and reports PARTIAL.
@@ -213,6 +214,6 @@ Daily_Brief_v01/
 ---
 
 ## Version Notes
-- Current version: **v1.0.11** (in progress — refactoring plan adopted)
-- Last stable: v1.0.10 (completed 2026-07-26)
+- Current version: **v1.0.13** (P1 complete — foundation extracted)
+- Last stable: v1.0.12 (P0 cleanup complete, 2026-07-26)
 - Branch: `dev_opencode`, ahead of `origin/dev_opencode`

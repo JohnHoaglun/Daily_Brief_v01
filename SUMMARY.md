@@ -4,6 +4,8 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+- [2026-07-26 16:35] Version bumped to **v1.0.13** — P1 foundation extraction complete.
+- [2026-07-26 16:30] Refactor (P1) — Created `src/daily_brief/` package (5 files): `__init__.py` (re-exports), `__main__.py` (entry point with `RotatingFileHandler`), `models.py` (6 dataclasses: Story, WeatherData, LakeData, AlertResult, ForecastPeriod, BriefOutput), `utils.py` (7 helpers: _safe_text, strip_html, _present_weather_value, _clean_number, _safe_sentence_summary, _count_sentences, _coerce_percent), `http_client.py` (async _fetch_json, _fetch_text, session management). All modules use standard Python `logging` throughout. Full import chain verified.
 - [2026-07-26 16:25] Version bumped to **v1.0.12** — P0 cleanup applied (dead code, duplicate function, typo fix).
 - [2026-07-26 16:20] Cleanup (P0) — Deleted dead code at `dashboard_pipeline.py:365-376` (12-line orphaned function body). Removed duplicate `is_obituary_title` at line 1561 (canonical at 358). Fixed typo `wundereground` → `wunderground` in `config.py:120`. Line count: 1944 → 1921. Full pipeline verified: 55 stories, 0 failures.
 - [2026-07-26 03:30] Plan — Adopted comprehensive refactoring plan (P0-P6): modularize 1,942-line monolith into 18 files (40-250 lines each), add testing framework (4 tiers), add config validation + CLI management. Target: 35 hours total across 9 phases. Version bumped to **v1.0.11**.

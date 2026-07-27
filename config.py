@@ -62,7 +62,7 @@ USER_AGENT = _get_nested(CONFIG_YAML, 'user_agent') or "Mozilla/5.0 (Macintosh; 
 USER_AGENT_WEATHER_SUFFIX = _get_nested(CONFIG_YAML, 'user_agent_weather_suffix') or "/DailyBrief/1.0"
 
 MAX_LOG_VERSIONS = _get_nested(CONFIG_YAML, 'cleanup_api.max_log_versions') or 5
-FRONTMATTER_TAG_SEEDS = _get_nested(CONFIG_YAML, 'runtime_defaults.frontmatter_tag_seeds') or ["daily-brief", "news-summary", "ai-generated"]
+FRONTMATTER_TAG_SEEDS = _get_nested(CONFIG_YAML, 'runtime.frontmatter_tag_segments') or _get_nested(CONFIG_YAML, 'runtime_defaults.frontmatter_tag_seeds') or ["daily-intelligently", "news-summary", "ai-generated"]
 FRONTMATTER_FALLBACK_TAG = _get_nested(CONFIG_YAML, 'runtime_defaults.frontmatter_fallback_tag') or "#news"
 
 LLM_SUMMARY_CONTEXT_CHARS = _get_nested(CONFIG_YAML, 'runtime_defaults.llm_summary_context_chars') or 6000

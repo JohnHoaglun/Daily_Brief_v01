@@ -1,4 +1,4 @@
-version: 1.0.19
+version: 1.0.20
 llm:
   model: gemma4-e2b
   host: http://192.168.4.52:8007
@@ -125,6 +125,13 @@ tagging_mappings:
   - trade
   - earnings
   - revenue
+  - luxury
+  - sales
+  - spending
+  - consumer
+  - demand
+  - supply
+  - trade war
   weather:
   - weather
   - storm
@@ -144,6 +151,18 @@ tagging_mappings:
   - president
   - regulation
   - law
+  - legislative
+  - session
+  - lawmaker
+  - statehouse
+  - governor
+  - executive order
+  - slams
+  - attack
+  - media
+  - social media
+  - post
+  - statement
   science:
   - science
   - research
@@ -160,6 +179,9 @@ tagging_mappings:
   - treatment
   - vaccine
   - pharma
+  - hospitalized
+  - outbreak
+  - public health
   space:
   - space
   - rocket
@@ -219,6 +241,11 @@ tagging_mappings:
   - investor
   - researcher
   - scientist
+  - ceo
+  - executive
+  - director
+  - chairman
+  - head
   openai:
   - openai
   - chatgpt
@@ -245,16 +272,44 @@ tagging_mappings:
   - montgomery county
   - houston metro
   - galveston
+  - magnolia
   us-focused:
   - united states
   - america
   - american
   - washington dc
+  - us
   international:
   - international
   - foreign
   - european
   - asian
+  - iran
+  - israel
+  - russia
+  - china
+  - ukraine
+  - middle east
+  - europe
+  - africa
+  - asia
+  - un
+  - france
+  - uk
+  - germany
+  - ukraine
+  - turkey
+  - india
+  - united nations
+  - eu
+  - irish
+  - ireland
+  - bbc
+  - british
+  - canadian
+  - australian
+  - japanese
+  - korean
   sports:
   - nfl
   - nba
@@ -275,6 +330,14 @@ tagging_mappings:
   - rockets
   - cougars
   - cowboys
+  - volleyball
+  - golf
+  - tennis
+  - cricket
+  - rugby
+  - swim
+  - training camp
+  - season
   regulatory:
   - regulation
   - legal
@@ -300,6 +363,14 @@ tagging_mappings:
   - emissions
   - green
   - ecological
+  - climate
+  - scorched
+  - melting
+  - glacier
+  - drought
+  - wildfire
+  - floods
+  - earthquake
   crime:
   - arrest
   - police
@@ -310,6 +381,13 @@ tagging_mappings:
   - investigating
   - charged
   - suspect
+  - execution
+  - executions
+  - death penalty
+  - charged
+  - suspect
+  - trial
+  - conviction
   agriculture:
   - livestock
   - farm
@@ -345,6 +423,41 @@ tagging_mappings:
   - vaccine
   - health official
   - cases
+  geopolitical:
+  - conflict
+  - crisis
+  - war
+  - military
+  - diplomacy
+  - sanction
+  - un
+  defense:
+  - defense
+  - troops
+  - defense
+  - pentagon
+  - military
+  - army
+  - navy
+  - air force
+  - veterans
+  government:
+  - government
+  - executive
+  - congressional
+  - biden
+  - trump
+  - obama
+  - white house
+  diplomacy:
+  - peace
+  - mediation
+  - diplomatic
+  - negotiation
+  - deal
+  - agreement
+  - accord
+  - ceasefire
 tagging_config:
   max_tags: 5
   score_cap: 5.0

@@ -22,9 +22,23 @@ _STOP_WORDS = {
 
 
 def _word_boundary_match(text, keyword):
-    """Return True when *keyword* appears as a whole word in *text*."""
-    pat = r"(?<![a-zA-Z])" + re.escape(keyword) + r"(?![a-zA-Z])"
-    return bool(re.search(pat, text, re.IGNORECASE))
+    """Return True when *keyword* appears as a whole word in *text*.
+
+    Matches strict word boundaries + common variants:
+    - Possessives: "Houston's" → "houston"
+    - Apostrophe loss: "Houstons" → "houston"
+    - Stems: "arrested", "arresting", "arrests" → "arrest"
+    """
+    kw_esc = re.escape(keyword)
+    # Primary: strict word boundary
+    pat = r"(?<![a-zA-Z])" + kw_esc + r"(?![a-zA-Z])"
+    if re.search(pat, text, re.IGNORECASE):
+        return True
+    # Suffix variants: +s, +ed, +ing, +es at word boundary
+    pat2 = r"(?<![a-zA-Z])" + kw_esc + r"(s|es|ed|ing)(?![a-zA-Z])"
+    if re.search(pat2, text, re.IGNORECASE):
+        return True
+    return False
 
 
 def _keyword_has_stop(keyword):

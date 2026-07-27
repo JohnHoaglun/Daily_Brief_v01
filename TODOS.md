@@ -110,6 +110,7 @@
 - `[ ]` **3.3** RESIDUAL: US News #4 still shows zero keyword overlap in v02 — LLM returned wrong summary for that story
 - `[x]` **4.3** FIX: Frontmatter `categories` now counts actual rendered sections (commit 7e6e027)
 - `[x]` **4.8** FIX: Read `frontmatter_tag_segments` from `runtime.config`, not `runtime_defaults` (commit 8f9313f)
+- `[ ]` **Tags: 1 per story (target 3)** — Fixed: scoring formula penalized multi-word keywords via `1.0/len(keyword)`. `"artificial intelligence"` (22 chars) scored 0.09, below 0.3 threshold. Changed to `word_count * boost` so multi-word keywords score proportionally. Only category fallback tags remain. (FIX PENDING TEST)
 
 ### P1 — Remaining FAILs (LLM quality, requires pipeline changes)
 - `[ ]` **3.2** Implement retry/re-prompt for failed summaries — currently 7/52 stories get no valid summary

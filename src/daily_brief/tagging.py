@@ -66,7 +66,8 @@ def tag_story_with_keywords(story_title, category=None):
                 pos = title_lower.find(keyword)
                 if pos >= 0:
                     boost = 2.0 if pos < 100 else 1.0
-                    score += boost * (1.0 / len(keyword))
+                    word_count = len([w for w in keyword.split() if w not in _STOP_WORDS])
+                    score += boost * max(word_count, 1)
 
         # Category boosts
         if category and category in category_boosts:

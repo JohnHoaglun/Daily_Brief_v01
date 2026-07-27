@@ -1806,7 +1806,23 @@ async def main():
         sum_results = batch_summarize_all(stories, session)
         sum_ok = sum(1 for s in stories if s.summary and s.summary.strip() and not s.summary.strip().startswith("[Summary"))
         sum_fail = total - sum_ok
-        log(f"  Summaries done: {sum_ok} OK / {sum_fail} failed")
+        log(f"  Batch summaries: {sum_ok} OK / {sum_fail} failed")
+        
+        # ---------- Phase 3D: Retry failed summaries individually ----------
+        if sum_fail > 0:
+            log(f"  [3D] Retrying {sum_fail} failed summaries individually...")
+            retry_count = 0
+            for s in stories:
+                if not s.summary or not s.summary.strip() or s.summary.strip().startswith("[Summary"):
+                    context = build_context(s)
+                    retry_summary = _summarize(context)
+                    if retry_summary:
+                        s.summary = retry_summary
+                        retry_count += 1
+            
+            sum_ok = sum(1 for s in stories if s.summary and s.summary.strip() and not s.summary.strip().startswith("[Summary"))
+            sum_fail = total - sum_ok
+            log(f"  Summaries done: {sum_ok} OK / {sum_fail} failed (retry recovered {retry_count})")
         
         elapsed = time.time() - t3
         log(f"  Phase 3 completed in {elapsed:.2f}s")

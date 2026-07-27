@@ -1750,7 +1750,7 @@ async def main():
         log("  [3BC] Running BATCH summaries via Qwen...")
         t3 = time.time()
         sum_results = batch_summarize_all(stories, session)
-        sum_ok = sum(1 for s in stories if s.summary is not None and not s.summary.startswith("[Summary"))
+        sum_ok = sum(1 for s in stories if s.summary and s.summary.strip() and not s.summary.strip().startswith("[Summary"))
         sum_fail = total - sum_ok
         log(f"  Summaries done: {sum_ok} OK / {sum_fail} failed")
         

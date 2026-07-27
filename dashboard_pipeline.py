@@ -1794,45 +1794,39 @@ async def main():
         # Format with proper naming convention
         filepath = os.path.join(OUTPUT_DIR, f"DailyBrief-{fn_ts}_v{file_ver:02d}.md")
 
-        # Cleanup: keep only 1 report + 1 log at a time (aggressive cleanup)
-        try:
-            os.makedirs(OUTPUT_DIR, exist_ok=True)
-            briefing_dir = "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/Dev/news"
-            os.makedirs(briefing_dir, exist_ok=True)
-
-            # Move new report into Dev/news/
-            import shutil
-            if os.path.exists(filepath):
-                dest = os.path.join(briefing_dir, os.path.basename(filepath))
-                shutil.move(filepath, dest)
-                filepath = dest
-
-            # Keep only 1 most recent report in Dev/news/
-            report_files = sorted(
-                [f for f in os.listdir(briefing_dir) if f.startswith('DailyBrief-') and f.endswith('.md')],
-                key=lambda x: os.path.getmtime(os.path.join(briefing_dir, x)),
-                reverse=True,
-            )
-            for old_report in report_files[1:]:
-                os.remove(os.path.join(briefing_dir, old_report))
-
-            # Cleanup logs — keep only 1 most recent
-            logs_dir = LOG_DIR
-            os.makedirs(logs_dir, exist_ok=True)
-            valid_log_files = sorted(
-                [f for f in os.listdir(logs_dir) if f.startswith('run_log_') and f.endswith('.md')],
-                key=lambda x: os.path.getmtime(os.path.join(logs_dir, x)),
-                reverse=True,
-            )
-            for old_log in valid_log_files[1:]:
-                os.remove(os.path.join(logs_dir, old_log))
-                log(f"Removed old log file: {old_log}")
-            log(f"Cleaned output dirs: 1 report, 1 log kept")
-        except Exception as e:
-            log(f"Warning: Could not cleanup old files: {e}")
+        # Cleanup: keep MAX_LOG_VERSIONS most recent reports (default: 5)
+        if MAX_LOG_VERSIONS > 0:
+            try:
+                os.makedirs(OUTPUT_DIR, exist_ok=True)
+                
+                # Get all DailyBrief files
+                all_reports = [f for f in os.listdir(OUTPUT_DIR) if f.startswith('DailyBrief-') and f.endswith('.md')]
+                all_reports.sort(key=lambda x: os.path.getmtime(os.path.join(OUTPUT_DIR, x)), reverse=True)
+                for old_report in all_reports[MAX_LOG_VERSIONS:]:
+                    os.remove(os.path.join(OUTPUT_DIR, old_report))
+                    log(f"Removed old report: {old_report}")
+                
+                # Cleanup logs — keep only MAX_LOG_VERSIONS most recent
+                logs_dir = LOG_DIR
+                os.makedirs(logs_dir, exist_ok=True)
+                valid_log_files = sorted(
+                    [f for f in os.listdir(logs_dir) if f.startswith('run_log_') and f.endswith('.md')],
+                    key=lambda x: os.path.getmtime(os.path.join(logs_dir, x)),
+                    reverse=True,
+                )
+                for old_log in valid_log_files[MAX_LOG_VERSIONS:]:
+                    os.remove(os.path.join(logs_dir, old_log))
+                    log(f"Removed old log: {old_log}")
+            except Exception as e:
+                log(f"Warning: Could not cleanup old files: {e}")
 
         ordered_cats = ordered_categories_for_render([c[0] for c in CATEGORIES if c[1]])
         sections_map = {cn: sections.get(cn, []) for cn in ordered_cats}
+
+        # Count actual rendered categories (skip weather + empty)
+        rendered_cat_count = sum(1 for cn in ordered_cats
+            if cn != WEATHER_SECTION_TITLE and cn != "Weather Forecast 77316"
+            and len(sections_map.get(cn, [])) > 0)
 
         # -- Build markdown --
         md = []
@@ -1843,7 +1837,7 @@ async def main():
         md.append("status: active")
         md.append(f"content_age_window: {DEFAULT_CONTENT_AGE_WINDOW_HOURS}")
         md.append(f"story_count_total: {total_after_dedup}")
-        md.append(f"categories: {DEFAULT_CATEGORIES_COUNT}")
+        md.append(f"categories: {rendered_cat_count}")
         
         # Create a set to collect all unique tags from story titles
         all_tags = set(FRONTMATTER_TAG_SEEDS or [])
@@ -1921,7 +1915,7 @@ async def main():
         log(f"\nFile written to {filepath}")
         log(f"  Stories: {total_after_dedup} | Alerts: {len(alerts_list)} | Failed: {sum_fail}/{total} | Time: {elapsed:.1f}s")
         
-        # --- Post-run validation ---
+        # --- Phase 5: Internal report validation (summary quality) ---
         log("\n[Phase 5] Validating report...")
         validation_passed, validation_issues = validate_report(filepath)
         
@@ -1931,10 +1925,15 @@ async def main():
             print(f"\n*** RUN FAILED — {len(validation_issues)} validation issues found ***")
             print(f"File: {filepath}")
             print(f"See run log for details: {os.environ.get('RUN_LOGFILE', 'unknown')}")
-        else:
-            log("\n=== PIPELINE COMPLETED SUCCESSFULLY ===")
-            print(f"\nDone. File: {filepath}")
-            print(f"  Stories: {total_after_dedup} | Alerts: {len(alerts_list)} | Failed: {sum_fail}/{total} | Time: {elapsed:.1f}s")
+            return  # Stop early on validation failure
+        
+        # --- Phase 6: External test harness validation ---
+        log("\n[Phase 6] Running test harness...")
+        _run_test_harness()
+        
+        log("\n=== PIPELINE COMPLETED SUCCESSFULLY ===")
+        print(f"\nDone. File: {filepath}")
+        print(f"  Stories: {total_after_dedup} | Alerts: {len(alerts_list)} | Failed: {sum_fail}/{total} | Time: {elapsed:.1f}s")
 
 
 def validate_report(filepath):
@@ -2069,6 +2068,72 @@ def validate_report(filepath):
             log(f"  ... and {len(issues) - 20} more")
     
     return passed, issues
+
+
+def _run_test_harness():
+    """Run the external Test_validate_run.py harness against the latest output.
+    
+    Uses subprocess to call Test_validate_run.py with auto-detected date/version
+    from the run log filename. Logs output for archival.
+    """
+    import subprocess
+    import sys
+    
+    # Find the project root directory
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    harness_script = os.path.join(script_dir, 'Test_validate_run.py')
+    config_file = os.path.join(script_dir, 'config.yaml')
+    
+    if not os.path.exists(harness_script):
+        log(f"Test harness script not found: {harness_script}")
+        return
+    
+    # Auto-detect date and version from the run log filename
+    if not RUN_LOGFILE:
+        log("No RUN_LOGFILE set — skipping test harness")
+        return
+    
+    basename = os.path.basename(RUN_LOGFILE)
+    # Extract date and version from "run_log_2026-07-26_v18.md"
+    match = re.match(r"run_log_(\d{4}-\d{2}-\d{2})_(v\d+)\.md$", basename)
+    if not match:
+        log(f"Cannot parse date/version from run log: {basename}")
+        return
+    
+    run_date, run_version = match.group(1), match.group(2)
+    
+    log(f"Running test harness for {run_date} {run_version}...")
+    cmd = [
+        sys.executable, harness_script,
+        "--config", config_file,
+        "--date", run_date,
+        "--version", run_version,
+    ]
+    
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        
+        # Log the full output
+        for line in result.stdout.strip().split('\n'):
+            log(f"[TEST HARNES] {line}")
+        if result.stderr.strip():
+            for line in result.stderr.strip().split('\n'):
+                log(f"[TEST HARNES ERROR] {line}")
+        
+        exit_code = result.returncode
+        status_label = {0: "PASS", 1: "WARN", 2: "FAIL"}.get(exit_code, f"EXIT_{exit_code}")
+        log(f"Test harness finished: {status_label} (exit code {exit_code})")
+    except FileNotFoundError:
+        log(f"Test harness script not found at: {harness_script}")
+    except subprocess.TimeoutExpired:
+        log("Test harness timed out (30s)")
+    except Exception as e:
+        log(f"Test harness error: {e}")
 
 
 if __name__ == "__main__":

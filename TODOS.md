@@ -100,6 +100,35 @@
 
 ---
 
+## Bugs (Test Harness FAILs — v1.0.14, 2026-07-27 run)
+
+### P0 — Immediate Fixes (verified by Test_validate_run.py)
+- `[x]` **2.6** FIX: Hermes Agent News query typo: `herms agent` → `hermes agent` in `config.yaml` (commit 6feacad)
+- `[x]` **3.2** FIX: Summary failure counter — now counts empty strings as failed (commit 910d62b)
+- `[ ]` **3.2** RESIDUAL: 7 "Unavailable" summaries in v02 output — LLM quality issue, not pipeline bug (requires retry/re-prompt strategy)
+- `[x]` **3.3** FIX: Added swap detection for adjacent story misalignment in batch summary parser (commit e31a741)
+- `[ ]` **3.3** RESIDUAL: US News #4 still shows zero keyword overlap in v02 — LLM returned wrong summary for that story
+- `[x]` **4.3** FIX: Frontmatter `categories` now counts actual rendered sections (commit 7e6e027)
+- `[x]` **4.8** FIX: Read `frontmatter_tag_segments` from `runtime.config`, not `runtime_defaults` (commit 8f9313f)
+
+### P1 — Remaining FAILs (LLM quality, requires pipeline changes)
+- `[ ]` **3.2** Implement retry/re-prompt for failed summaries — currently 7/52 stories get no valid summary
+- `[ ]` **3.3** Strengthen batch prompt enforcement (STORY_N ordering) or add post-run swap detection for larger batches
+
+### P2 — WARN-Category Improvements (test harness flags, non-blocking)
+- `[ ]` **F.4** Climate Normal High == 95°F — verify live parse succeeded (not fallback default)
+- `[ ]` **2.2a** Implement adaptive day-window widening for 0-story categories (Conroe TX News, Montgomery County TX News)
+- `[ ]` **F.2** Investigate frozen feeds — Houston Tropical Weather, OpenAI, Anthropic, SpaceX, Karpathy all show 100% URL overlap
+- `[ ]` **F.2** Investigate frozen lake data — conroe, corpus_christi, travis values identical across runs
+- `[ ]` **F.2** Investigate frozen station data — avg_temp_today/rainfall identical across runs
+- `[ ]` **3.5** Reduce generic/boilerplate summaries
+- `[ ]` **4.4** Render section headers for 0-story categories (Conroe, Montgomery County)
+
+### Recent Updates
+- [2026-07-27 00:45] **P0 fixes complete** — Fixed 2.6 (Hermes typo), 3.2 (failure counter), 3.3 (swap detection), 4.3 (categories count), 4.8 (missing tag). HARNESS FAILs: 6→2. Remaining: 3.2 residual (LLM quality), 3.3 residual (LLM quality)
+
+---
+
 ## Completed Work
 
 ### Weather Station Fix — v1.0.10 (2026-07-25 to 2026-07-26)

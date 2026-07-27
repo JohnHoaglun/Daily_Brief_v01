@@ -551,7 +551,16 @@ async def _fetch_station_monthly_rainfall(session, reference):
         station_url,
     )
 
-    station_html = await _fetch_text(session, station_range_url)
+    station_html = None
+    for attempt in range(3):
+        station_html = await _fetch_text(session, station_range_url)
+        if station_html:
+            break
+        if attempt < 2:
+            wait = (attempt + 1) * 2
+            log(f"  [station retry] wunderground range fetch failed (attempt {attempt + 1}/3), waiting {wait}s...")
+            import asyncio as _asyncio
+            await _asyncio.sleep(wait)
     if not station_html:
         log(f"  Station monthly rainfall: no station monthly range html fetched ({station_range_url})")
 
@@ -561,18 +570,27 @@ async def _fetch_station_monthly_rainfall(session, reference):
 
     # Houston monthly normals (average).
     climate_url = "https://www.weather.gov/hgx/climate_iah_normals_summary"
-    html = await _fetch_text(session, climate_url)
-    if not html:
-        log("  Station monthly rainfall: no climate page HTML fetched")
+    climate_html = None
+    for attempt in range(3):
+        climate_html = await _fetch_text(session, climate_url)
+        if climate_html:
+            break
+        if attempt < 2:
+            wait = (attempt + 1) * 2
+            log(f"  [station retry] climate page fetch failed (attempt {attempt + 1}/3), waiting {wait}s...")
+            import asyncio as _asyncio
+            await _asyncio.sleep(wait)
+    if not climate_html:
+        log("  Station monthly rainfall: no climate page HTML fetched after 3 attempts")
         return {
             "avg_monthly_rainfall": None,
             "current_monthly_rainfall": station_current_rain,
         }
 
     # Use original HTML for table parsing (do not strip text).
-    text = BeautifulSoup(html, "html.parser").get_text(" ", strip=True)
+    text = BeautifulSoup(climate_html, "html.parser").get_text(" ", strip=True)
     log(f"  Station monthly rainfall: climate page text length {len(text)}")
-    parsed = _parse_climate_summary(html, reference.date())
+    parsed = _parse_climate_summary(climate_html, reference.date())
 
     avg_rain = parsed.get("avg_monthly_rainfall")
     curr_rain = parsed.get("current_monthly_rainfall")
@@ -960,12 +978,21 @@ async def _fetch_station_metrics(session, station_id, reference):
     payload = {"avg_temp_today": None, "avg_monthly_rainfall": None, "current_monthly_rainfall": None}
     template_date = reference.strftime("%Y-%m-%d")
     url = WUNDERGROUND_MONTHLY_TEMPLATE.format(station_id=station_id, date=template_date)
-    html = await _fetch_text(session, url)
-    if not html:
-        log("  WARNING Weather station monthly data unavailable (no content).")
+    station_html = None
+    for attempt in range(3):
+        station_html = await _fetch_text(session, url)
+        if station_html:
+            break
+        if attempt < 2:
+            wait = (attempt + 1) * 2
+            log(f"  [station retry] wunderground fetch failed ({station_id}, attempt {attempt + 1}/3), waiting {wait}s...")
+            import asyncio as _asyncio
+            await _asyncio.sleep(wait)
+    if not station_html:
+        log("  WARNING Weather station monthly data unavailable (no content) after 3 attempts.")
         return payload
 
-    soup = BeautifulSoup(html, "html.parser")
+    soup = BeautifulSoup(station_html, "html.parser")
     current_precip = None
 
     for table in soup.find_all("table"):

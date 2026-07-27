@@ -1794,40 +1794,42 @@ async def main():
         # Format with proper naming convention
         filepath = os.path.join(OUTPUT_DIR, f"DailyBrief-{fn_ts}_v{file_ver:02d}.md")
 
-        # Cleanup old DailyBrief files (keep only MAX_LOG_VERSIONS most recent)
-        if MAX_LOG_VERSIONS > 0:
-            try:
-                # Ensure OUTPUT_DIR exists before trying to list it
-                os.makedirs(OUTPUT_DIR, exist_ok=True)
-                
-                # Get all DailyBrief and run_log files
-                all_files = [f for f in os.listdir(OUTPUT_DIR) 
-                           if (f.startswith('DailyBrief-') or f.startswith('run_log_')) and f.endswith('.md')]
-                
-                # Sort by modification time (newest first)
-                all_files.sort(key=lambda x: os.path.getmtime(os.path.join(OUTPUT_DIR, x)), reverse=True)
-                
-                # Keep only MAX_LOG_VERSIONS most recent files
-                files_to_remove = all_files[MAX_LOG_VERSIONS:]
-                for old_file in files_to_remove:
-                    os.remove(os.path.join(OUTPUT_DIR, old_file))
-                    log(f"Removed old file: {old_file}")
-                    
-                # Also cleanup logs directory - keep only 5 most recent run_log_ files
-                logs_dir = LOG_DIR if 'LOG_DIR' in globals() else '/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/logs'
-                os.makedirs(logs_dir, exist_ok=True)
-                log_files = [f for f in os.listdir(logs_dir) if f.startswith('run_log_') and f.endswith('.md')]
-                # Filter out any non-standard entries
-                valid_log_files = [f for f in log_files if 'run_log_' in f and f.endswith('.md')]
-                valid_log_files.sort(key=lambda x: os.path.getmtime(os.path.join(logs_dir, x)), reverse=True)
-                
-                # Keep only MAX_LOG_VERSIONS most recent logs (same limit as DailyBrief)
-                logs_to_remove = valid_log_files[MAX_LOG_VERSIONS:]
-                for old_log in logs_to_remove:
-                    os.remove(os.path.join(logs_dir, old_log))
-                    log(f"Removed old log file: {old_log}")
-            except Exception as e:
-                print(f"Warning: Could not cleanup old files: {e}")
+        # Cleanup: keep only 1 report + 1 log at a time (aggressive cleanup)
+        try:
+            os.makedirs(OUTPUT_DIR, exist_ok=True)
+            briefing_dir = "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/Dev/news"
+            os.makedirs(briefing_dir, exist_ok=True)
+
+            # Move new report into Dev/news/
+            import shutil
+            if os.path.exists(filepath):
+                dest = os.path.join(briefing_dir, os.path.basename(filepath))
+                shutil.move(filepath, dest)
+                filepath = dest
+
+            # Keep only 1 most recent report in Dev/news/
+            report_files = sorted(
+                [f for f in os.listdir(briefing_dir) if f.startswith('DailyBrief-') and f.endswith('.md')],
+                key=lambda x: os.path.getmtime(os.path.join(briefing_dir, x)),
+                reverse=True,
+            )
+            for old_report in report_files[1:]:
+                os.remove(os.path.join(briefing_dir, old_report))
+
+            # Cleanup logs — keep only 1 most recent
+            logs_dir = LOG_DIR
+            os.makedirs(logs_dir, exist_ok=True)
+            valid_log_files = sorted(
+                [f for f in os.listdir(logs_dir) if f.startswith('run_log_') and f.endswith('.md')],
+                key=lambda x: os.path.getmtime(os.path.join(logs_dir, x)),
+                reverse=True,
+            )
+            for old_log in valid_log_files[1:]:
+                os.remove(os.path.join(logs_dir, old_log))
+                log(f"Removed old log file: {old_log}")
+            log(f"Cleaned output dirs: 1 report, 1 log kept")
+        except Exception as e:
+            log(f"Warning: Could not cleanup old files: {e}")
 
         ordered_cats = ordered_categories_for_render([c[0] for c in CATEGORIES if c[1]])
         sections_map = {cn: sections.get(cn, []) for cn in ordered_cats}
@@ -1882,11 +1884,15 @@ async def main():
 
 
 
-        # Category sections
+        # Category sections — skip empty categories
         for cn in ordered_cats:
             if cn == WEATHER_SECTION_TITLE or cn == "Weather Forecast 77316":
                 continue
             cat_stories = sections_map.get(cn, [])
+            if not cat_stories:
+                # Expand window for this category if it has 0 stories
+                log(f"  Skipping empty category: {cn}")
+                continue
             md += ["", f"## {cn} ({len(cat_stories)} stories)", ""]
             for idx, st in enumerate(cat_stories):
                 title_text = st["title"]

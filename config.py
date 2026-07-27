@@ -106,8 +106,9 @@ REAL_ESTATE_KEYWORDS = FILTERING_KEYWORDS.get('real_estate', [])
 OBITUARY_KEYWORDS = FILTERING_KEYWORDS.get('obituary', [])
 
 TAGGING_MAPPINGS = _get_nested(CONFIG_YAML, 'tagging_mappings') or {}
-TAGGING_CONFIG = _get_nested(CONFIG_YAML, 'tagging_config') or {"max_tags": 5, "score_cap": 5.0, "score_threshold": 0.0}
+TAGGING_CONFIG = _get_nested(CONFIG_YAML, 'tagging_config') or {"max_tags": 5, "score_cap": 5.0, "score_threshold": 0.3}
 CATEGORY_BOOSTS = _get_nested(CONFIG_YAML, 'category_boosts') or {}
+TAG_CONFLICTS = _get_nested(CONFIG_YAML, 'tag_conflicts') or []
 CATEGORY_PRIORITY = _get_nested(CONFIG_YAML, 'category_priority') or []
 WEATHER_LABELS = _get_nested(CONFIG_YAML, 'weather_labels') or {}
 

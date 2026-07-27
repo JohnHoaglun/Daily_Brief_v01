@@ -60,36 +60,41 @@ filtering_keywords:
   obituary: ["obituary", "passed away", "died", "deceased", "funeral services", "death notice", "memorial service", "passed at age", "remembering"]
 
 tagging_mappings:
-  AI: ['artificial intelligence', 'machine learning', 'neural network', 'llm', 'transformer', 'ai', 'deep learning', 'generative ai', 'model', 'algorithm']
-  tech: ['technology', 'digital', 'software', 'programming', 'computing', 'cloud', 'data', 'startup', 'innovation']
-  economy: ['economy', 'market', 'finance', 'stock', 'invest', 'trade', 'business', 'growth', 'earnings', 'revenue']
-  weather: ['weather', 'climate', 'storm', 'rain', 'snow', 'hurricane', 'tornado', 'forecast', 'temperature', 'atmospheric']
+  AI: ['artificial intelligence', 'machine learning', 'neural network', 'llm', 'transformer', 'deep learning', 'generative ai']
+  tech: ['technology', 'software', 'programming', 'computing', 'cloud computing', 'data center', 'tech']
+  economy: ['economy', 'finance', 'stock market', 'invest', 'trade', 'earnings', 'revenue']
+  weather: ['weather', 'storm', 'rain', 'snow', 'hurricane', 'tornado', 'forecast', 'temperature']
   politics: ['election', 'government', 'politic', 'policy', 'congress', 'senate', 'president', 'regulation', 'law']
-  science: ['science', 'research', 'discovery', 'study', 'experiment', 'physics', 'biology', 'breakthrough']
-  health: ['health', 'medical', 'hospital', 'doctor', 'treatment', 'vaccine', 'disease', 'pandemic', 'pharma']
+  science: ['science', 'research', 'physics', 'biology', 'quantum', 'chemistry', 'genetics']
+  health: ['health', 'medical', 'hospital', 'doctor', 'treatment', 'vaccine', 'pharma']
   space: ['space', 'rocket', 'astronaut', 'nasa', 'mission', 'satellite', 'launch', 'orbit', 'lunar']
-  semiconductors: ['semiconductor', 'chip', 'processor', 'gpu', 'cpu', 'transistor', 'fab', 'manufacturing', 'intel', 'nvidia', 'tsmc', 'qualcomm', 'amd']
-  energy: ['energy', 'power', 'renewable', 'solar', 'wind', 'grid', 'electric', 'battery', 'charging', 'fuel cell']
-  infrastructure: ['infrastructure', 'construction', 'development', 'project', 'building', 'road', 'bridge', 'transit']
-  security: ['security', 'cybersecurity', 'privacy', 'breach', 'hacking', 'encryption', 'data protection', 'threat']
-  companies: ['company', 'corporation', 'startup', 'ipo', 'acquisition', 'merger', 'partnership', 'venture']
+  semiconductors: ['semiconductor', 'chip', 'processor', 'gpu', 'cpu', 'transistor', 'fab', 'intel', 'nvidia', 'tsmc', 'qualcomm', 'amd']
+  energy: ['energy', 'renewable', 'solar', 'wind', 'grid', 'electric', 'battery', 'charging', 'fuel cell']
+  infrastructure: ['infrastructure', 'construction', 'road', 'bridge', 'transit']
+  security: ['security', 'cybersecurity', 'privacy', 'breach', 'hacking', 'encryption', 'data protection']
+  companies: ['ipo', 'acquisition', 'merger', 'partnership']
   people: ['founder', 'ceo', 'entrepreneur', 'investor', 'researcher', 'scientist']
   openai: ['openai', 'chatgpt', 'gpt-4', 'gpt-5']
   anthropic: ['anthropic', 'claude']
   spacex: ['spacex', 'starship', 'elon musk', 'falcon']
-  big-tech: ['google', 'meta', 'apple', 'microsoft', 'amazon', 'meta']
-  local: ['houston', 'texas', 'conroe', 'montgomery county', 'tx', 'houston metro', 'galveston']
-  us-focused: ['united states', 'us', 'america', 'american', 'washington dc', 'dc']
-  international: ['world', 'global', 'international', 'foreign', 'european', 'asian', 'global']
-  regulatory: ['regulation', 'legal', 'law', 'legislation', 'lawsuit', 'compliance', 'ruling', 'court']
-  innovation: ['innovation', 'new', 'novel', 'breakthrough', 'first', 'advancement', 'unveil']
-  market-impact: ['market', 'stock', 'trading', 'investment', 'return', 'valuation', 'earnings']
-  environment: ['environment', 'climate', 'sustainability', 'carbon', 'emissions', 'green', 'ecological']
+  big-tech: ['google', 'meta', 'apple', 'microsoft', 'amazon']
+  local: ['houston', 'texas', 'conroe', 'montgomery county', 'houston metro', 'galveston']
+  us-focused: ['united states', 'america', 'american', 'washington dc']
+  international: ['international', 'foreign', 'european', 'asian']
+  sports: ['nfl', 'nba', 'mlb', 'nhl', 'soccer', 'football', 'basketball', 'baseball', 'hockey', 'olympics', 'championship', 'strikeout', 'touchdown', 'touchdowns']
+  regulatory: ['regulation', 'legal', 'legislation', 'lawsuit', 'compliance', 'ruling', 'court']
+  innovation: ['breakthrough', 'cutting-edge']
+  market-impact: ['stock market', 'trading', 'investment', 'return', 'valuation', 'earnings']
+  environment: ['environment', 'sustainability', 'carbon', 'emissions', 'green', 'ecological']
 
 tagging_config:
   max_tags: 5
   score_cap: 5.0
-  score_threshold: 0.0
+  score_threshold: 0.3
+
+tag_conflicts:
+  - ['international', 'us-focused']
+  - ['international', 'local']
 
 category_boosts:
   "OpenAI News": ['openai', 'chatgpt']
@@ -178,7 +183,7 @@ categories:
     max_stories: 5
     min_age_hours: 24
   "Hermes Agent News":
-    query: "herms agent"
+    query: "hermes agent"
     max_stories: 5
     min_age_hours: 24
   "Weather Forecast 77316":

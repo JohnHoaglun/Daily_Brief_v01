@@ -1733,24 +1733,32 @@ async def main():
             max_stories = matching_cat[2]
             default_limit = CATEGORY_AGE_LIMITS.get(cat_name, DEFAULT_AGE_LIMIT_HOURS)
 
-            found_via_widening = False
+            cat_widened_count = 0
+            last_wide_days = 0
+            log(f"  [WIDEN] '{cat_name}' had 0 stories at {default_limit}h — attempting widening (2d-7d)")
             for widen_days in range(2, 8):
                 widen_hours = widen_days * 24
-                log(f"  [fetch_rss] Category '{cat_name}' 0 stories at {default_limit}h, trying {widen_days}d window")
                 rss_url = build_rss_url(query)
                 result = await fetch_feed(session, cat_name, rss_url, max_stories)
                 name, entries = result
                 if not entries:
+                    log(f"    [{widen_days}d] no entries from feed")
                     continue
                 added, af, df = _dedup_category(name, entries, seen_per_cat, widen_hours)
                 total_age_filtered += af
                 total_dup_filtered += df
-                if added >= 3:
-                    log(f"  [fetch_rss] Category '{cat_name}' widened to {widen_days}d: {added} stories")
-                    found_via_widening = True
+                if added > 0:
+                    cat_widened_count += added
+                    last_wide_days = widen_days
+                    log(f"    [{widen_days}d] +{added} stories (cumulative: {cat_widened_count})")
+                else:
+                    log(f"    [{widen_days}d] 0 added")
+                if cat_widened_count >= 3:
                     break
-            if not found_via_widening:
-                log(f"  [fetch_rss] Category '{cat_name}' exhausted to 7d: still 0 stories — giving up")
+            if cat_widened_count > 0:
+                log(f"  [WIDEN] '{cat_name}' recovered {cat_widened_count} stories (last successful: {last_wide_days}d)")
+            else:
+                log(f"  [WIDEN] '{cat_name}' exhausted to 7d: 0 stories recovered")
 
         # Cross-category dedup: prevent same story appearing in multiple categories
         global_seen = set()

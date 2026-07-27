@@ -125,6 +125,7 @@ except Exception:
     ACTIVE_TIMEZONE = timezone.utc
     TIMEZONE = "UTC"
 SUMMARY_PROMPT = SUMMARY_PROMPT
+SUMMARY_STRICT_PROMPT = SUMMARY_STRICT_PROMPT
 SYSTEM_BATCH_PROMPT = SYSTEM_BATCH_PROMPT
 SYSTEM_ALERT_PROMPT = SYSTEM_ALERT_PROMPT
 LLM_SUMMARY_OPTIONS = LLM_SUMMARY_OPTIONS
@@ -627,6 +628,29 @@ def _is_refusal(text):
         "please provide the source",
     ]
     return any(p in t for p in refusal_phrases)
+
+
+def _is_boilerplate(text):
+    """Detect vague, generic boilerplate summaries that lack concrete facts."""
+    if not text:
+        return False
+    t = text.strip().lower()
+    boilerplate_phrases = [
+        "this highlights a significant",
+        "this suggests a",
+        "this indicates a",
+        "further details on the nature",
+        "further details are not",
+        "are not included",
+        "are not specified",
+        "details regarding",
+        "this serves as",
+        "this demonstrates",
+        "this underscores",
+        "this reflects",
+        "this signals",
+    ]
+    return any(p in t for p in boilerplate_phrases)
 
 
 def _count_sentences(text):
@@ -1273,31 +1297,32 @@ def _build_weather_markdown(weather):
 
 # -- Ollama helpers (blocking, run in thread pool) -------------------------
 
-def _summarize(context, min_chars=LLM_SUMMARY_TRIM_MIN_CHARS):
-    """Blocking summary call with retry."""
+def _summarize(context, min_chars=LLM_SUMMARY_TRIM_MIN_CHARS, strict=False):
+    """Blocking summary call with retry. Set strict=True to use the stricter anti-boilerplate prompt."""
     if not context or len(context.strip()) < min_chars:
         return None
+    prompt = SUMMARY_STRICT_PROMPT if strict else SUMMARY_PROMPT
     for attempt in range(2):
         try:
             t0 = time.time()
             r = _llm_client.chat.completions.create(
                 model=LLM_MODEL,
                 messages=[
-                    {"role": "system", "content": SUMMARY_PROMPT},
+                    {"role": "system", "content": prompt},
                     {"role": "user", "content": context[:LLM_SUMMARY_CONTEXT_CHARS]}
                 ],
                 **LLM_SUMMARY_OPTIONS
             )
-            log(f"SUMMARIZE: {time.time() - t0:.2f}s")
+            log(f"{'STRICT ' if strict else ''}SUMMARIZE: {time.time() - t0:.2f}s")
             summary_text = r.choices[0].message.content or ""
             summary_text = " ".join([ln.strip() for ln in str(summary_text).splitlines() if ln.strip()])
             return summary_text
         except Exception as e:
             if attempt == 0:
-                log(f"SUMMARIZE attempt 1 failed ({e}), retrying 3s...")
+                log(f"{'STRICT ' if strict else ''}SUMMARIZE attempt 1 failed ({e}), retrying 3s...")
                 time.sleep(3)
             else:
-                log(f"SUMMARIZE ERROR (final): {e}")
+                log(f"{'STRICT ' if strict else ''}SUMMARIZE ERROR (final): {e}")
     return None
 
 
@@ -1870,6 +1895,24 @@ async def main():
             sum_ok = sum(1 for s in stories if s.summary and s.summary.strip() and not s.summary.strip().startswith("[Summary") and not _is_refusal(s.summary))
             sum_fail = total - sum_ok
             log(f"  Summaries done: {sum_ok} OK / {sum_fail} failed (retry recovered {retry_count})")
+        
+        # ---------- Phase 3E: Detect and fix boilerplate summaries ----------
+        boilerplate_count = sum(1 for s in stories if s.summary and _is_boilerplate(s.summary))
+        if boilerplate_count > 0:
+            log(f"  [3E] Detected {boilerplate_count} boilerplate summaries — re-summarizing with strict prompt...")
+            recovered = 0
+            for s in stories:
+                if s.summary and _is_boilerplate(s.summary):
+                    context = build_context(s)
+                    strict_summary = _summarize(context, strict=True)
+                    if strict_summary and not _is_boilerplate(strict_summary) and not _is_refusal(strict_summary):
+                        s.summary = strict_summary
+                        recovered += 1
+            if recovered < boilerplate_count:
+                remaining = boilerplate_count - recovered
+                log(f"  [3E] Recovered {recovered}/{boilerplate_count} boilerplate summaries ({remaining} remain)")
+            else:
+                log(f"  [3E] Recovered all {recovered}/{boilerplate_count} boilerplate summaries")
         
         elapsed = time.time() - t3
         log(f"  Phase 3 completed in {elapsed:.2f}s")

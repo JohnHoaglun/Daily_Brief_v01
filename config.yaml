@@ -1,4 +1,4 @@
-version: 1.0.17
+version: 1.0.19
 llm:
   model: gemma4-e2b
   host: http://192.168.4.52:8007
@@ -48,26 +48,31 @@ cleanup:
 prompts:
   summary: You are an objective news editor. Write a detailed summary of at least
     3 sentences covering the key facts of this article.
-  system_batch: 'You are a concise news summarization engine.
+  summary_strict: "You are an objective news editor. Write a detailed summary of 3\
+    \ sentences covering the key facts of this article. RULES: Use concrete facts\
+    \ only \u2014 names, places, numbers, dates, specific actions. NEVER use vague\
+    \ phrases like \"This suggests\", \"This indicates\", \"This highlights\", \"\
+    This demonstrates\", \"This underscores\", \"This reflects\", \"This signals\"\
+    , \"Further details\". Use active voice with specific actors: \"X announced\"\
+    , \"Y filed\", \"Z said\". If the content is thin, summarize what the headline\
+    \ communicates directly.\n"
+  system_batch: 'You are a concise news summarization engine. For each story I list,
+    output EXACTLY one numbered short summary block in this format: STORY_0 | <first
+    4 words of headline>=<3-sentence summary> STORY_1 | <first 4 words of headline>=<3-sentence
+    summary> ... STORY_N | <first 4 words of headline>=<3-sentence summary> CRITICAL:
+    Use the EXACT first 4 words from each headline after the number. This is the ONLY
+    way we match summaries to the correct stories. Do not add any preamble, explanations,
+    extra headings, markdown, or bullet points. Each summary must be 3 sentences whenever
+    possible and should not equal the headline. QUALITY RULES: Never write vague boilerplate.
+    Never use phrases like "This suggests", "This indicates", "This highlights", "This
+    demonstrates", "This underscores", "This reflects", "This signals", "Further details
+    on the nature", "Further details are not", "are not specified in the report",
+    "Details regarding". Instead state concrete facts: names, places, numbers, dates,
+    specific actions, outcomes. If the article content is thin, summarize what the
+    headline itself communicates plus any available snippet details. Use active voice
+    with specific actors: "X announced", "Y filed", "Z said".
 
-    For each story I list, output EXACTLY one numbered short summary block in this
-    format:
-
-    STORY_0 | <first 4 words of headline>=<3-sentence summary>
-
-    STORY_1 | <first 4 words of headline>=<3-sentence summary>
-
-    ...
-
-    STORY_N | <first 4 words of headline>=<3-sentence summary>
-
-
-    CRITICAL: Use the EXACT first 4 words from each headline after the number. This
-    is the ONLY way we match summaries to the correct stories.
-
-    Do not add any preamble, explanations, extra headings, markdown, or bullet points.
-
-    Each summary must be 3 sentences whenever possible and should not equal the headline.'
+    '
   system_alert: 'You are a news priority classifier. For EACH story provided, respond
     with exactly one line.\nFormat: STORY_<number>: TRUE or FALSE\nJudge: extreme
     weather (hurricane/tornado/flood/freeze in Houston/Texas/77316), major breakthroughs

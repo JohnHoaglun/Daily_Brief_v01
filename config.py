@@ -116,6 +116,7 @@ WEATHER_LABELS = _get_nested(CONFIG_YAML, 'weather_labels') or {}
 # Prompts
 PROMPTS = _get_nested(CONFIG_YAML, 'prompts') or {}
 SUMMARY_PROMPT = PROMPTS.get('summary', '')
+SUMMARY_STRICT_PROMPT = PROMPTS.get('summary_strict', SUMMARY_PROMPT)
 SYSTEM_BATCH_PROMPT = PROMPTS.get('system_batch', '')
 SYSTEM_ALERT_PROMPT = PROMPTS.get('system_alert', '')
 

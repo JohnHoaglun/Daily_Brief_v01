@@ -682,8 +682,8 @@ def parse_batch_summary_response(response, count, story_headlines=None):
                     best_score = overlap
                     best_idx = si
             
-            # If >= 50% of headline words appear in summary, it's a match
-            if best_idx is not None and best_score >= 0.5 and best_idx < count:
+            # If >= 30% of headline words appear in summary, it's a match
+            if best_idx is not None and best_score >= 0.3 and best_idx < count:
                 cleaned_summary = _safe_sentence_summary(summary_text)
                 if cleaned_summary:
                     results[best_idx] = cleaned_summary
@@ -714,7 +714,7 @@ def parse_batch_summary_response(response, count, story_headlines=None):
                             best_score2 = overlap
                             best_idx2 = si
                     
-                    if best_idx2 is not None and best_score2 >= 0.5 and best_idx2 < count:
+                    if best_idx2 is not None and best_score2 >= 0.3 and best_idx2 < count:
                         summary_part = ' '.join(parts[excerpt_len:])
                         cleaned_summary = _safe_sentence_summary(summary_part)
                         if cleaned_summary and best_idx2 not in matched_by_headline:
@@ -724,11 +724,16 @@ def parse_batch_summary_response(response, count, story_headlines=None):
                         break
     
     # Log unmatched stories
+    matched_count = len(matched_by_headline)
     unmatched = [i for i in range(count) if i not in matched_by_headline]
-    if unmatched:
-        log(f"Unmatched stories by headline: indices {unmatched} (will use fallback index matching)")
-    
-    # Fallback: original index-based parsing for unmatched stories
+    if not matched_count:
+        log(f"[MATCH] 0/{count} by headline keyword — all positional fallback")
+    elif unmatched:
+        log(f"[MATCH] {matched_count}/{count} by headline, {len(unmatched)} positional fallback")
+    else:
+        log(f"[MATCH] {matched_count}/{count} by headline — all resolved")
+
+    # Fallback: original index-based positional parsing for unmatched stories
     heading_re = re.compile(
         r"^\s*(?:###\s*)?(?:\*\*)?(?:(\d+)[\)\.]\s*|STORY[_\-\s]*(\d+)\s*[:\)]?\s*)(.*)$",
         flags=re.IGNORECASE
@@ -1721,7 +1726,6 @@ async def main():
         # Adaptive widening: re-fetch 0-story categories with expanded age window (up to 7 days)
         widened_cats = {}
         for cat_name in cats_with_zero_stories:
-            # Find the original query for this category
             matching_cat = next((c for c in CATEGORIES if c[0] == cat_name), None)
             if not matching_cat or not matching_cat[1]:
                 continue
@@ -1729,10 +1733,10 @@ async def main():
             max_stories = matching_cat[2]
             default_limit = CATEGORY_AGE_LIMITS.get(cat_name, DEFAULT_AGE_LIMIT_HOURS)
 
-            # Try widening day by day: 2d, 3d, ..., 7d
+            found_via_widening = False
             for widen_days in range(2, 8):
                 widen_hours = widen_days * 24
-                log(f"  [fetch_rss] Category '{cat_name}' returned 0 stories at {default_limit}h window, widening to {widen_days} days")
+                log(f"  [fetch_rss] Category '{cat_name}' 0 stories at {default_limit}h, trying {widen_days}d window")
                 rss_url = build_rss_url(query)
                 result = await fetch_feed(session, cat_name, rss_url, max_stories)
                 name, entries = result
@@ -1742,10 +1746,11 @@ async def main():
                 total_age_filtered += af
                 total_dup_filtered += df
                 if added >= 3:
-                    log(f"  [fetch_rss] Category '{cat_name}' widened to {widen_days} days, found {added} stories")
+                    log(f"  [fetch_rss] Category '{cat_name}' widened to {widen_days}d: {added} stories")
+                    found_via_widening = True
                     break
-            else:
-                log(f"  [fetch_rss] Category '{cat_name}' widened to 7 days, still 0 stories — giving up")
+            if not found_via_widening:
+                log(f"  [fetch_rss] Category '{cat_name}' exhausted to 7d: still 0 stories — giving up")
 
         # Cross-category dedup: prevent same story appearing in multiple categories
         global_seen = set()
@@ -1801,7 +1806,7 @@ async def main():
             )
 
         # ---------- Phase 3B/3C: Batch summary (single Ollama call for all stories) ----------
-        log("  [3BC] Running BATCH summaries via Qwen...")
+        log(f"  [3BC] Running BATCH summaries via {LLM_MODEL}...")
         t3 = time.time()
         sum_results = batch_summarize_all(stories, session)
         sum_ok = sum(1 for s in stories if s.summary and s.summary.strip() and not s.summary.strip().startswith("[Summary"))

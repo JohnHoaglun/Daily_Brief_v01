@@ -81,11 +81,17 @@ tagging_mappings:
   local: ['houston', 'texas', 'conroe', 'montgomery county', 'houston metro', 'galveston']
   us-focused: ['united states', 'america', 'american', 'washington dc']
   international: ['international', 'foreign', 'european', 'asian']
-  sports: ['nfl', 'nba', 'mlb', 'nhl', 'soccer', 'football', 'basketball', 'baseball', 'hockey', 'olympics', 'championship', 'strikeout', 'touchdown', 'touchdowns']
+  sports: ['nfl', 'nba', 'mlb', 'nhl', 'soccer', 'football', 'basketball', 'baseball', 'hockey', 'olympics', 'championship', 'strikeout', 'touchdown', 'touchdowns', 'rangers', 'astros', 'rockets', 'cougars', 'cowboys']
   regulatory: ['regulation', 'legal', 'legislation', 'lawsuit', 'compliance', 'ruling', 'court']
   innovation: ['breakthrough', 'cutting-edge']
   market-impact: ['stock market', 'trading', 'investment', 'return', 'valuation', 'earnings']
   environment: ['environment', 'sustainability', 'carbon', 'emissions', 'green', 'ecological']
+  crime: ['arrest', 'police', 'murder', 'shooting', 'crime', 'investigator', 'investigating', 'charged', 'suspect']
+  agriculture: ['livestock', 'farm', 'ranch', 'cattle', 'crop', 'farmer', 'drought']
+  education: ['school', 'university', 'college', 'student', 'education', 'teacher', 'classroom']
+  public-safety: ['emergency', 'fire', 'rescue', 'evacuation', 'warning', 'alert']
+  surveillance: ['camera', 'surveillance', 'privacy', 'data release']
+  public-health: ['measles', 'disease', 'outbreak', 'vaccine', 'health official', 'cases']
 
 tagging_config:
   max_tags: 5

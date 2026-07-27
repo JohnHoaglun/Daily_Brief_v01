@@ -1675,47 +1675,77 @@ async def main():
             count = len(by_cat[name])
             log(f"    {name}: {count} stories")
 
-        # Deduplicate + filter by age: per category, keep first occurrence of each normalized title
+        def _dedup_category(cat_name, cat_entries, seen, age_limit_hours):
+            """Dedup and age-filter a single category. Returns (added_count, age_filtered, dup_filtered)."""
+            added = age_filtered = dup_filtered = 0
+            for title, link, snippet, pub_dt in cat_entries:
+                is_old = False
+                if pub_dt is not None:
+                    try:
+                        age_secs = (now_ct - pub_dt).total_seconds()
+                        if age_secs > age_limit_hours * 3600:
+                            age_filtered += 1
+                            is_old = True
+                    except Exception:
+                        age_filtered += 1
+                        is_old = True
+                if is_old:
+                    continue
+                norm = normalize_title(title)
+                if norm in seen.get(cat_name, set()):
+                    dup_filtered += 1
+                    continue
+                seen.setdefault(cat_name, set()).add(norm)
+                if is_realt_estate_title(title) or is_obituary_title(title):
+                    continue
+                deduped.append((title, link, snippet, pub_dt, cat_name))
+                added += 1
+            return added, age_filtered, dup_filtered
+
+        # Deduplicate + filter by age: per category
         deduped = []
         total_age_filtered = 0
         total_dup_filtered = 0
         total_cross_dup_filtered = 0
         seen_per_cat = {}
+        cats_with_zero_stories = []
 
         for cat_name in by_cat:
-            if cat_name not in seen_per_cat:
-                seen_per_cat[cat_name] = set()
-            for title, link, snippet, pub_dt in by_cat[cat_name]:
-                # 1. Age filter - more lenient approach due to timezone issues with RSS timestamps
-                is_old = False
-                if pub_dt is not None:
-                    try:
-                        age_secs = (now_ct - pub_dt).total_seconds()
-                        # If we have a meaningful timestamp and it's newer than the category's age limit, keep it
-                        age_limit = CATEGORY_AGE_LIMITS.get(cat_name, DEFAULT_AGE_LIMIT_HOURS)
-                        if age_secs > age_limit * 3600:
-                            total_age_filtered += 1
-                            is_old = True
-                    except Exception:
-                        # If there are timezone conversion issues or malformed dates, treat as expired
-                        total_age_filtered += 1
-                        is_old = True
-                        
-                if is_old:
-                    continue
+            age_limit = CATEGORY_AGE_LIMITS.get(cat_name, DEFAULT_AGE_LIMIT_HOURS)
+            added, af, df = _dedup_category(cat_name, by_cat[cat_name], seen_per_cat, age_limit)
+            total_age_filtered += af
+            total_dup_filtered += df
+            if added == 0:
+                cats_with_zero_stories.append(cat_name)
 
-                # 2. Title dedup within category (prevents same story from 3 sources)
-                norm = normalize_title(title)
-                if norm in seen_per_cat[cat_name]:
-                    total_dup_filtered += 1
-                    continue
-                seen_per_cat[cat_name].add(norm)
+        # Adaptive widening: re-fetch 0-story categories with expanded age window (up to 7 days)
+        widened_cats = {}
+        for cat_name in cats_with_zero_stories:
+            # Find the original query for this category
+            matching_cat = next((c for c in CATEGORIES if c[0] == cat_name), None)
+            if not matching_cat or not matching_cat[1]:
+                continue
+            query = matching_cat[1]
+            max_stories = matching_cat[2]
+            default_limit = CATEGORY_AGE_LIMITS.get(cat_name, DEFAULT_AGE_LIMIT_HOURS)
 
-                # 3. Filter out real estate and mortality content (after dedup but before adding to deduped)
-                if is_realt_estate_title(title) or is_obituary_title(title):
+            # Try widening day by day: 2d, 3d, ..., 7d
+            for widen_days in range(2, 8):
+                widen_hours = widen_days * 24
+                log(f"  [fetch_rss] Category '{cat_name}' returned 0 stories at {default_limit}h window, widening to {widen_days} days")
+                rss_url = build_rss_url(query)
+                result = await fetch_feed(session, cat_name, rss_url, max_stories)
+                name, entries = result
+                if not entries:
                     continue
-
-                deduped.append((title, link, snippet, pub_dt, cat_name))
+                added, af, df = _dedup_category(name, entries, seen_per_cat, widen_hours)
+                total_age_filtered += af
+                total_dup_filtered += df
+                if added >= 3:
+                    log(f"  [fetch_rss] Category '{cat_name}' widened to {widen_days} days, found {added} stories")
+                    break
+            else:
+                log(f"  [fetch_rss] Category '{cat_name}' widened to 7 days, still 0 stories — giving up")
 
         # Cross-category dedup: prevent same story appearing in multiple categories
         global_seen = set()
@@ -1908,8 +1938,9 @@ async def main():
                 continue
             cat_stories = sections_map.get(cn, [])
             if not cat_stories:
-                # Expand window for this category if it has 0 stories
-                log(f"  Skipping empty category: {cn}")
+                # Render header even for 0-story categories so harness sees the section
+                log(f"  Empty category: {cn} (rendering header)")
+                md += ["", f"## {cn} (0 stories)", ""]
                 continue
             md += ["", f"## {cn} ({len(cat_stories)} stories)", ""]
             for idx, st in enumerate(cat_stories):

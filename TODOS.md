@@ -110,15 +110,17 @@
 - `[ ]` **3.3** RESIDUAL: US News #4 still shows zero keyword overlap in v02 — LLM returned wrong summary for that story
 - `[x]` **4.3** FIX: Frontmatter `categories` now counts actual rendered sections (commit 7e6e027)
 - `[x]` **4.8** FIX: Read `frontmatter_tag_segments` from `runtime.config`, not `runtime_defaults` (commit 8f9313f)
-- `[ ]` **Tags: 1 per story (target 3)** — Fixed: scoring formula penalized multi-word keywords via `1.0/len(keyword)`. `"artificial intelligence"` (22 chars) scored 0.09, below 0.3 threshold. Changed to `word_count * boost` so multi-word keywords score proportionally. Only category fallback tags remain. (FIX PENDING TEST)
+- `[ ]` **Tags: 1 per story (target 3)** — FIX BROKE: `v04` output still shows single `[[local]]` tag per story. Scoring formula fix (`1/len(keyword)` → `word_count * boost`) did not propagate — `pos < 100` is always true for article titles, so every keyword gets 2.0 * word_count. But scoring still yields only 1 tag: likely `score_threshold: 0.3` passes multiple tags, but output rendering only prints the category fallback tag. Need to debug why rendered output shows 1 tag when `tag_story_with_keywords` should return 3-5. (BUG — requires investigation)
+- `[ ]` **LLM should be Gemma, not QWEN** — Log shows `[3BC] Running BATCH summaries via Qwen...` but requirements/docs specify Gemma model. `LLM_MODEL` in `config.py` reads `llm.model` — check if `config.yaml` is set to Qwen, or if the pipeline should force Gemma for summaries. (BUG)
 
 ### P1 — Remaining FAILs (LLM quality, requires pipeline changes)
-- `[ ]` **3.2** Implement retry/re-prompt for failed summaries — currently 7/52 stories get no valid summary
+- `[ ]` **3.2** Implement retry/re-prompt for failed summaries — currently 3/52 stories get no valid summary
 - `[ ]` **3.3** Strengthen batch prompt enforcement (STORY_N ordering) or add post-run swap detection for larger batches
+- `[ ]` **Fallback index mismatch in batch summary parser** — Log shows `Unmatched stories by headline: indices [0, 1, 2] (will use fallback index matching)` on every run. Summary parser cannot match LLM output headlines back to input stories by text, must fall back to positional index matching. Likely causes: LLM truncates/headlines differ from input, or fuzzy matching threshold too strict. Risk: wrong summary assigned to wrong story if order drifts.
 
 ### P2 — WARN-Category Improvements (test harness flags, non-blocking)
 - `[ ]` **F.4** Climate Normal High == 95°F — verify live parse succeeded (not fallback default)
-- `[ ]` **2.2a** Implement adaptive day-window widening for 0-story categories (Conroe TX News, Montgomery County TX News)
+- `[ ]` **2.2a** Widening logs lie: "0 stories, giving up" but output renders widened stories** — Log prints `[fetch_rss] Category 'Conroe TX News' widened to 7 days, still 0 stories — giving up` yet v04 output renders 3 stories for Conroe TX News (from 2026-07-21/23). Same for Montgomery County TX News: log says "0 stories at 7 days" but 4 stories rendered. Root cause: widen loop logs "0 stories" for every day that returns 0, then the *next* iteration finds stories. The "giving up" message appears because the loop exhausted to 7d for a *different* category or the `else` clause on the `for` fires after the last iteration where 0 was returned, even though previous widening iterations *did* find stories. Log misleads about actual story count. (BUG)
 - `[ ]` **F.2** Investigate frozen feeds — Houston Tropical Weather, OpenAI, Anthropic, SpaceX, Karpathy all show 100% URL overlap
 - `[ ]` **F.2** Investigate frozen lake data — conroe, corpus_christi, travis values identical across runs
 - `[ ]` **F.2** Investigate frozen station data — avg_temp_today/rainfall identical across runs
@@ -127,6 +129,11 @@
 
 ### Recent Updates
 - [2026-07-27 00:45] **P0 fixes complete** — Fixed 2.6 (Hermes typo), 3.2 (failure counter), 3.3 (swap detection), 4.3 (categories count), 4.8 (missing tag). HARNESS FAILs: 6→2. Remaining: 3.2 residual (LLM quality), 3.3 residual (LLM quality)
+- [2026-07-27 01:30] **Bugs logged** — Tag scoring fix didn't fix single tags. Widening logs say "giving up" but stories render. LLM is QWEN, should be Gemma. Fallback index matching on every run.
+</think>
+
+<tool_call>
+<function=bash>
 
 ---
 

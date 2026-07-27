@@ -605,6 +605,30 @@ def _safe_sentence_summary(text):
     return s
 
 
+def _is_refusal(text):
+    """Detect LLM refusal/placeholder text that is not a real summary."""
+    if not text:
+        return False
+    t = text.strip().lower()
+    refusal_phrases = [
+        "please provide the article",
+        "i don't have access",
+        "i do not have access",
+        "i can't",
+        "i cannot",
+        "cannot summarize",
+        "no article content",
+        "unable to summarize",
+        "article not provided",
+        "no content available",
+        "write a detailed summary for you",
+        "i am not able to",
+        "i'm not able to",
+        "please provide the source",
+    ]
+    return any(p in t for p in refusal_phrases)
+
+
 def _count_sentences(text):
     if not text:
         return 0
@@ -1817,7 +1841,7 @@ async def main():
         log(f"  [3BC] Running BATCH summaries via {LLM_MODEL}...")
         t3 = time.time()
         sum_results = batch_summarize_all(stories, session)
-        sum_ok = sum(1 for s in stories if s.summary and s.summary.strip() and not s.summary.strip().startswith("[Summary"))
+        sum_ok = sum(1 for s in stories if s.summary and s.summary.strip() and not s.summary.strip().startswith("[Summary") and not _is_refusal(s.summary))
         sum_fail = total - sum_ok
         log(f"  Batch summaries: {sum_ok} OK / {sum_fail} failed")
         
@@ -1826,14 +1850,20 @@ async def main():
             log(f"  [3D] Retrying {sum_fail} failed summaries individually...")
             retry_count = 0
             for s in stories:
-                if not s.summary or not s.summary.strip() or s.summary.strip().startswith("[Summary"):
+                if not s.summary or not s.summary.strip() or s.summary.strip().startswith("[Summary") or _is_refusal(s.summary):
                     context = build_context(s)
                     retry_summary = _summarize(context)
-                    if retry_summary:
+                    if retry_summary and not _is_refusal(retry_summary):
                         s.summary = retry_summary
                         retry_count += 1
+            if retry_count < sum_fail:
+                unhandled = sum_fail - retry_count
+                log(f"  [3D] {unhandled} still failed — falling back to snippets")
+                for s in stories:
+                    if not s.summary or not s.summary.strip() or s.summary.strip().startswith("[Summary") or _is_refusal(s.summary):
+                        s.summary = s.snippet[:250].strip() if s.snippet else "[Summary unavailable]"
             
-            sum_ok = sum(1 for s in stories if s.summary and s.summary.strip() and not s.summary.strip().startswith("[Summary"))
+            sum_ok = sum(1 for s in stories if s.summary and s.summary.strip() and not s.summary.strip().startswith("[Summary") and not _is_refusal(s.summary))
             sum_fail = total - sum_ok
             log(f"  Summaries done: {sum_ok} OK / {sum_fail} failed (retry recovered {retry_count})")
         

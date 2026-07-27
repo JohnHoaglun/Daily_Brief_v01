@@ -834,6 +834,30 @@ def parse_batch_summary_response(response, count, story_headlines=None):
         summary = re.sub(r"\*\*|\*{2,}$", "", summary).strip()
         results[idx] = _safe_sentence_summary(summary)
 
+    # Post-match: detect and fix adjacent swap pairs
+    # If two adjacent stories' summaries are each a better match for the OTHER
+    # headline, swap them to fix off-by-one misalignment
+    if story_headlines:
+        for i in range(len(results) - 1):
+            j = i + 1
+            hi = story_headlines[i] if i < len(story_headlines) else ""
+            hj = story_headlines[j] if j < len(story_headlines) else ""
+            si = results[i].lower()
+            sj = results[j].lower()
+            if not si or not sj or not hi or not hj:
+                continue
+            hi_words = set(re.findall(r'\b[a-z]{3,}\b', hi.lower()))
+            hj_words = set(re.findall(r'\b[a-z]{3,}\b', hj.lower()))
+            if not hi_words or not hj_words:
+                continue
+            overlap_i_to_j = len(hj_words & set(re.findall(r'\b[a-z]{3,}\b', si))) / len(hj_words)
+            overlap_j_to_i = len(hi_words & set(re.findall(r'\b[a-z]{3,}\b', sj))) / len(hi_words)
+            overlap_i_normal = len(hi_words & set(re.findall(r'\b[a-z]{3,}\b', si))) / len(hi_words)
+            overlap_j_normal = len(hj_words & set(re.findall(r'\b[a-z]{3,}\b', sj))) / len(hj_words)
+            if overlap_i_to_j > overlap_i_normal and overlap_j_to_i > overlap_j_normal:
+                results[i], results[j] = results[j], results[i]
+                log(f"SWAP FIX: swapped stories {i} and {j} (cross-overlap {overlap_i_to_j:.2f}/{overlap_j_to_i:.2f} > normal {overlap_i_normal:.2f}/{overlap_j_normal:.2f})")
+
     return results
 
 

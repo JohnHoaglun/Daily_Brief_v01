@@ -972,9 +972,18 @@ async def _extract_lake_value(session, key, url, reference):
         ("thirty_days_ago", today - timedelta(days=30)),
     ]
 
-    html = await _fetch_text(session, url)
+    # Retry fetch up to 3 times with exponential backoff
+    html = None
+    for attempt in range(3):
+        html = await _fetch_text(session, url)
+        if html:
+            break
+        if attempt < 2:
+            wait = (attempt + 1) * 2
+            log(f"  [lake retry] '{key}' fetch failed (attempt {attempt + 1}/3), waiting {wait}s...")
+            await asyncio.sleep(wait)
     if not html:
-        log(f"  WARNING Lake data unavailable ({key}): no html.")
+        log(f"  WARNING Lake data unavailable ({key}): no html after 3 attempts.")
         return result
 
     soup = BeautifulSoup(html, "html.parser")
@@ -1149,12 +1158,7 @@ async def fetch_weather(session, lat, lon):
         if station_monthly.get("current_monthly_rainfall") and not weather_data["station"].get("current_monthly_rainfall"):
             weather_data["station"]["current_monthly_rainfall"] = f"{station_monthly['current_monthly_rainfall']} Inches"
 
-        # Fetch climate normal (historical average high for this date) from Open-Meteo
-        climate_high = await _fetch_climate_normal_high(session)
-        if climate_high is not None:
-            weather_data["station"]["avg_temp_today"] = f"{climate_high}°F"
-        
-        # Only apply fallback if climate normal failed
+        # Climate normal already fetched above at line 1129 — only apply fallback if it failed
         if weather_data["station"]:
             station = weather_data["station"]
             if not station.get("avg_temp_today") and weather_data["forecast"]:

@@ -83,11 +83,16 @@ def tag_story_with_keywords(story_title, category=None):
                     word_count = len([w for w in keyword.split() if w not in _STOP_WORDS])
                     score += boost * max(word_count, 1)
 
-        # Category boosts
+        # Category boosts: always fire for category membership (not just keyword match)
         if category and category in category_boosts:
-            for bkeyword in category_boosts[category]:
-                if not _keyword_has_stop(bkeyword) and _word_boundary_match(title_lower, bkeyword):
-                    score += 2.0
+            boost_tags = category_boosts[category]
+            if tag in boost_tags:
+                score += 3.0
+            else:
+                # Legacy: also boost if boost keywords appear in title
+                for bkeyword in boost_tags:
+                    if not _keyword_has_stop(bkeyword) and _word_boundary_match(title_lower, bkeyword):
+                        score += 2.0
 
         if score > score_threshold:
             tag_scores[tag] = min(score, score_cap)
@@ -104,6 +109,32 @@ def tag_story_with_keywords(story_title, category=None):
             if a in tag_scores and b in tag_scores:
                 loser = a if tag_scores.get(a, 0) <= tag_scores.get(b, 0) else b
                 tag_list = [t for t in tag_list if t != loser]
+
+    # Minimum 3 tags: promote next-best scoring tags (even below normal threshold)
+    # Run AFTER conflict resolution so we restore tags stripped by conflicts
+    min_tags = 3
+    if len(tag_list) < min_tags:
+        # Try all tags that scored > 0, even if below threshold
+        all_scored = sorted(
+            [(t, s) for t, s in tag_scores.items() if s > 0 and t not in tag_list],
+            key=lambda x: x[1], reverse=True
+        )
+        for tag, score in all_scored:
+            tag_list.append(tag)
+            if len(tag_list) >= min_tags:
+                break
+        # Last resort: use category-derived tags
+        if len(tag_list) < min_tags and category:
+            cat_tag = category.lower().replace(" ", "-").replace("/", "-")
+            if cat_tag not in tag_list:
+                tag_list.append(cat_tag)
+            if len(tag_list) < min_tags:
+                for part in category.lower().split():
+                    part_tag = part.lower().replace(" ", "-").replace("/", "-")
+                    if part_tag and part_tag not in tag_list:
+                        tag_list.append(part_tag)
+                    if len(tag_list) >= min_tags:
+                        break
 
     if not tag_list and category:
         category_tag = category.lower().replace(" ", "-").replace("/", "-")

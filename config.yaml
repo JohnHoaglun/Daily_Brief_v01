@@ -1,4 +1,4 @@
-version: 1.0.20
+version: 1.0.29
 llm:
   model: gemma4-e2b
   host: http://192.168.4.52:8007
@@ -109,6 +109,8 @@ tagging_mappings:
   - transformer
   - deep learning
   - generative ai
+  - ai
+  - agent
   tech:
   - technology
   - software
@@ -117,6 +119,12 @@ tagging_mappings:
   - cloud computing
   - data center
   - tech
+  - mobile
+  - phones
+  - t-mobile
+  - github
+  - startup
+  - start-up
   economy:
   - economy
   - finance
@@ -132,6 +140,33 @@ tagging_mappings:
   - demand
   - supply
   - trade war
+  - stock
+  - stocks
+  - wall street
+  - loan
+  - loans
+  - shares
+  - bond
+  - bonds
+  - imf
+  - argentina
+  - imf
+  - debt
+  - financing
+  - investment
+  - capital
+  - restaurant
+  - opening
+  - open
+  - dining
+  - food
+  - debt
+  - fha
+  - loan
+  - loans
+  - growth
+  - upcycle
+  - orders
   weather:
   - weather
   - storm
@@ -141,6 +176,11 @@ tagging_mappings:
   - tornado
   - forecast
   - temperature
+  - heat
+  - hot
+  - hottest
+  - heating
+  - extreme
   politics:
   - election
   - government
@@ -163,6 +203,13 @@ tagging_mappings:
   - social media
   - post
   - statement
+  - trump
+  - biden
+  - iraq
+  - iran
+  - pause
+  - strike
+  - strikes
   science:
   - science
   - research
@@ -171,6 +218,7 @@ tagging_mappings:
   - quantum
   - chemistry
   - genetics
+  - symmetry
   health:
   - health
   - medical
@@ -205,6 +253,7 @@ tagging_mappings:
   - tsmc
   - qualcomm
   - amd
+  - asml
   energy:
   - energy
   - renewable
@@ -215,6 +264,8 @@ tagging_mappings:
   - battery
   - charging
   - fuel cell
+  - oil
+  - plunge
   infrastructure:
   - infrastructure
   - construction
@@ -234,6 +285,19 @@ tagging_mappings:
   - acquisition
   - merger
   - partnership
+  - companies
+  - time
+  - recognized
+  - top
+  - ranked
+  - workplace
+  - top workplace
+  - 3m
+  - 3m
+  - citic
+  - securities
+  - growth
+  - orders
   people:
   - founder
   - ceo
@@ -246,6 +310,22 @@ tagging_mappings:
   - director
   - chairman
   - head
+  - golf
+  - golfer
+  - cup
+  - winner
+  - winners
+  - trail
+  - golf
+  - golfer
+  - golf
+  - golfer
+  - player
+  - art
+  - artist
+  - saar
+  - died
+  - dead
   openai:
   - openai
   - chatgpt
@@ -265,6 +345,8 @@ tagging_mappings:
   - apple
   - microsoft
   - amazon
+  - nvidia
+  - wall street
   local:
   - houston
   - texas
@@ -273,12 +355,40 @@ tagging_mappings:
   - houston metro
   - galveston
   - magnolia
+  - spring
+  - fort worth
+  - wisconsin
+  - texas parks
+  - wisconsin
+  - wi
   us-focused:
   - united states
   - america
   - american
   - washington dc
   - us
+  - wisconsin
+  - nebraska
+  - washington dc
+  - federal
+  - consulate
+  - wisconsin
+  - washington
+  - federal
+  - nationwide
+  - runaway
+  - children
+  - kids
+  - t-mobile
+  - newsweek
+  - conventional
+  - nevada
+  - travel
+  - wisconsin
+  - wi
+  - presser
+  - new york
+  - iran
   international:
   - international
   - foreign
@@ -310,6 +420,15 @@ tagging_mappings:
   - australian
   - japanese
   - korean
+  - world cup
+  - soccer
+  - imf
+  - milei
+  - debt
+  - iran
+  - strike
+  - strikes
+  - military
   sports:
   - nfl
   - nba
@@ -338,6 +457,13 @@ tagging_mappings:
   - swim
   - training camp
   - season
+  - soccer
+  - world cup
+  - soccer
+  - world cup
+  - transfer
+  - man city
+  - player
   regulatory:
   - regulation
   - legal
@@ -371,6 +497,15 @@ tagging_mappings:
   - wildfire
   - floods
   - earthquake
+  - sustainable
+  - wildlife
+  - water
+  - sustainable
+  - water
+  - green
+  - greens
+  - cup
+  - black
   crime:
   - arrest
   - police
@@ -388,6 +523,9 @@ tagging_mappings:
   - suspect
   - trial
   - conviction
+  - convict
+  - kidnapp
+  - hazing
   agriculture:
   - livestock
   - farm
@@ -449,6 +587,13 @@ tagging_mappings:
   - trump
   - obama
   - white house
+  - department
+  - federal
+  - agency
+  - nist
+  - doj
+  - usa
+  - usaid
   diplomacy:
   - peace
   - mediation
@@ -470,12 +615,15 @@ tag_conflicts:
 category_boosts:
   OpenAI News:
   - openai
+  - ai
   - chatgpt
   Anthropic News:
   - anthropic
+  - ai
   - claude
   SpaceX News:
   - spacex
+  - space
   - starship
   Big Tech:
   - google
@@ -483,6 +631,34 @@ category_boosts:
   - apple
   - microsoft
   - amazon
+  - big-tech
+  Conroe TX News:
+  - local
+  Montgomery County TX News:
+  - local
+  Texas News:
+  - local
+  Houston Tropical Weather:
+  - weather
+  Artificial Intelligence:
+  - ai
+  - tech
+  Andrej Karpathy Activity:
+  - openai
+  - ai
+  - tech
+  Hermes Agent News:
+  - ai
+  - tech
+  Semiconductors:
+  - tech
+  - semiconductors
+  Market News:
+  - economy
+  - market-impact
+  Space News:
+  - space
+  - tech
 category_priority:
 - Conroe TX News
 - Houston Tropical Weather

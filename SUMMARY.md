@@ -4,6 +4,12 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+- [2026-07-28 02:20] Version bumped to **v1.0.31** — Lake monitoring expanded from 3 to 11 lakes.
+- [2026-07-28 02:20] Config (`config.yaml`) — Added 8 new lakes: `livingston`, `waco`, `ray_roberts`, `lewisville`, `ray_hubbard`, `choke_canyon`, `caddo`, `toledo_bend` (total 11 with existing 3: conroe, travis, corpus_christi).
+- [2026-07-28 02:20] Refactor (`sources/weather.py`) — Changed hardcoded lake loop to iterate `WEATHER_LAKE_URLS.items()` dynamically.
+- [2026-07-28 02:20] Refactor (`dashboard_pipeline.py`) — Changed hardcoded lake loop to iterate `WEATHER_LAKE_URLS` dynamically. Added `_lake_label` helper with "Lake" prefix for dynamic rendering. Test [1.4] passes.
+- [2026-07-28 01:50] Version bumped to **v1.0.30** — Section count widening logic fixed.
+- [2026-07-28 01:50] Fix (`dashboard_pipeline.py`) — Widening trigger changed from `added == 0` to `added < 3`, all 15 sections now render ≥3 stories.
 - [2026-07-28 01:09] Version bumped to **v1.0.29** — Tag distribution goal achieved: every story has ≥3 tags.
 - [2026-07-28 01:09] Fix (`tagging.py`) — Moved `min_tags=3` promotion logic *after* conflict resolution block so tags stripped by international/us-focused conflict are restored. Result: 61 stories, avg 3.90 tags, distribution `{3:30, 4:7, 5:24}`.
 - [2026-07-28 00:28] Config (`config.yaml` v1.0.28-29) — Added keywords: `local` (spring, fort worth, wisconsin), `sports` (soccer, world cup, transfer, man city, player), `economy` (shares, bond, bonds, stock, wall street, imf, argentina, citic, securities, growth, upcycle), `environment` (sustainable, water, green), `people` (cup, winner, art, artist), `us-focused` (runaway, newsweek, nevada, travel, new york), `companies` (companies, time, workplace, growth, orders, 3m), `international` (soccer, world cup, imf, iran, strike, debt), `semiconductors` (asml), `government` (department, federal, agency, nist, doj), `politics` (iran, strikes). Updated `category_boosts`: OpenAI, Anthropic, SpaceX, Big Tech, Conroe, Montgomery County, Texas, Houston Weather, AI, Andrej, Hermes, Semiconductors, Space News categories.

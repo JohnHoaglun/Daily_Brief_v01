@@ -10,43 +10,29 @@ import re
 import threading
 import asyncio
 import aiohttp
-import feedparser
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
-from email.utils import parsedate_to_datetime
-from functools import cmp_to_key
 
 from daily_brief.config import *
-from daily_brief.sources.rss import (
-    build_rss_url,
-    fetch_feed,
-    normalize_title,
-    parse_feed_date,
-    format_pub_date,
-    _sort_entries,
-)
+from daily_brief.sources.rss import format_pub_date
 from daily_brief.sources.article import stage_extract_article
 from daily_brief.sources.weather import fetch_weather
 from daily_brief.tagging import tag_story_with_keywords
 from daily_brief.categorization import ordered_categories_for_render
+from daily_brief.pipelines.rss_dedup import fetch_and_dedup
 from daily_brief.llm import create_llm_client
 from daily_brief.llm.summarizer import (
     _summarize as llm_summarize,
     batch_summarize_all as llm_batch_summarize_all,
     StoryPipelineState,
     build_context,
-    _safe_sentence_summary,
     _is_refusal,
     _is_boilerplate,
-    _count_sentences,
 )
 from daily_brief.rendering import build_weather_markdown, cleanup_old_files
 from daily_brief.validation import validate_report
 from daily_brief.harness import run_test_harness
-from daily_brief.utils import (
-    is_obituary_title,
-    is_realt_estate_title,
-)
+
 
 RUN_LOGFILE = None
 log_lock = threading.Lock()
@@ -92,18 +78,6 @@ def _coerce_temperature_f(val):
         return temp
     except (ValueError, TypeError):
         return None
-
-
-def is_realt_estate_title(title):
-    """Check if a title contains real estate markers that should be filtered out."""
-    if not title:
-        return False
-    realtor_keywords = [
-        "realtor", "zillow", "redfin", "listing", "for sale", "house for",
-        "home for", "property", "$"
-    ]
-    title_lower = title.lower()
-    return any(keyword in title_lower for keyword in realtor_keywords)
 
 
 # -- Main -------------------------------------------------------------------
@@ -170,144 +144,13 @@ async def main():
         PHASE_TIMINGS['Phase 1'] = elapsed
         log(f"  Phase 1 completed in {elapsed:.2f}s")
 
-        # ---------- Phase 2: RSS feeds (all async, concurrent) ----------
-        rss_items = [(c[0], build_rss_url(c[1]), c[2]) for c in CATEGORIES if c[1]]
-        log(f"\n[Phase 2] Fetching {len(rss_items)} RSS feeds...")
+        # ---------- Phase 2: RSS feeds (extracted) ----------
         t2 = time.time()
-
-        log("  [DEBUG] Categories being fetched:")
-        for name, url, max_stories in rss_items:
-            log(f"    {name}: {url[:100]}... (max: {max_stories})")
-
-        all_results = await asyncio.gather(
-            *(fetch_feed(session, n, u, m) for n, u, m in rss_items),
-            return_exceptions=True
-        )
-
-        by_cat = {}
-        for result in all_results:
-            if isinstance(result, Exception):
-                continue
-            name, entries = result
-            if not isinstance(entries, list):
-                entries = []
-            by_cat[name] = entries
-
-        total_before_dedup = sum(len(v) for v in by_cat.values())
-        log(f"  Fetched {total_before_dedup} stories from {len(by_cat)} categories")
-
-        log("  [DEBUG] Feed results by category:")
-        for name in sorted(by_cat.keys()):
-            count = len(by_cat[name])
-            log(f"    {name}: {count} stories")
-
-        def _dedup_category(cat_name, cat_entries, seen, age_limit_hours):
-            """Dedup and age-filter a single category."""
-            added = age_filtered = dup_filtered = 0
-            for title, link, snippet, pub_dt in cat_entries:
-                is_old = False
-                if pub_dt is not None:
-                    try:
-                        age_secs = (now_ct - pub_dt).total_seconds()
-                        if age_secs > age_limit_hours * 3600:
-                            age_filtered += 1
-                            is_old = True
-                    except Exception:
-                        age_filtered += 1
-                        is_old = True
-                if is_old:
-                    continue
-                norm = normalize_title(title)
-                if norm in seen.get(cat_name, set()):
-                    dup_filtered += 1
-                    continue
-                seen.setdefault(cat_name, set()).add(norm)
-                if is_realt_estate_title(title) or is_obituary_title(title):
-                    continue
-                deduped.append((title, link, snippet, pub_dt, cat_name))
-                added += 1
-            return added, age_filtered, dup_filtered
-
-        deduped = []
-        total_age_filtered = 0
-        total_dup_filtered = 0
-        total_cross_dup_filtered = 0
-        seen_per_cat = {}
-        cats_with_zero_stories = []
-
-        for cat_name in by_cat:
-            age_limit = CATEGORY_AGE_LIMITS.get(cat_name, DEFAULT_AGE_LIMIT_HOURS)
-            added, af, df = _dedup_category(cat_name, by_cat[cat_name], seen_per_cat, age_limit)
-            total_age_filtered += af
-            total_dup_filtered += df
-            if added < 3:
-                cats_with_zero_stories.append((cat_name, added))
-
-        # Adaptive widening
-        widened_cats = {}
-        for cat_name, existing_count in cats_with_zero_stories:
-            matching_cat = next((c for c in CATEGORIES if c[0] == cat_name), None)
-            if not matching_cat or not matching_cat[1]:
-                continue
-            query = matching_cat[1]
-            max_stories = matching_cat[2]
-            default_limit = CATEGORY_AGE_LIMITS.get(cat_name, DEFAULT_AGE_LIMIT_HOURS)
-
-            cat_widened_count = existing_count
-            last_wide_days = 0
-            log(f"  [WIDEN] '{cat_name}' had {existing_count} stories at {default_limit}h — attempting widening (2d-7d)")
-            for widen_days in range(2, 8):
-                widen_hours = widen_days * 24
-                rss_url = build_rss_url(query)
-                result = await fetch_feed(session, cat_name, rss_url, max_stories)
-                name, entries = result
-                if not entries:
-                    log(f"    [{widen_days}d] no entries from feed")
-                    continue
-                added, af, df = _dedup_category(name, entries, seen_per_cat, widen_hours)
-                total_age_filtered += af
-                total_dup_filtered += df
-                if added > 0:
-                    cat_widened_count += added
-                    last_wide_days = widen_days
-                    log(f"    [{widen_days}d] +{added} stories (cumulative: {cat_widened_count})")
-                else:
-                    log(f"    [{widen_days}d] 0 added")
-                if cat_widened_count >= 3:
-                    break
-            if cat_widened_count > existing_count:
-                log(f"  [WIDEN] '{cat_name}' recovered {cat_widened_count - existing_count} additional stories (total: {cat_widened_count}, last successful: {last_wide_days}d)")
-            else:
-                log(f"  [WIDEN] '{cat_name}' exhausted to 7d: still at {existing_count} stories")
-
-        # Cross-category dedup
-        global_seen = set()
-        cross_deduped = []
-        for entry in deduped:
-            title, link, snippet, pub_dt, cat_name = entry
-            norm = normalize_title(title)
-            if norm in global_seen:
-                total_cross_dup_filtered += 1
-                continue
-            global_seen.add(norm)
-            cross_deduped.append(entry)
-        deduped = cross_deduped
-
-        total_after_dedup = len(deduped)
-        log(f"  Deduplicated: {total_before_dedup} -> {total_after_dedup} stories "
-            f"(age-filtered: {total_age_filtered}, dup-filtered: {total_dup_filtered}, cross-cat-filtered: {total_cross_dup_filtered})")
-
-        log("  [DEBUG] Per-category story count AFTER dedup:")
-        cat_counts = {}
-        for entry in deduped:
-            cat = entry[4]
-            cat_counts[cat] = cat_counts.get(cat, 0) + 1
-        for cn in sorted(cat_counts.keys()):
-            log(f"    {cn}: {cat_counts[cn]}")
-
+        deduped, dedup_stats = await fetch_and_dedup(session, CATEGORIES, log)
         elapsed = time.time() - t2
         PHASE_TIMINGS['Phase 2'] = elapsed
         log(f"  Phase 2 completed in {elapsed:.2f}s")
+        total_after_dedup = dedup_stats["total_after"]
 
         # ---------- Phase 3: Summarization (single batch call) ----------
         log("\n[Phase 3] Enriching + summarizing...")

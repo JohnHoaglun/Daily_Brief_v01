@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 — v1.0.13
+# TODO: Daily Brief v01 — v1.0.35
 
 ## Status Legend
 - `[ ]` — TODO (not started)
@@ -92,6 +92,14 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 - `[x]` Updated `__main__.py` — imports from `daily_brief.pipeline` (not `dashboard_pipeline`)
 - `[x]` Fixed subpackage imports — `from config import` → `from daily_brief.config import` (8 files)
 - `[x]` Verified: all 6 phases intact, all subpackage calls wired correctly
+
+### P5.1 — RSS Dedup Extraction (Priority: Medium, Effort: 2 hrs, Risk: Low) — v1.0.35
+- `[x]` Create `pipelines/rss_dedup.py` (269L) — `dedup_entries()`, `widen_category()`, `fetch_and_dedup()`
+- `[x]` Create `pipelines/__init__.py` — re-exports
+- `[x]` Replace Phase 2 in `pipeline.py` with 6-line `fetch_and_dedup()` shim call
+- `[x]` Reduce `pipeline.py` from 521L → 364L (-157L)
+- `[x]` Remove unused imports + duplicate `is_realt_estate_title` from `pipeline.py`
+- `[x]` Verified: 74 stories, 15 categories, all 6 phases pass end-to-end
 
 ### P6 — Config Management & Validation (Priority: High, Effort: 2 hrs, Risk: Zero)
 - `[ ]` Add config validation — check required keys, types, value ranges at startup
@@ -283,6 +291,7 @@ Daily_Brief_v01/
 ---
 
 ## Recent Updates
+- [2026-07-28 21:00] **P5.1 RSS Dedup extraction complete — v1.0.35** — Extracted Phase 2 (138L) into `pipelines/rss_dedup.py` (269L: `dedup_entries`, `widen_category`, `fetch_and_dedup`). Reduced `pipeline.py` 521L → 364L. Phase 2 is now a 6-line shim call. 74 stories, 15 categories verified.
 - [2026-07-26 16:30] **P1 foundation extraction complete** — Created `src/daily_brief/` package (5 files): `__init__.py`, `__main__.py`, `models.py` (6 dataclasses), `utils.py` (7 helpers), `http_client.py` (async fetch). All imports verified. Logging uses standard Python `logging` throughout.
 - [2026-07-26 16:20] **P0 cleanup complete** — Deleted dead code (12 lines), removed duplicate `is_obituary_title` (11 lines), fixed typo `wundereground` → `wunderground` in `config.py`. Full pipeline verified: 55 stories, 0 failures. Line count: 1944 → 1921.
 - [2026-07-26 03:30] **Refactoring plan added** — Full modularization plan (P0-P6), testing strategy (Tiers 1-4), config UI options, proposed file structure. Target: 18 files, 40-250 lines each. ~35 hours total.
@@ -296,6 +305,6 @@ Daily_Brief_v01/
 ---
 
 ## Version Notes
-- Current version: **v1.0.29** (P2 complete — tag distribution goal met, all stories ≥3 tags)
-- Last stable: v1.0.24 (tag distribution work in progress, 2026-07-28)
+- Current version: **v1.0.35** (P5.1 complete — RSS dedup extraction, pipeline.py reduced to 364L)
+- Last stable: v1.0.34 (P5 pipeline + config extraction)
 - Branch: `dev_opencode`, ahead of `origin/dev_opencode`

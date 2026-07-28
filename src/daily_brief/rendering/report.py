@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from datetime import datetime, timezone
 
 from daily_brief.rendering.weather_table import build_weather_markdown
@@ -7,6 +8,61 @@ from daily_brief.tagging import tag_story_with_keywords
 
 
 logger = logging.getLogger(__name__)
+
+
+def build_sections_from_stories(stories, format_pub_date_fn):
+    """Convert StoryPipelineState objects into sections dict + alerts list.
+
+    Args:
+        stories: list of StoryPipelineState objects
+        format_pub_date_fn: callable(raw_date) -> str
+
+    Returns:
+        sections: dict mapping category name -> list of entry dicts
+        alerts_list: list of stories where is_alert is True
+    """
+    alerts_list = [s for s in stories if hasattr(s, 'is_alert') and s.is_alert]
+
+    sections = {}
+    for s in stories:
+        smry = s.summary if s.summary else "[Summary unavailable]"
+        entry = {
+            "title": s.title,
+            "link": s.link,
+            "category": s.category,
+            "summary": smry,
+            "pub_date": format_pub_date_fn(s.pub_dt),
+        }
+        sections.setdefault(s.category, []).append(entry)
+
+    return sections, alerts_list
+
+
+def compute_output_path(output_dir):
+    """Compute next DailyBrief output path with auto-versioning.
+
+    Args:
+        output_dir: directory to write to
+
+    Returns:
+        filepath: full path to output file
+        file_ver: file version number (1, 2, ...)
+    """
+    now = datetime.now(timezone.utc)
+    fn_ts = now.strftime("%Y-%m-%d")
+
+    os.makedirs(output_dir, exist_ok=True)
+    existing = [f for f in os.listdir(output_dir)
+                if f.startswith('DailyBrief-' + fn_ts) and f.endswith('.md')]
+    max_file_ver = 0
+    for bf in existing:
+        mf = re.search(r'_v(\d+)\.md$', bf)
+        if mf:
+            max_file_ver = max(max_file_ver, int(mf.group(1)))
+    file_ver = max_file_ver + 1
+
+    filepath = os.path.join(output_dir, f"DailyBrief-{fn_ts}_v{file_ver:02d}.md")
+    return filepath, file_ver
 
 
 def build_markdown(stories, weather, sections_map, ordered_cats, config_kwargs):

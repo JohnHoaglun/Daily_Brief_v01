@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 — v1.0.35
+# TODO: Daily Brief v01 — v1.0.36
 
 ## Status Legend
 - `[ ]` — TODO (not started)
@@ -100,6 +100,15 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 - `[x]` Reduce `pipeline.py` from 521L → 364L (-157L)
 - `[x]` Remove unused imports + duplicate `is_realt_estate_title` from `pipeline.py`
 - `[x]` Verified: 74 stories, 15 categories, all 6 phases pass end-to-end
+
+### P5.2 — Phase 4 Render Extraction (Priority: Medium, Effort: 2 hrs, Risk: Low) — v1.0.36
+- `[x]` Add `rendering/report.py:build_sections_from_stories()` — converts StoryPipelineState → sections dict + alerts list
+- `[x]` Add `rendering/report.py:compute_output_path()` — auto-versioned filepath generation
+- `[x]` Wire Phase 4 in `pipeline.py` to existing `build_markdown()` + `write_report()` (eliminated 113L inline duplication)
+- `[x]` Reduce `pipeline.py` from 364L → 284L (-80L)
+- `[x]` Remove unused imports (`tag_story_with_keywords`, `build_weather_markdown`) from pipeline.py
+- `[x]` Update `rendering/__init__.py` with `build_sections_from_stories`, `compute_output_path` re-exports
+- `[x]` Verified: 73 stories, 15 categories, all 6 phases pass end-to-end
 
 ### P6 — Config Management & Validation (Priority: High, Effort: 2 hrs, Risk: Zero)
 - `[ ]` Add config validation — check required keys, types, value ranges at startup

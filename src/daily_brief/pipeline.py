@@ -5,8 +5,8 @@ The main() orchestrator extracted from dashboard_pipeline.py.
 
 import sys
 import os
-import time
 import re
+import time
 import threading
 import asyncio
 import aiohttp
@@ -17,7 +17,6 @@ from daily_brief.config import *
 from daily_brief.sources.rss import format_pub_date
 from daily_brief.sources.article import stage_extract_article
 from daily_brief.sources.weather import fetch_weather
-from daily_brief.tagging import tag_story_with_keywords
 from daily_brief.categorization import ordered_categories_for_render
 from daily_brief.pipelines.rss_dedup import fetch_and_dedup
 from daily_brief.llm import create_llm_client
@@ -29,7 +28,13 @@ from daily_brief.llm.summarizer import (
     _is_refusal,
     _is_boilerplate,
 )
-from daily_brief.rendering import build_weather_markdown, cleanup_old_files
+from daily_brief.rendering import cleanup_old_files
+from daily_brief.rendering.report import (
+    build_sections_from_stories,
+    build_markdown,
+    compute_output_path,
+    write_report,
+)
 from daily_brief.validation import validate_report
 from daily_brief.harness import run_test_harness
 
@@ -228,120 +233,34 @@ async def main():
 
         log(f"\n  PROCESSING COMPLETE: {total} stories in {time.time() - t0:.2f}s")
 
-        # ---------- Phase 4: Build sections + render Markdown ----------
+        # ---------- Phase 4: Render report ----------
         log("\n[Phase 4] Rendering report...")
+        t4 = time.time()
 
-        alerts_list = [s for s in stories if hasattr(s, 'is_alert') and s.is_alert]
-
-        sections = {}
-        for s in stories:
-            smry = s.summary if s.summary else "[Summary unavailable]"
-            entry = {
-                "title": s.title,
-                "link": s.link,
-                "category": s.category,
-                "summary": smry,
-                "pub_date": format_pub_date(s.pub_dt),
-            }
-            sections.setdefault(s.category, []).append(entry)
-
-        now = datetime.now(timezone.utc)
-        fn_ts = now.strftime("%Y-%m-%d")
-
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
-        daily_brief_files = [f for f in os.listdir(OUTPUT_DIR) if f.startswith('DailyBrief-' + fn_ts) and f.endswith('.md')]
-        max_file_ver = 0
-        for bf in daily_brief_files:
-            mf = re.search(r'_v(\d+)\.md$', bf)
-            if mf:
-                max_file_ver = max(max_file_ver, int(mf.group(1)))
-        file_ver = max_file_ver + 1
-
-        filepath = os.path.join(OUTPUT_DIR, f"DailyBrief-{fn_ts}_v{file_ver:02d}.md")
-
+        sections, alerts_list = build_sections_from_stories(stories, format_pub_date)
+        filepath, file_ver = compute_output_path(OUTPUT_DIR)
         cleanup_old_files(OUTPUT_DIR, LOG_DIR, MAX_LOG_VERSIONS)
 
         ordered_cats = ordered_categories_for_render([c[0] for c in CATEGORIES if c[1]])
         sections_map = {cn: sections.get(cn, []) for cn in ordered_cats}
-
         rendered_cat_count = sum(1 for cn in ordered_cats
             if cn != WEATHER_SECTION_TITLE and cn != "Weather Forecast 77316"
             and len(sections_map.get(cn, [])) > 0)
 
-        # -- Build markdown --
-        md = []
-        md.append("---")
-        md.append("title: Daily Brief")
-        md.append(f"date: {now.strftime('%Y-%m-%d')}")
-        md.append(f"time_generated: {now.strftime('%Y-%m-%dT%H:%M:%SZ')}")
-        md.append("status: active")
-        md.append(f"content_age_window: {DEFAULT_CONTENT_AGE_WINDOW_HOURS}")
-        md.append(f"story_count_total: {total_after_dedup}")
-        md.append(f"categories: {rendered_cat_count}")
+        md = build_markdown(stories, weather, sections_map, ordered_cats, {
+            "total_after_dedup": total_after_dedup,
+            "rendered_cat_count": rendered_cat_count,
+            "DEFAULT_CONTENT_AGE_WINDOW_HOURS": DEFAULT_CONTENT_AGE_WINDOW_HOURS,
+            "FRONTMATTER_TAG_SEEDS": FRONTMATTER_TAG_SEEDS,
+            "WEATHER_SECTION_TITLE": WEATHER_SECTION_TITLE,
+        })
+        write_report(filepath, md)
 
-        all_tags = set(FRONTMATTER_TAG_SEEDS or [])
-
-        section_tag_map = {}
-        for cn in ordered_cats:
-            cat_stories = sections_map.get(cn, [])
-            for st in cat_stories:
-                if "title" in st and st["title"]:
-                    title = st["title"]
-                    story_tags = tag_story_with_keywords(title, cn)
-                    individual_tags = []
-                    for tag in story_tags.split():
-                        tag = tag.strip()
-                        if tag.startswith('#'):
-                            individual_tags.append(tag.lstrip('#'))
-                        elif tag.startswith('[') and tag.endswith(']'):
-                            tag_content = tag[2:-2]
-                            individual_tags.append(tag_content)
-                    for tag in individual_tags:
-                        all_tags.add(tag.lower())
-            section_tag_map[cn] = cat_stories
-
-        md.append("tags:")
-        sorted_tags = sorted(list(all_tags))
-        for tag in sorted_tags:
-            md.append(f"  - {tag}")
-
-        md.append("---")
-        md.append("")
-        md.append(f"# Daily Brief -- {now.strftime('%B %d, %Y')}")
-        md.extend(build_weather_markdown(weather))
-
-        # Category sections
-        for cn in ordered_cats:
-            if cn == WEATHER_SECTION_TITLE or cn == "Weather Forecast 77316":
-                continue
-            cat_stories = sections_map.get(cn, [])
-            if not cat_stories:
-                log(f"  Empty category: {cn} (rendering header)")
-                md += ["", f"## {cn} (0 stories)", ""]
-                continue
-            md += ["", f"## {cn} ({len(cat_stories)} stories)", ""]
-            for idx, st in enumerate(cat_stories):
-                title_text = st["title"]
-                url_val = st["link"]
-                link_md = f"[{title_text}]({url_val})" if url_val and url_val != "#" else title_text
-                pub_line = f"\n*Originally published on:* {st['pub_date']}" if st.get("pub_date") else ""
-                tags_md = ""
-                if "title" in st and st["title"]:
-                    title = st["title"]
-                    tags_md = tag_story_with_keywords(title, cn)
-                md.append("")
-                md.append(f"{idx + 1}. {link_md}")
-                md.append(st["summary"] + pub_line)
-                md.append(tags_md)
-
-            md.append("---")
-
-        with open(filepath, "w", encoding="utf-8") as fh:
-            fh.write("\n".join(md) + "\n")
-
-        elapsed = time.time() - t0
+        elapsed = time.time() - t4
         log(f"\nFile written to {filepath}")
         log(f"  Stories: {total_after_dedup} | Alerts: {len(alerts_list)} | Failed: {sum_fail}/{total} | Time: {elapsed:.1f}s")
+        PHASE_TIMINGS['Phase 4'] = elapsed
+        log(f"  Phase 4 completed in {elapsed:.2f}s")
 
         # --- Phase 5: Internal report validation ---
         log("\n[Phase 5] Validating report...")

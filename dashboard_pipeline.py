@@ -63,6 +63,10 @@ from daily_brief.llm.summarizer import (
 )
 from daily_brief.llm.alerter import parse_alert_batch_response as _parse_alert_batch_response
 
+# Rendering subpackage
+from daily_brief.rendering import build_weather_markdown, cleanup_old_files
+from daily_brief.rendering.report import build_markdown, write_report
+
 # Pull configuration values after importing config
 # Note: These are already loaded globally by config.py via the globals().update(locals()) pattern. 
 # We just ensure they are available in the local scope if needed.
@@ -955,61 +959,8 @@ async def fetch_weather(session, lat, lon):
 
 
 def _build_weather_markdown(weather):
-    """Build markdown section for the weather block."""
-    rows = weather.get("forecast", [])
-    if not rows:
-        rows = [
-            {"date": "Dynamic", "day": "Dynamic", "night": "Dynamic", "high": "Dynamic", "low": "Dynamic", "precip": "Dynamic", "wind": "Dynamic"}
-        ] * 3
-    if len(rows) < 3:
-        rows.extend([{"date": "Dynamic", "day": "Dynamic", "night": "Dynamic", "high": "Dynamic", "low": "Dynamic", "precip": "Dynamic", "wind": "Dynamic"}] * (3 - len(rows)))
-
-    md = []
-    md.append("")
-    md.append("---")
-    md.append(f"## {WEATHER_SECTION_TITLE}")
-    md.append("")
-    md.append("**3 Day forecast for 77316:**")
-    md.append("")
-    md.append("| **Date** | **Day Condition** | **Night Condition** | **High Temp** | **Low Temp** | **Precip. Chance** | **Wind** |")
-    md.append("| --- | --- | --- | --- | --- | --- | --- |")
-    for row in rows[:3]:
-        md.append(
-            "| "
-            f"{_present_weather_value(row.get('date'), 'Unavailable')} | "
-            f"{_present_weather_value(row.get('day'), 'Unavailable')} | "
-            f"{_present_weather_value(row.get('night'), 'Unavailable')} | "
-            f"{_present_weather_value(row.get('high'), 'Unavailable')} | "
-            f"{_present_weather_value(row.get('low'), 'Unavailable')} | "
-            f"{_present_weather_value(row.get('precip'), 'Unavailable')} | "
-            f"{_present_weather_value(row.get('wind'), 'Unavailable')} |"
-        )
-
-    md.append("")
-    station = weather.get("station", {})
-    md.append(f"| {WEATHER_LABELS.get('station_rows', ['Climate Normal High for today 77316'])[0]} | {_present_weather_value(station.get('avg_temp_today'), 'Unavailable')} |")
-    md.append("| --- | --- |")
-    station_rows = WEATHER_LABELS.get('station_rows', ["Climate Normal High for today 77316", "Average Monthly rainfall for 77316", "Current Monthly rainfall for 77316"])
-    md.append(f"| {station_rows[1]} | {_present_weather_value(station.get('avg_monthly_rainfall'), 'Unavailable')} |")
-    md.append(f"| {station_rows[2]} | {_present_weather_value(station.get('current_monthly_rainfall'), 'Unavailable')} |")
-    md.append("")
-    md.append("| Where | Today | 1 Week Ago | 30 Days ago |")
-    md.append("| --- | --- | --- | --- |")
-    def _lake_label(k):
-        base = k.replace("_", " ").replace("-", " ").title()
-        return f"Lake {base}" if not base.startswith("Lake") else base
-    for key in (WEATHER_LAKE_URLS or {}):
-        label = _lake_label(key)
-        vals = weather.get("lakes", {}).get(key, {})
-        md.append(
-            f"| {label} | {_present_weather_value(vals.get('today'), 'Unavailable')} | "
-            f"{_present_weather_value(vals.get('one_week_ago'), 'Unavailable')} | "
-            f"{_present_weather_value(vals.get('thirty_days_ago'), 'Unavailable')} |"
-        )
-
-    md.append("")
-    md.append("---")
-    return md
+    """Delegate to rendering.weather_table — thin wrapper for backwards-compatibility."""
+    return build_weather_markdown(weather)
 
 
 # -- Ollama helpers (blocking, run in thread pool) -------------------------
@@ -1423,31 +1374,8 @@ async def main():
         # Format with proper naming convention
         filepath = os.path.join(OUTPUT_DIR, f"DailyBrief-{fn_ts}_v{file_ver:02d}.md")
 
-        # Cleanup: keep MAX_LOG_VERSIONS most recent reports (default: 5)
-        if MAX_LOG_VERSIONS > 0:
-            try:
-                os.makedirs(OUTPUT_DIR, exist_ok=True)
-                
-                # Get all DailyBrief files
-                all_reports = [f for f in os.listdir(OUTPUT_DIR) if f.startswith('DailyBrief-') and f.endswith('.md')]
-                all_reports.sort(key=lambda x: os.path.getmtime(os.path.join(OUTPUT_DIR, x)), reverse=True)
-                for old_report in all_reports[MAX_LOG_VERSIONS:]:
-                    os.remove(os.path.join(OUTPUT_DIR, old_report))
-                    log(f"Removed old report: {old_report}")
-                
-                # Cleanup logs — keep only MAX_LOG_VERSIONS most recent
-                logs_dir = LOG_DIR
-                os.makedirs(logs_dir, exist_ok=True)
-                valid_log_files = sorted(
-                    [f for f in os.listdir(logs_dir) if f.startswith('run_log_') and f.endswith('.md')],
-                    key=lambda x: os.path.getmtime(os.path.join(logs_dir, x)),
-                    reverse=True,
-                )
-                for old_log in valid_log_files[MAX_LOG_VERSIONS:]:
-                    os.remove(os.path.join(logs_dir, old_log))
-                    log(f"Removed old log: {old_log}")
-            except Exception as e:
-                log(f"Warning: Could not cleanup old files: {e}")
+        # Cleanup: keep MAX_LOG_VERSIONS most recent
+        cleanup_old_files(OUTPUT_DIR, LOG_DIR, MAX_LOG_VERSIONS)
 
         ordered_cats = ordered_categories_for_render([c[0] for c in CATEGORIES if c[1]])
         sections_map = {cn: sections.get(cn, []) for cn in ordered_cats}

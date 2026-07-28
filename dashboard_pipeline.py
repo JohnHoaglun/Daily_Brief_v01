@@ -1800,12 +1800,12 @@ async def main():
             added, af, df = _dedup_category(cat_name, by_cat[cat_name], seen_per_cat, age_limit)
             total_age_filtered += af
             total_dup_filtered += df
-            if added == 0:
-                cats_with_zero_stories.append(cat_name)
+            if added < 3:
+                cats_with_zero_stories.append((cat_name, added))
 
-        # Adaptive widening: re-fetch 0-story categories with expanded age window (up to 7 days)
+        # Adaptive widening: re-fetch underpopulated categories (<3 stories) with expanded age window (up to 7 days)
         widened_cats = {}
-        for cat_name in cats_with_zero_stories:
+        for cat_name, existing_count in cats_with_zero_stories:
             matching_cat = next((c for c in CATEGORIES if c[0] == cat_name), None)
             if not matching_cat or not matching_cat[1]:
                 continue
@@ -1813,9 +1813,9 @@ async def main():
             max_stories = matching_cat[2]
             default_limit = CATEGORY_AGE_LIMITS.get(cat_name, DEFAULT_AGE_LIMIT_HOURS)
 
-            cat_widened_count = 0
+            cat_widened_count = existing_count
             last_wide_days = 0
-            log(f"  [WIDEN] '{cat_name}' had 0 stories at {default_limit}h — attempting widening (2d-7d)")
+            log(f"  [WIDEN] '{cat_name}' had {existing_count} stories at {default_limit}h — attempting widening (2d-7d)")
             for widen_days in range(2, 8):
                 widen_hours = widen_days * 24
                 rss_url = build_rss_url(query)
@@ -1835,10 +1835,10 @@ async def main():
                     log(f"    [{widen_days}d] 0 added")
                 if cat_widened_count >= 3:
                     break
-            if cat_widened_count > 0:
-                log(f"  [WIDEN] '{cat_name}' recovered {cat_widened_count} stories (last successful: {last_wide_days}d)")
+            if cat_widened_count > existing_count:
+                log(f"  [WIDEN] '{cat_name}' recovered {cat_widened_count - existing_count} additional stories (total: {cat_widened_count}, last successful: {last_wide_days}d)")
             else:
-                log(f"  [WIDEN] '{cat_name}' exhausted to 7d: 0 stories recovered")
+                log(f"  [WIDEN] '{cat_name}' exhausted to 7d: still at {existing_count} stories")
 
         # Cross-category dedup: prevent same story appearing in multiple categories
         global_seen = set()

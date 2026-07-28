@@ -24,10 +24,8 @@ Run: python dashboard_pipeline.py
 import asyncio
 import aiohttp
 import feedparser
-from concurrent.futures import ThreadPoolExecutor
 from functools import cmp_to_key
 from bs4 import BeautifulSoup
-from openai import OpenAI
 import sys
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
@@ -50,8 +48,20 @@ from config import *
 from daily_brief.categorization import ordered_categories_for_render as _ordered_categories_for_render
 from daily_brief.tagging import tag_story_with_keywords as _tag_story_with_keywords
 
-# OpenAI-compatible client (works with vLLM, Ollama, cloud providers)
-_llm_client = OpenAI(api_key="not-needed", base_url=OLLAMA_HOST + "/v1" if "/v1" not in OLLAMA_HOST else OLLAMA_HOST, timeout=180)
+# LLM subpackage — client factory + helpers
+from daily_brief.llm import create_llm_client, _executor, _run_blocking, LLMClient
+_llm_client = create_llm_client(LLM_MODEL, OLLAMA_HOST, timeout=180)
+
+# Re-export helpers used elsewhere in this monolith (moved to llm/ subpackage)
+from daily_brief.llm.summarizer import (
+    _safe_sentence_summary,
+    _is_refusal,
+    _is_boilerplate,
+    _count_sentences,
+    build_context,
+    StoryPipelineState,
+)
+from daily_brief.llm.alerter import parse_alert_batch_response as _parse_alert_batch_response
 
 # Pull configuration values after importing config
 # Note: These are already loaded globally by config.py via the globals().update(locals()) pattern. 
@@ -64,9 +74,6 @@ OUTPUT_DIR = NEWS_DIR  # For backwards compatibility with existing code
 # Log file lives in the logs directory inside Obsidian vault (unique .md per run)
 RUN_LOGFILE = None   # set dynamically at start of each run as .md
 log_lock = threading.Lock()
-
-# Thread pool with 3 workers to match Ollama NUM_PARALLEL=3 limit
-_executor = ThreadPoolExecutor(max_workers=3)
 
 # Browser pool for Playwright
 
@@ -612,326 +619,6 @@ async def _fetch_station_monthly_rainfall(session, reference):
     }
 
 
-def _safe_sentence_summary(text):
-    if not text:
-        return ""
-    s = re.sub(r"\s+", " ", str(text)).strip()
-    s = s.replace("..", ".").strip()
-    parts = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"'])", s)
-    parts = [p.strip() for p in parts if p.strip()]
-    if len(parts) >= 3:
-        return " ".join(parts[:3]).strip()
-    return s
-
-
-def _is_refusal(text):
-    """Detect LLM refusal/placeholder text that is not a real summary."""
-    if not text:
-        return False
-    t = text.strip().lower()
-    refusal_phrases = [
-        "please provide the article",
-        "i don't have access",
-        "i do not have access",
-        "i can't",
-        "i cannot",
-        "cannot summarize",
-        "no article content",
-        "unable to summarize",
-        "article not provided",
-        "no content available",
-        "write a detailed summary for you",
-        "i am not able to",
-        "i'm not able to",
-        "please provide the source",
-    ]
-    return any(p in t for p in refusal_phrases)
-
-
-def _is_boilerplate(text):
-    """Detect vague, generic boilerplate summaries that lack concrete facts."""
-    if not text:
-        return False
-    t = text.strip().lower()
-    boilerplate_phrases = [
-        "this highlights a significant",
-        "this suggests a",
-        "this indicates a",
-        "further details on the nature",
-        "further details are not",
-        "are not included",
-        "are not specified",
-        "details regarding",
-        "this serves as",
-        "this demonstrates",
-        "this underscores",
-        "this reflects",
-        "this signals",
-    ]
-    return any(p in t for p in boilerplate_phrases)
-
-
-def _count_sentences(text):
-    if not text:
-        return 0
-    parts = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"'])", re.sub(r"\s+", " ", str(text)).strip())
-    parts = [p.strip() for p in parts if p.strip()]
-    return len(parts)
-
-
-def parse_batch_summary_response(response, count, story_headlines=None):
-    """
-    Parse summaries from flexible batch output formats:
-      ### 1. ..., 1. ..., 1) ..., STORY_0 ...
-      STORY_N | <headline excerpt>=<summary>
-    Returns list of length count.
-    
-    If story_headlines is provided (list of title strings), uses headline keyword
-    overlap to match summaries to the correct stories, tolerating out-of-order output.
-    """
-    results = ["" for _ in range(count)]
-    if not response:
-        return results
-
-    lines = response.splitlines()
-
-    # Extract STORY_N | <text> blocks (may or may not have = separator)
-    story_line_re = re.compile(
-        r"STORY[_\-\s]*(\d+)\s*\|?\s*(.*)$",
-        flags=re.IGNORECASE
-    )
-    
-    # Track which indices were matched by headline
-    matched_by_headline = set()
-    matched_by_summary_overlap = set()
-    
-    if story_headlines:
-        for line in lines:
-            m = story_line_re.match(line.strip())
-            if not m:
-                continue
-            
-            idx = int(m.group(1))
-            rest_text = m.group(2).strip()
-            
-            if not rest_text:
-                continue
-            
-            # Try to split at '=' first
-            summary_text = rest_text
-            if '=' in rest_text:
-                eq_parts = rest_text.split('=', 1)
-                summary_text = eq_parts[1].strip() if len(eq_parts) > 1 else rest_text
-            
-            # Clean summary: remove leading STORY_N numbers if present
-            summary_text = re.sub(r"^STORY[_\-\s]*\d+\s*\|?\s*", "", summary_text).strip()
-            
-            if not summary_text:
-                continue
-            
-            # Strategy 1: Match by summary-to-headline keyword overlap
-            # Find the best matching story by checking keyword overlap between
-            # the summary text and each headline
-            best_idx = None
-            best_score = 0.0
-            
-            # Extract significant words from summary (first 20 words only)
-            summary_words = set(re.findall(r'\b[a-z]{4,}\b', summary_text[:150].lower()))
-            
-            for si, sh in enumerate(story_headlines):
-                sh_words = set(re.findall(r'\b[a-z]{4,}\b', sh.lower()))
-                if not sh_words or not summary_words:
-                    continue
-                # Overlap: how many headline words appear in the summary
-                overlap = len(sh_words & summary_words) / len(sh_words)
-                if overlap > best_score:
-                    best_score = overlap
-                    best_idx = si
-            
-            # If >= 30% of headline words appear in summary, it's a match
-            if best_idx is not None and best_score >= 0.3 and best_idx < count:
-                cleaned_summary = _safe_sentence_summary(summary_text)
-                if cleaned_summary:
-                    results[best_idx] = cleaned_summary
-                    matched_by_headline.add(best_idx)
-                log(f"Parsed STORY_{idx} -> matched headline[{best_idx}] 'overlap {best_score:.2f}'")
-                continue
-            
-            # Strategy 2: If LLM includes headline excerpt, match by headline
-            # Split rest_text: first ~4-8 words are the headline excerpt, rest is summary
-            parts = rest_text.split()
-            if len(parts) > 8:
-                # Try first 4-10 words as headline excerpt
-                for excerpt_len in range(4, min(11, len(parts))):
-                    headline_excerpt = ' '.join(parts[:excerpt_len]).lower()
-                    excerpt_words = set(re.findall(r'\b[a-z]{4,}\b', headline_excerpt))
-                    
-                    if not excerpt_words:
-                        continue
-                    
-                    best_idx2 = None
-                    best_score2 = 0.0
-                    for si, sh in enumerate(story_headlines):
-                        sh_words = set(re.findall(r'\b[a-z]{4,}\b', sh.lower()))
-                        if not sh_words:
-                            continue
-                        overlap = len(sh_words & excerpt_words) / len(excerpt_words)
-                        if overlap > best_score2:
-                            best_score2 = overlap
-                            best_idx2 = si
-                    
-                    if best_idx2 is not None and best_score2 >= 0.3 and best_idx2 < count:
-                        summary_part = ' '.join(parts[excerpt_len:])
-                        cleaned_summary = _safe_sentence_summary(summary_part)
-                        if cleaned_summary and best_idx2 not in matched_by_headline:
-                            results[best_idx2] = cleaned_summary
-                            matched_by_headline.add(best_idx2)
-                        log(f"Parsed STORY_{idx} -> matched headline[{best_idx2}] 'excerpt overlap {best_score2:.2f}'")
-                        break
-    
-    # Log unmatched stories
-    matched_count = len(matched_by_headline)
-    unmatched = [i for i in range(count) if i not in matched_by_headline]
-    if not matched_count:
-        log(f"[MATCH] 0/{count} by headline keyword — all positional fallback")
-    elif unmatched:
-        log(f"[MATCH] {matched_count}/{count} by headline, {len(unmatched)} positional fallback")
-    else:
-        log(f"[MATCH] {matched_count}/{count} by headline — all resolved")
-
-    # Fallback: original index-based positional parsing for unmatched stories
-    heading_re = re.compile(
-        r"^\s*(?:###\s*)?(?:\*\*)?(?:(\d+)[\)\.]\s*|STORY[_\-\s]*(\d+)\s*[:\)]?\s*)(.*)$",
-        flags=re.IGNORECASE
-    )
-
-    headers = []
-    story_key_re = re.compile(r"STORY[_\-\s]*(\d+)", flags=re.IGNORECASE)
-
-    for i, line in enumerate(lines):
-        m = heading_re.match(line.strip())
-        if m:
-            idx = m.group(1) or m.group(2)
-            if not idx:
-                continue
-            idx = int(idx)
-            if m.group(1) is not None and idx > 0:
-                idx -= 1
-            if 0 <= idx < count:
-                headers.append((i, idx, line))
-
-            m2 = story_key_re.match(line.strip())
-            if m2 and m2.group(1):
-                idx = int(m2.group(1))
-                if idx > 0:
-                    idx -= 1
-                if 0 <= idx < count:
-                    if (i, idx, line) not in headers:
-                        headers.append((i, idx, line))
-
-    # If the model used a 'Summary of ...:' style heading, capture those too.
-    if not headers:
-        for i, line in enumerate(lines):
-            l = line.lower()
-            if l.startswith("summary") and ":" in line and count > 1:
-                headers.append((i, None, line))
-
-    if not headers:
-        # If the model returned a single plain paragraph for one story, use it as fallback.
-        if count == 1:
-            cleaned = "\n".join(
-                [l for l in lines if l.strip() and not l.strip().startswith("Here are") and not l.strip().startswith("***")]
-            ).strip()
-            if cleaned:
-                results[0] = _safe_sentence_summary(cleaned)
-        return results
-
-    # Normalize duplicate headers and assign missing indexes in sequence.
-    normalized = []
-    for line_idx, idx, raw in headers:
-        if idx is None:
-            normalized.append((line_idx, None, raw))
-        else:
-            normalized.append((line_idx, idx, raw))
-    headers = normalized
-    if count > 1 and all(h[1] is None for h in headers):
-        # No explicit index markers; distribute chunks sequentially across lines.
-        fallback_chunks = []
-        current = []
-        for i, line in enumerate(lines):
-            if line.strip().lower().startswith("summary of") and i > 0:
-                if current:
-                    fallback_chunks.append(current)
-                    current = []
-            current.append(line)
-        if current:
-            fallback_chunks.append(current)
-        for i, chunk in enumerate(fallback_chunks[:count]):
-            results[i] = _safe_sentence_summary("\n".join(chunk).strip())
-        return results
-
-    for n, (line_idx, idx, raw) in enumerate(headers):
-        # Skip if already matched by headline
-        if idx in matched_by_headline:
-            continue
-        start = line_idx
-        end = len(lines)
-        if n + 1 < len(headers):
-            end = headers[n + 1][0]
-
-        chunk = "\n".join(lines[start:end]).strip()
-        if not chunk:
-            continue
-        chunk_lines = [l for l in lines[start:end] if l.strip()]
-
-        head = raw.strip()
-        summary = head
-        for sep in (":", "-", ")"):
-            _, sep_token, rest = head.partition(sep)
-            if sep_token:
-                summary = rest.strip()
-                break
-        # If heading was followed by summary text on later lines (most common case), prefer that.
-        if len(chunk_lines) > 1:
-            summary = "\n".join(chunk_lines[1:]).strip()
-        elif not summary and "." in head:
-            summary = head.split(".", 1)[1].strip()
-        if not summary:
-            summary = "\n".join(chunk_lines).strip()
-
-        summary = re.sub(r"^\*+\s*", "", summary)
-        summary = re.sub(r"^(###\s*)?\**\d+[\)\.]\s*", "", summary)
-        summary = re.sub(r"^Summary:\s*", "", summary, flags=re.IGNORECASE)
-        summary = re.sub(r"\*\*|\*{2,}$", "", summary).strip()
-        results[idx] = _safe_sentence_summary(summary)
-
-    # Post-match: detect and fix adjacent swap pairs
-    # If two adjacent stories' summaries are each a better match for the OTHER
-    # headline, swap them to fix off-by-one misalignment
-    if story_headlines:
-        for i in range(len(results) - 1):
-            j = i + 1
-            hi = story_headlines[i] if i < len(story_headlines) else ""
-            hj = story_headlines[j] if j < len(story_headlines) else ""
-            si = results[i].lower()
-            sj = results[j].lower()
-            if not si or not sj or not hi or not hj:
-                continue
-            hi_words = set(re.findall(r'\b[a-z]{3,}\b', hi.lower()))
-            hj_words = set(re.findall(r'\b[a-z]{3,}\b', hj.lower()))
-            if not hi_words or not hj_words:
-                continue
-            overlap_i_to_j = len(hj_words & set(re.findall(r'\b[a-z]{3,}\b', si))) / len(hj_words)
-            overlap_j_to_i = len(hi_words & set(re.findall(r'\b[a-z]{3,}\b', sj))) / len(hi_words)
-            overlap_i_normal = len(hi_words & set(re.findall(r'\b[a-z]{3,}\b', si))) / len(hi_words)
-            overlap_j_normal = len(hj_words & set(re.findall(r'\b[a-z]{3,}\b', sj))) / len(hj_words)
-            if overlap_i_to_j > overlap_i_normal and overlap_j_to_i > overlap_j_normal:
-                results[i], results[j] = results[j], results[i]
-                log(f"SWAP FIX: swapped stories {i} and {j} (cross-overlap {overlap_i_to_j:.2f}/{overlap_j_to_i:.2f} > normal {overlap_i_normal:.2f}/{overlap_j_normal:.2f})")
-
-    return results
-
-
 async def _fetch_climate_normal_high(session):
     """Fetch the historical average high temperature for today's date from Open-Meteo ERA5.
     Returns the climate normal (long-term average) for this calendar date — NOT today's forecast.
@@ -1328,57 +1015,12 @@ def _build_weather_markdown(weather):
 # -- Ollama helpers (blocking, run in thread pool) -------------------------
 
 def _summarize(context, min_chars=LLM_SUMMARY_TRIM_MIN_CHARS, strict=False):
-    """Blocking summary call with retry. Set strict=True to use the stricter anti-boilerplate prompt."""
-    if not context or len(context.strip()) < min_chars:
-        return None
-    prompt = SUMMARY_STRICT_PROMPT if strict else SUMMARY_PROMPT
-    for attempt in range(2):
-        try:
-            t0 = time.time()
-            r = _llm_client.chat.completions.create(
-                model=LLM_MODEL,
-                messages=[
-                    {"role": "system", "content": prompt},
-                    {"role": "user", "content": context[:LLM_SUMMARY_CONTEXT_CHARS]}
-                ],
-                **LLM_SUMMARY_OPTIONS
-            )
-            log(f"{'STRICT ' if strict else ''}SUMMARIZE: {time.time() - t0:.2f}s")
-            summary_text = r.choices[0].message.content or ""
-            summary_text = " ".join([ln.strip() for ln in str(summary_text).splitlines() if ln.strip()])
-            return summary_text
-        except Exception as e:
-            if attempt == 0:
-                log(f"{'STRICT ' if strict else ''}SUMMARIZE attempt 1 failed ({e}), retrying 3s...")
-                time.sleep(3)
-            else:
-                log(f"{'STRICT ' if strict else ''}SUMMARIZE ERROR (final): {e}")
-    return None
-
-
-
-
-
-def _run_blocking(fn, *args):
-    """Run a blocking function in the thread pool executor."""
-    loop = asyncio.get_event_loop()
-    return loop.run_in_executor(_executor, fn, *args)
+    """Delegate to llm.summarizer — thin wrapper for backwards-compatibility."""
+    from daily_brief.llm.summarizer import _summarize as _llm_summarize
+    return _llm_summarize(_llm_client, context, min_chars=min_chars, strict=strict)
 
 
 # -- Stage workers (for parallel phase 3) -----------------------------------
-
-class StoryPipelineState:
-    __slots__ = ("title", "link", "snippet", "category", "pub_dt", "context", "summary")
-
-    def __init__(self, title, link, snippet, pub_dt, category):
-        self.title = title
-        self.link = link
-        self.snippet = snippet
-        self.category = category
-        self.pub_dt = pub_dt
-        self.context = None
-        self.summary = None
-
 
 async def stage_extract_article(story, session):
     """Phase 3A: Fetch full article text from source URL for summary context when link is an external publisher URL."""
@@ -1407,219 +1049,16 @@ async def stage_extract_article(story, session):
         log(f"  [extract error] '{story.title[:60]}...': {e}")
 
 
-def build_context(story):
-    """Build the text context for a single story â€” capped at 600 chars for batch processing."""
-    context = story.context
-    if context and len(str(context).strip()) >= 50:
-        return str(context).strip()[:LLM_CONTEXT_PREVIEW_CHARS]  # Cap article content
-    
-    parts = [v.strip() for v in [story.snippet, story.title] if v and len((v or "").strip()) > 0]
-    if not parts:
-        return f"{story.category}: {story.title}"
-    
-    inner = "\n---\n".join(parts + [f"Category: {story.category}"])
-    return inner[:LLM_CONTEXT_PREVIEW_CHARS]
-
-
 def batch_summarize_all(stories, session=None):
-    """Batch summarization with sub-batches of max 3 stories for reliability. Returns dict mapping story object -> summary text."""
-    if not stories:
-        return {}
-    
-    # Group by category
-    by_category = {}
-    for s in stories:
-        by_category.setdefault(s.category, []).append(s)
-    
-    all_summaries = {}
-    
-    SYSTEM_BATCH = SYSTEM_BATCH_PROMPT
-    BATCH_SIZE = 3  # Max stories per batch for reliable ordering
-    
-    total_parsed = 0
-    for cat_name, cat_stories in by_category.items():
-        # Split into sub-batches of BATCH_SIZE
-        sub_batches = []
-        for i in range(0, len(cat_stories), BATCH_SIZE):
-            sub_batches.append(cat_stories[i:i + BATCH_SIZE])
-        
-        for sub_batch in sub_batches:
-            # Build contexts for this sub-batch
-            context_lines = []
-            for idx, s in enumerate(sub_batch):
-                # Build a shorter context: title + first 400 chars of article if available
-                context_parts = [s.title]
-                content = build_context(s)
-                if len(content) > LLM_CONTEXT_PREVIEW_CHARS:
-                    content = content[:LLM_CONTEXT_PREVIEW_CHARS]
-                context_parts.append(content)
-                
-                entry = f"{idx + 1}. {cat_name}\n" + "\n".join(context_parts)
-                context_lines.append(entry)
-            
-            batch_text = "\n---\n\n".join(context_lines)
-            
-            # Make ONE batch call for this sub-batch
-            try:
-                t0 = time.time()
-                r = _llm_client.chat.completions.create(
-                    model=LLM_MODEL,
-                    messages=[
-                        {"role": "system", "content": SYSTEM_BATCH},
-                        {"role": "user", "content": batch_text}
-                    ],
-                    **LLM_SUMMARY_OPTIONS
-                )
-                elapsed = time.time() - t0
-                sub_batch_label = f"{cat_name} (batch {len(sub_batch)})"
-                log(f"BATCH SUMMARIZE ({sub_batch_label}): {elapsed:.1f}s")
-                
-                resp_text = r.choices[0].message.content if r.choices else ""
-                log(f"BATCH OUTPUT ({sub_batch_label}): {resp_text[:400]}")
-
-                parsed_summaries = parse_batch_summary_response(
-                    resp_text, len(sub_batch),
-                    story_headlines=[s.title for s in sub_batch]
-                )
-                for idx, s in enumerate(sub_batch):
-                    summary = parsed_summaries[idx] if idx < len(parsed_summaries) else ""
-                    headline = s.title.strip()
-                    
-                    def is_invalid_summary(value):
-                        if not value:
-                            return True
-                        normalized = re.sub(r"\s+", " ", value).strip().lower()
-                        headline_norm = reed_safe(headline)
-                        if normalized == headline_norm or normalized.startswith(headline_norm + "."):
-                            return True
-                        return _count_sentences(value) < 2
-
-                    def reed_safe(text):
-                        return re.sub(r"\s+", " ", text).strip().lower()
-
-                    if not summary or not summary.strip():
-                        s.summary = ""
-                        continue
-                    
-                    if not is_invalid_summary(summary):
-                        s.summary = summary
-                        total_parsed += 1
-                    else:
-                        s.summary = ""
-
-            except Exception as e:
-                log(f"BATCH SUMMARIZE ERROR ({cat_name}): {e}")
-                for s in sub_batch:
-                    s.summary = f"[Headline] {s.title}"
-    
-    return all_summaries
+    """Delegate to llm.summarizer — thin wrapper for backwards-compatibility."""
+    from daily_brief.llm.summarizer import batch_summarize_all as _llm_batch_summarize
+    return _llm_batch_summarize(_llm_client, stories, session=session)
 
 
 def batch_evaluate_alerts(stories):
-    """Single Ollama call to evaluate ALL stories for alert priority.
-    Returns dict mapping index â†’ True/False."""
-    if not stories:
-        return {}
-
-    # Group by category to prevent overload and ensure proper handling
-    by_category = {}
-    for s in stories:
-        by_category.setdefault(s.category, []).append(s)
-    
-    # Process each category separately to avoid hitting context limits or timeouts
-    all_alerts = {}
-    for cat_name, cat_stories in by_category.items():
-        # Build input text â€” only include stories that have valid summaries
-        labeled_summaries = []
-        summary_indices = []  # Track which stories are included
-        idx = 0
-        
-        for s in cat_stories:
-            if not s.summary or s.summary.startswith("[") or "unavailable" in s.summary.lower():
-                continue
-            label = f"STORY_{idx}"
-            entry = f"{label} | Headline: {s.title}\nSummary: {s.summary}"
-            labeled_summaries.append(entry)
-            s._alert_idx = idx  # Tag the story with its batch index
-            summary_indices.append(idx)
-            idx += 1
-        
-        if not labeled_summaries:
-            continue
-
-        alert_text = "\n\n".join(labeled_summaries)
-        
-        SYSTEM_ALERT_BATCH = SYSTEM_ALERT_PROMPT
-
-        for attempt in range(2):
-            try:
-                t0 = time.time()
-                r = _llm_client.chat.completions.create(
-                    model=LLM_MODEL,
-                    messages=[
-                        {"role": "system", "content": SYSTEM_ALERT_BATCH},
-                        {"role": "user", "content": alert_text}
-                    ],
-                    **LLM_ALERT_OPTIONS
-                )
-                log(f"BATCH ALERT EVAL ({cat_name}, {len(labeled_summaries)} stories): {time.time() - t0:.2f}s")
-                
-                resp_text = r.choices[0].message.content
-                alert_results = parse_alert_batch_response(resp_text)
-                
-                # Map results back to stories
-                alerts_flagged = 0
-                for s in cat_stories:
-                    if hasattr(s, '_alert_idx') and s._alert_idx in alert_results:
-                        s.is_alert = alert_results[s._alert_idx]
-                        if s.is_alert:
-                            alerts_flagged += 1
-                    else:
-                        s.is_alert = False
-                
-                break  # Success, exit retry loop
-            except Exception as e:
-                if attempt == 0:
-                    log(f"BATCH ALERT EVAL ({cat_name}) attempt 1 failed ({e}), retrying...")
-                    time.sleep(3)
-                else:
-                    log(f"BATCH ALERT ERROR ({cat_name}, final): {e}")
-                    # Even if we fail, continue to next category - don't crash the whole pipeline
-                    for s in cat_stories:
-                        s.is_alert = False
-    
-    # Build return dict mapping global index â†’ bool for all stories
-    alert_index = {}
-    for i, s in enumerate(stories):
-        if hasattr(s, "is_alert"):
-            alert_index[i] = s.is_alert
-        else:
-            alert_index[i] = False
-    
-    return alert_index
-
-
-def parse_alert_batch_response(response):
-    """Parse alert batch response into dict mapping index â†’ bool."""
-    results = {}
-    for line in response.split('\n'):
-        line = line.strip()
-        if line.startswith('STORY_'):
-            try:
-                parts = line.split(':', 1)
-                idx_str = parts[0].replace('STORY_', '')
-                val = parts[1].strip().upper()
-                idx = int(idx_str)
-                results[idx] = (val == "TRUE")
-            except (ValueError, IndexError):
-                pass
-        else:
-            # Fallback: <number>: TRUE/FALSE
-            parts = line.split(':', 1)
-            if len(parts) == 2 and parts[0].strip().isdigit() and parts[1].strip() in ('TRUE', 'FALSE'):
-                idx = int(parts[0].strip())
-                results[idx] = (parts[1].strip().upper() == "TRUE")
-    return results
+    """Delegate to llm.alerter — thin wrapper for backwards-compatibility."""
+    from daily_brief.llm.alerter import batch_evaluate_alerts as _llm_batch_alerts
+    return _llm_batch_alerts(_llm_client, stories)
 
 
 def ordered_categories_for_render(all_cats):

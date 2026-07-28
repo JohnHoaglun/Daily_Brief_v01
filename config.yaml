@@ -21,8 +21,16 @@ weather:
   wunderground_monthly_template: https://www.wunderground.com/dashboard/pws/{station_id}/graph/{date}/{date}/monthly
   lake_urls:
     conroe: https://waterdatafortexas.org/reservoirs/individual/conroe
-    corpus_christi: https://waterdatafortexas.org/reservoirs/individual/corpus-christi
+    livingston: https://waterdatafortexas.org/reservoirs/individual/livingston
+    waco: https://waterdatafortexas.org/reservoirs/individual/waco
     travis: https://waterdatafortexas.org/reservoirs/individual/travis
+    ray_roberts: https://waterdatafortexas.org/reservoirs/individual/ray-roberts
+    lewisville: https://waterdatafortexas.org/reservoirs/individual/lewisville
+    ray_hubbard: https://waterdatafortexas.org/reservoirs/individual/ray-hubbard
+    choke_canyon: https://waterdatafortexas.org/reservoirs/individual/choke-canyon
+    corpus_christi: https://waterdatafortexas.org/reservoirs/individual/corpus-christi
+    caddo: https://waterdatafortexas.org/reservoirs/individual/caddo
+    toledo_bend: https://waterdatafortexas.org/reservoirs/individual/toledo-bend
   forecast_suffix: forecast
   section_title: Weather Forecast
 rss:

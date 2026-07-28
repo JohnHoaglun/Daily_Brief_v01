@@ -23,6 +23,34 @@
 - `[x]` Extract `http_client.py` — `_fetch_json`, `_fetch_text`, aiohttp session management
 - `[x]` Replace custom `log()` with standard Python `logging` + `RotatingFileHandler` in all new modules
 
+### Lake Level Expansion — v1.0.31 (Priority: High, Effort: 1 hr, Risk: Zero)
+Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafortexas.org` site/format as existing lakes.
+
+**Current lakes (3):**
+- Lake Conroe: `https://waterdatafortexas.org/reservoirs/individual/conroe`
+- Lake Travis: `https://waterdatafortexas.org/reservoirs/individual/travis`
+- Lake Corpus Christi: `https://waterdatafortexas.org/reservoirs/individual/corpus-christi`
+
+**New lakes to add (9):**
+- Lake Houston: `https://waterdatafortexas.org/reservoirs/individual/livingston`
+- Livingston: `https://waterdatafortexas.org/reservoirs/individual/livingston`
+- Waco Lake: `https://waterdatafortexas.org/reservoirs/individual/waco`
+- Lake Travis: `https://waterdatafortexas.org/reservoirs/individual/travis`
+- Ray Roberts Lake: `https://waterdatafortexas.org/reservoirs/individual/ray-roberts`
+- Lewisville Lake: `https://waterdatafortexas.org/reservoirs/individual/lewisville`
+- Lake Ray Hubbard: `https://waterdatafortexas.org/reservoirs/individual/ray-hubbard`
+- Choke Canyon Reservoir: `https://waterdatafortexas.org/reservoirs/individual/choke-canyon`
+- Lake Corpus Christi: `https://waterdatafortexas.org/reservoirs/individual/corpus-christi`
+- Caddo Lake: `https://waterdatafortexas.org/reservoirs/individual/caddo`
+- Toledo Bend: `https://waterdatafortexas.org/reservoirs/individual/toledo-bend`
+
+**Tasks:**
+- `[x]` Update `config.yaml:weather.lake_urls` — add all 11 lakes in specified order
+- `[x]` Update `config.yaml:weather.lake_headers` — headers match new lake table layout (Today / 1 Week Ago / 30 Days Ago)
+- `[x]` Update `dashboard_pipeline.py` & `sources/weather.py` lake scraping — `_extract_lake_value` works for all 11 lakes
+- `[x]` Update rendering — table renders all 11 lakes with "Lake" prefix labels via dynamic `_lake_label`
+- `[x]` Pipeline validated: all 11 lakes render with correct values, test [1.4] passes
+
 ### P2 — Data Sources Split (Priority: High, Effort: 6 hrs, Risk: Low) — v1.0.14, v1.0.15, v1.0.29
 - `[x]` Create `sources/` package — `__init__.py` (re-export chain)
 - `[x]` Extract `sources/weather.py` (262L) — NWS forecast fetch + parse, orchestrator

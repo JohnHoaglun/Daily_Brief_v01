@@ -242,10 +242,7 @@ async def fetch_weather(session: aiohttp.ClientSession, lat: float, lon: float) 
                 )
 
         # Lake levels
-        for key in ("conroe", "corpus_christi", "travis"):
-            lake_url = WEATHER_LAKE_URLS.get(key)
-            if not lake_url:
-                continue
+        for key, lake_url in (WEATHER_LAKE_URLS or {}).items():
             weather_data["lakes"][key] = await _extract_lake_value(session, key, lake_url, now_ref)
             logger.debug(f"[fetch_weather] Completed lake fetch: {key}")
             logger.debug(

@@ -1247,7 +1247,7 @@ async def fetch_weather(session, lat, lon):
                     f"current_monthly_rainfall={station.get('current_monthly_rainfall')}"
                 )
 
-        for key in ("conroe", "corpus_christi", "travis"):
+        for key in WEATHER_LAKE_URLS:
             url = WEATHER_LAKE_URLS.get(key)
             if not url:
                 continue
@@ -1308,8 +1308,11 @@ def _build_weather_markdown(weather):
     md.append("")
     md.append("| Where | Today | 1 Week Ago | 30 Days ago |")
     md.append("| --- | --- | --- | --- |")
-    labels = {"conroe": "Lake Conroe", "corpus_christi": "Lake Corpus Christi", "travis": "Lake Travis"}
-    for key, label in labels.items():
+    def _lake_label(k):
+        base = k.replace("_", " ").replace("-", " ").title()
+        return f"Lake {base}" if not base.startswith("Lake") else base
+    for key in (WEATHER_LAKE_URLS or {}):
+        label = _lake_label(key)
         vals = weather.get("lakes", {}).get(key, {})
         md.append(
             f"| {label} | {_present_weather_value(vals.get('today'), 'Unavailable')} | "

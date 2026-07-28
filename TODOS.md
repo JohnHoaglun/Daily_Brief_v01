@@ -68,11 +68,13 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 - `[x]` Fix `ordered_categories_for_render` to use `config.yaml:category_priority` instead of hardcoded list — v1.0.15
 - `[x]` Fix tag distribution — every story ≥3 tags (v1.0.29): expanded config keywords, category boosts by membership, min_tags=3 promotion after conflict resolution
 
-### P3 — LLM Module (Priority: High, Effort: 2 hrs, Risk: Low)
-- `[ ]` Extract `llm/client.py` (80L) — OpenAI client wrapper, retry logic, per-call timeout
-- `[ ]` Extract `llm/summarizer.py` (150L) — `batch_summarize`, context building, response parsing
-- `[ ]` Extract `llm/alerter.py` (60L) — `batch_evaluate_alerts`, alert response parsing
-- `[ ]` Make `_llm_client` instantiatable (not global singleton) for testability
+### P3 — LLM Module (Priority: High, Effort: 2 hrs, Risk: Low) — v1.0.32
+- `[x]` Extract `llm/client.py` — `LLMClient` class, `create_llm_client()` factory, `_executor`, `_run_blocking`
+- `[x]` Extract `llm/summarizer.py` (476L) — `_summarize`, `batch_summarize_all`, `_safe_sentence_summary`, `parse_batch_summary_response`, `build_context`, `StoryPipelineState`, `_is_refusal`, `_is_boilerplate`, `_count_sentences`
+- `[x]` Extract `llm/alerter.py` — `batch_evaluate_alerts`, `parse_alert_batch_response`
+- `[x]` Make `_llm_client` instantiatable via `create_llm_client()` (not global singleton)
+- `[x]` Update monolith — delegating wrappers replace ~501L inline LLM code
+- `[x]` Pipeline validated: 72 stories, 0 failures, proper multi-sentence summaries
 
 ### P4 — Rendering (Priority: Medium, Effort: 3 hrs, Risk: Low)
 - `[ ]` Extract `rendering/weather_table.py` (80L) — weather markdown table generation

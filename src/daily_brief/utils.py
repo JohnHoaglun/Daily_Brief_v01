@@ -124,3 +124,19 @@ def is_realt_estate_title(title: str) -> bool:
     ]
     title_lower = title.lower()
     return any(keyword in title_lower for keyword in realtor_keywords)
+
+
+def _coerce_temperature_f(val):
+    """Safely convert temperature string/none to float and sanity check."""
+    if val is None:
+        return None
+    try:
+        clean_val = re.sub(r"[^\d.]", "", str(val))
+        if not clean_val:
+            return None
+        temp = float(clean_val)
+        if temp < -50 or temp > 140:
+            return None
+        return temp
+    except (ValueError, TypeError):
+        return None

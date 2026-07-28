@@ -14,7 +14,7 @@ from typing import Any, Dict, Optional
 import aiohttp
 from bs4 import BeautifulSoup
 
-from config import WUNDERGROUND_MONTHLY_TEMPLATE, WEATHER_WUNDERGROUND_STATION_ID
+from daily_brief.config import WUNDERGROUND_MONTHLY_TEMPLATE, WEATHER_WUNDERGROUND_STATION_ID
 from daily_brief.http_client import _fetch_text
 from daily_brief.sources.climate import _parse_climate_summary
 

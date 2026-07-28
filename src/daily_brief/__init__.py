@@ -20,6 +20,7 @@ from daily_brief.utils import (
     _safe_sentence_summary,
     _count_sentences,
     _coerce_percent,
+    _coerce_temperature_f,
 )
 from daily_brief.http_client import _fetch_json, _fetch_text
 
@@ -39,6 +40,7 @@ __all__ = [
     "_safe_sentence_summary",
     "_count_sentences",
     "_coerce_percent",
+    "_coerce_temperature_f",
     # HTTP
     "_fetch_json",
     "_fetch_text",

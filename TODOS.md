@@ -83,11 +83,15 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 - `[x]` Update monolith — delegating wrappers for `_build_weather_markdown` + `cleanup_old_files` call
 - `[x]` Pipeline validated: 71 stories, 0 failures, 3 bad summaries (pass < 7 threshold)
 
-### P5 — Pipeline + Config (Priority: Medium, Effort: 4 hrs, Risk: Medium)
-- `[ ]` Extract `pipeline.py` (200L) — orchestrator only (phases, no business logic)
-- `[ ]` Extract `config.py` (120L) — load + validate config.yaml → Config dataclass, drop `globals().update()`
-- `[ ]` Create `main.py` (30L) — entry point: `if __name__ == "__main__": asyncio.run(pipeline.main())`
-- `[ ]` Delete `dashboard_pipeline.py` — all functions migrated
+### P5 — Pipeline + Config (Priority: Medium, Effort: 4 hrs, Risk: Medium) — v1.0.34
+- `[x]` Extract `pipeline.py` (521L) — `async def main()` orchestrator with all 6 phases + `log()`, `_coerce_temperature_f`, `is_realt_estate_title`
+- `[x]` Extract `config.py` (139L) — moved from project root, path to config.yaml fixed (`parent.parent.parent`)
+- `[x]` Extract `validation.py` (150L) — `validate_report()` with 5 checks (empty, headline repeat, min sentences, fallback, topic overlap)
+- `[x]` Extract `harness.py` (77L) — `run_test_harness()` subprocess call to Test_validate_run.py
+- `[x]` Monolith `dashboard_pipeline.py` reduced from 1,701L → 16L (thin shim: imports + `asyncio.run(main())`)
+- `[x]` Updated `__main__.py` — imports from `daily_brief.pipeline` (not `dashboard_pipeline`)
+- `[x]` Fixed subpackage imports — `from config import` → `from daily_brief.config import` (8 files)
+- `[x]` Verified: all 6 phases intact, all subpackage calls wired correctly
 
 ### P6 — Config Management & Validation (Priority: High, Effort: 2 hrs, Risk: Zero)
 - `[ ]` Add config validation — check required keys, types, value ranges at startup

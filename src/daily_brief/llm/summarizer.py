@@ -2,7 +2,7 @@ import logging
 import re
 import time
 from daily_brief.utils import _safe_text
-from config import (
+from daily_brief.config import (
     LLM_MODEL,
     LLM_SUMMARY_TRIM_MIN_CHARS,
     LLM_SUMMARY_CONTEXT_CHARS,

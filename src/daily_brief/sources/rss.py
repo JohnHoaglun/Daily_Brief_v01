@@ -17,7 +17,7 @@ from zoneinfo import ZoneInfo
 import aiohttp
 import feedparser
 
-from config import RSS_BASE, RSS_PARAMS, TIMEZONE, USER_AGENT
+from daily_brief.config import RSS_BASE, RSS_PARAMS, TIMEZONE, USER_AGENT
 from daily_brief.utils import strip_html
 
 logger = logging.getLogger(__name__)

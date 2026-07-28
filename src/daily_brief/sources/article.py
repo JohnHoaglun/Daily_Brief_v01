@@ -12,7 +12,7 @@ from typing import Any
 import aiohttp
 from bs4 import BeautifulSoup
 
-from config import LLM_CONTEXT_PREVIEW_CHARS, USER_AGENT
+from daily_brief.config import LLM_CONTEXT_PREVIEW_CHARS, USER_AGENT
 from daily_brief.utils import is_obituary_title
 
 logger = logging.getLogger(__name__)

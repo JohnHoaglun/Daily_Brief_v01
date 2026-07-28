@@ -1,6 +1,6 @@
 import logging
 
-from config import CATEGORY_PRIORITY
+from daily_brief.config import CATEGORY_PRIORITY
 
 logger = logging.getLogger(__name__)
 

@@ -1,7 +1,7 @@
 import re
 import logging
 
-from config import (
+from daily_brief.config import (
     TAGGING_MAPPINGS,
     TAGGING_CONFIG,
     CATEGORY_BOOSTS,

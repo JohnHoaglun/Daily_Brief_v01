@@ -1,7 +1,7 @@
 import logging
 
 from daily_brief.utils import _present_weather_value
-from config import WEATHER_SECTION_TITLE, WEATHER_LABELS, WEATHER_LAKE_URLS
+from daily_brief.config import WEATHER_SECTION_TITLE, WEATHER_LABELS, WEATHER_LAKE_URLS
 
 logger = logging.getLogger(__name__)
 

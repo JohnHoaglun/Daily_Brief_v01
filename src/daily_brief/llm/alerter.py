@@ -1,6 +1,6 @@
 import logging
 import time
-from config import (
+from daily_brief.config import (
     LLM_MODEL,
     SYSTEM_ALERT_PROMPT,
     LLM_ALERT_OPTIONS,

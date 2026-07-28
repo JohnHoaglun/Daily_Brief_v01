@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 
 import aiohttp
 
-from config import (
+from daily_brief.config import (
     WEATHER_LAT,
     WEATHER_LON,
     WEATHER_POINT_URL,

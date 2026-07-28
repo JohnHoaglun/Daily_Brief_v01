@@ -76,10 +76,12 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 - `[x]` Update monolith — delegating wrappers replace ~501L inline LLM code
 - `[x]` Pipeline validated: 72 stories, 0 failures, proper multi-sentence summaries
 
-### P4 — Rendering (Priority: Medium, Effort: 3 hrs, Risk: Low)
-- `[ ]` Extract `rendering/weather_table.py` (80L) — weather markdown table generation
-- `[ ]` Extract `rendering/report.py` (150L) — full report assembly + frontmatter
-- `[ ]` Extract `rendering/cleanup.py` (60L) — old file cleanup logic
+### P4 — Rendering (Priority: Medium, Effort: 3 hrs, Risk: Low) — v1.0.33
+- `[x]` Extract `rendering/weather_table.py` (63L) — `build_weather_markdown()` with forecast, station, and lake tables
+- `[x]` Extract `rendering/report.py` (127L) — `build_markdown()`, `write_report()` — frontmatter, weather, category sections
+- `[x]` Extract `rendering/cleanup.py` (50L) — `cleanup_old_files()` — report + log file cleanup
+- `[x]` Update monolith — delegating wrappers for `_build_weather_markdown` + `cleanup_old_files` call
+- `[x]` Pipeline validated: 71 stories, 0 failures, 3 bad summaries (pass < 7 threshold)
 
 ### P5 — Pipeline + Config (Priority: Medium, Effort: 4 hrs, Risk: Medium)
 - `[ ]` Extract `pipeline.py` (200L) — orchestrator only (phases, no business logic)

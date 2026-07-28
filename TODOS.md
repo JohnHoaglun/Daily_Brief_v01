@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 — v1.0.36
+# TODO: Daily Brief v01 — v1.0.38
 
 ## Status Legend
 - `[ ]` — TODO (not started)
@@ -111,11 +111,11 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 - `[x]` Verified: 73 stories, 15 categories, all 6 phases pass end-to-end
 
 ### P6 — Config Management & Validation (Priority: High, Effort: 2 hrs, Risk: Zero)
-- `[ ]` Add config validation — check required keys, types, value ranges at startup
-- `[ ]` Add config validation — P6 (deferred to after P5)
+- `[x]` Add config validation — P6.1 v1.0.37 (7-group validation gate at startup)
+- `[x]` Add CLI config command — P6.2 v1.0.38 (validate, show, list-categories, list-lakes, show-prompt)
 - `[x]` Make `tagging.py` read from `config.yaml:tagging_mappings` (not inline dict) — DONE v1.0.15 via P2
 - `[x]` Make `ordered_categories_for_render` use `config.yaml:category_priority` (not hardcoded) — DONE v1.0.15 via P2
-- `[ ]` Add CLI config command — `python -m daily_brief config show|validate|set|add-category`
+- `[ ]` Add connectivity checks — P6.3 (LLM host, RSS feeds, weather endpoints)
 
 ---
 

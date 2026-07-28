@@ -23,6 +23,7 @@ from daily_brief.utils import (
     _coerce_temperature_f,
 )
 from daily_brief.http_client import _fetch_json, _fetch_text
+from daily_brief.config_validator import validate_config
 
 __all__ = [
     # Models
@@ -44,6 +45,8 @@ __all__ = [
     # HTTP
     "_fetch_json",
     "_fetch_text",
+    # Validation
+    "validate_config",
 ]
 
-__version__ = "1.0.12"
+__version__ = "1.0.38"

@@ -1,4 +1,4 @@
-version: 1.0.36
+version: 1.0.38
 llm:
   model: gemma4-e2b
   host: http://192.168.4.52:8007
@@ -664,9 +664,7 @@ category_boosts:
   Market News:
   - economy
   - market-impact
-  Space News:
-  - space
-  - tech
+# Space News removed (category does not exist — only SpaceX News)
 category_priority:
 - Conroe TX News
 - Houston Tropical Weather

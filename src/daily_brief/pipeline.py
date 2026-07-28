@@ -37,6 +37,7 @@ from daily_brief.rendering.report import (
 )
 from daily_brief.validation import validate_report
 from daily_brief.harness import run_test_harness
+from daily_brief.config_validator import validate_config
 
 
 RUN_LOGFILE = None
@@ -90,6 +91,14 @@ def _coerce_temperature_f(val):
 async def main():
     global PHASE_TIMINGS
     PHASE_TIMINGS = {}
+
+    # --- Config validation gate ---
+    config_ok, config_issues = validate_config(CONFIG_YAML)
+    if not config_ok:
+        print(f"\nFATAL: {len(config_issues)} config validation error(s). Aborting.", file=sys.stderr)
+        for ci in config_issues:
+            print(f"CONFIG ERROR: {ci}", file=sys.stderr)
+        sys.exit(1)
 
     global RUN_LOGFILE, OUTPUT_DIR, _llm_client
     _llm_client = create_llm_client(LLM_MODEL, OLLAMA_HOST + "/v1" if "/v1" not in OLLAMA_HOST else OLLAMA_HOST, timeout=180)

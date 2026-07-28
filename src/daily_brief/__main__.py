@@ -43,5 +43,11 @@ async def main() -> None:
 
 if __name__ == "__main__":
     from daily_brief.config import LOG_DIR
+    from daily_brief.cli import run as cli_run
+
+    exit_code = cli_run()
+    if exit_code is not None:
+        sys.exit(exit_code)
+
     setup_logging(log_dir=LOG_DIR)
     asyncio.run(main())

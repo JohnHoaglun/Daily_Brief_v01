@@ -50,7 +50,7 @@ from daily_brief.tagging import tag_story_with_keywords as _tag_story_with_keywo
 
 # LLM subpackage — client factory + helpers
 from daily_brief.llm import create_llm_client, _executor, _run_blocking, LLMClient
-_llm_client = create_llm_client(LLM_MODEL, OLLAMA_HOST, timeout=180)
+_llm_client = create_llm_client(LLM_MODEL, OLLAMA_HOST + "/v1" if "/v1" not in OLLAMA_HOST else OLLAMA_HOST, timeout=180)
 
 # Re-export helpers used elsewhere in this monolith (moved to llm/ subpackage)
 from daily_brief.llm.summarizer import (

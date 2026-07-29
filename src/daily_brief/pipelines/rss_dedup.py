@@ -252,6 +252,9 @@ async def widen_category(
             log_fn(f"    [{widen_days}d] 0 added")
         if cat_widened_count >= 3:
             break
+    log_fn(
+        f"  [WIDEN] '{cat_name}' widening complete: {existing_count} -> {cat_widened_count} stories (added: {cat_widened_count - existing_count})"
+    )
     if cat_widened_count > existing_count:
         log_fn(
             f"  [WIDEN] '{cat_name}' recovered {cat_widened_count - existing_count} additional stories (total: {cat_widened_count}, last successful: {last_wide_days}d)"

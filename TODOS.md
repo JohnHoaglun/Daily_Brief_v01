@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 — v1.0.39 (Bug Fix Plan)
+# TODO: Daily Brief v01 — v1.0.40 (Bug Fix Plan)
 
 ## Status Legend
 - `[ ]` — TODO (not started)
@@ -163,7 +163,7 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 
 | Bug | Priority | File | Effort | Rationale |
 |---|---|---|---|---|
-| **2.2a — Widening logs lie** | P2 | `pipelines/rss_dedup.py` | 30min | `for/else` "giving up" message fires after last 0-iteration even when widening found stories earlier. Misleading to operators. Fix: track `total_added` counter, log actual count. |
+| **2.2a — Widening logs lie** | P2 | `pipelines/rss_dedup.py` | 30min | `[x] DONE v1.0.40 — Added cumulative count log line after widening loop. Exhausted message still showed existing_count (which equals cat_widened_count in that branch), so logic was correct — just needed unambiguous logging.` |
 | **4.4 — Render 0-story headers** | P2 | `rendering/report.py` | 30min | Conroe/Montgomery County categories don't render any section header when they have 0 stories after dedup. Should show "Category Name — No Stories" instead of disappearing silently. Improves user confidence. |
 | **LLM log says "Qwen"** | P0 | `pipeline.py` or `llm/summarizer.py` | 15min | Log shows `[3BC] Running BATCH summaries via Qwen...` but model is `gemma4-e2b`. Format string likely prints model name incorrectly. Pure display bug. |
 

@@ -4,6 +4,8 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+- [2026-07-29 17:40] Version bumped to **v1.0.40** — Fix 2.2a: widening log clarification.
+- [2026-07-29 17:40] Fix (2.2a) — Added `logger.info()` line at `rss_dedup.py:255-257` that prints cumulative count at end of widening loop: `"[WIDEN] '<cat>' widening complete: {existing} -> {final} stories (added: {delta})"`. This fires before the recovered/exhausted if/else, making the actual final count unambiguous regardless of outcome. No logic bug was found — `cat_widened_count` was already tracking correctly, and the exhausted branch only fires when `cat_widened_count == existing_count` (counter only increments). Bumped `config.yaml` and `__init__.py` to v1.0.40. Verified: Conroe TX News `0 -> 0`, Montgomery County `1 -> 3`, Karpathy `0 -> 3`, Hermes `1 -> 3` — all counts accurate.
 - [2026-07-29 00:05] Version bumped to **v1.0.39** — P6.3 Connectivity checks complete.
 - [2026-07-29 00:05] Feature (P6.3) — Created `src/daily_brief/connectivity.py` (112L) with 3 async parallel checks: `check_llm()` — ping `{host}/v1/models`, `check_rss()` — GET sample RSS feed (World News), `check_weather()` — GET `api.weather.gov/points/{lat},{lon}`. Each returns `{ok, message, duration_ms}`. `run_all_checks()` runs all 3 concurrently via `aiohttp.ClientSession`. `format_results()` produces a console table (62-char wide). Integrated into `pipeline.py` after config validation gate (warning-only, never aborts). Added CLI subcommand `config check-connectivity` in `cli.py` (+18L). Verified: 3/3 pass (LLM 24ms, RSS 703ms, Weather 42ms).
 - [2026-07-28 23:40] Version bumped to **v1.0.38** — P6.1 + P6.2 (config validation + CLI) complete.
@@ -68,6 +70,6 @@ Automated daily news brief generator that fetches news from 17 content categorie
 - [2026-07-14 02:00] Release - Tagged v1.0.5 and pushed to dev branch
 
 ## Status
-Fully functional and working correctly. The pipeline produces daily reports with validated dynamic weather sections, improved summary constraints, and config-driven behavior.
+Fully functional. Pipeline v1.0.40: all refactoring P0-P6 complete. 66 stories, 15 categories, widening logs unambiguous.
 
 

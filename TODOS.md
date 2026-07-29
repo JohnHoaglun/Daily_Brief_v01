@@ -174,7 +174,7 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 |---|---|---|---|---|
 | **F.2 — Frozen feeds (×5 cats)** | P2 | `config.yaml` + `sources/rss.py` | 1hr | Houston Tropical, OpenAI, Anthropic, SpaceX, Karpathy all show 100% URL overlap across runs. Could be Google News caching, too-narrow queries, or feedparser caching. Fix: try URL dedup with timestamp params or broaden queries. |
 | **F.2 — Frozen lake data** | P2 | `sources/lakes.py` + `rendering/weather_table.py` | 1hr | conroe, corpus_christi, travis show identical values across runs. Hypothesis: scrape returns data but table renderer overwrites with cached/fallback values. Or genuinely unchanged over weekends (lakes change slowly). Debug: print raw scrape response. |
-| **F.2 — Frozen station data** | P2 | `sources/wunderground.py` | 1hr | avg_temp_today/rainfall identical across runs. Same hypothesis as lakes — scrape failing silently or truly unchanged. Wunderground page may be served cached. Debug: add response logging. |
+| **F.2 — Frozen station data** | ~~P2~~ ✅ | `sources/wunderground.py` | Investigation | **RESOLVED — no bug.** All 3 scrapers verified live: avg_temp_today (94°F, Open-Meteo ERA5 climatology), avg_monthly_rainfall (3.77in, climate.gov normals), current_monthly_rainfall (7.42in, Wunderground). Values genuinely stable on short time scales. weather.py guard at L220 correctly nullifies identical avg/current. v1.0.45. |
 
 **Investigation approach:** Run pipeline twice with sleep between, diff the markdown output. If frozen, add `logger.debug()` to the scrape function to verify HTTP response is fresh. If scrape works but rendering caches, fix the renderer. If genuinely unchanged (lakes/station), document as expected behavior.
 

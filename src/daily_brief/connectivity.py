@@ -1,0 +1,116 @@
+"""
+Connectivity probes.
+Runs lightweight reachability checks against external services.
+Called after config validation, before pipeline Phase 1.
+"""
+
+from __future__ import annotations
+
+import sys
+import asyncio
+import time
+import aiohttp
+
+from daily_brief.config import (
+    OLLAMA_HOST,
+    WEATHER_LAT,
+    WEATHER_LON,
+    WEATHER_POINT_URL,
+    CATEGORIES,
+    RSS_BASE,
+    RSS_PARAMS,
+)
+
+
+def _ensure_v1(base: str) -> str:
+    return base if "/v1" in base else f"{base}/v1"
+
+
+def _result(ok: bool, message: str, duration_ms: int | None) -> dict:
+    return {"ok": ok, "message": message, "duration_ms": duration_ms}
+
+
+async def check_llm(session: aiohttp.ClientSession, timeout: float = 5.0) -> dict:
+    url = _ensure_v1(OLLAMA_HOST.rstrip("/")) + "/models"
+    t0 = time.time()
+    try:
+        async with session.get(
+            url, timeout=aiohttp.ClientTimeout(total=timeout), ssl=False
+        ) as resp:
+            elapsed_ms = int((time.time() - t0) * 1000)
+            if resp.status == 200:
+                return _result(True, f"LLM host reachable ({url})", elapsed_ms)
+            return _result(False, f"LLM host returned HTTP {resp.status} ({url})", elapsed_ms)
+    except Exception as e:
+        elapsed_ms = int((time.time() - t0) * 1000)
+        return _result(False, f"LLM host unreachable: {e} ({url})", elapsed_ms)
+
+
+async def check_rss(session: aiohttp.ClientSession, timeout: float = 5.0) -> dict:
+    sample_query = CATEGORIES[0][1] if CATEGORIES else "world news"
+    url = f"{RSS_BASE}{sample_query}{RSS_PARAMS}"
+    t0 = time.time()
+    try:
+        async with session.get(
+            url, timeout=aiohttp.ClientTimeout(total=timeout), ssl=False
+        ) as resp:
+            elapsed_ms = int((time.time() - t0) * 1000)
+            if resp.status in (200, 206):
+                return _result(True, f"RSS feed reachable ({url.split('?')[0]})", elapsed_ms)
+            return _result(False, f"RSS feed returned HTTP {resp.status} ({url})", elapsed_ms)
+    except Exception as e:
+        elapsed_ms = int((time.time() - t0) * 1000)
+        return _result(False, f"RSS feed unreachable: {e}", elapsed_ms)
+
+
+async def check_weather(session: aiohttp.ClientSession, timeout: float = 5.0) -> dict:
+    url = WEATHER_POINT_URL.format(lat=WEATHER_LAT, lon=WEATHER_LON)
+    t0 = time.time()
+    try:
+        async with session.get(
+            url, timeout=aiohttp.ClientTimeout(total=timeout)
+        ) as resp:
+            elapsed_ms = int((time.time() - t0) * 1000)
+            if resp.status == 200:
+                return _result(True, f"Weather.gov reachable ({url})", elapsed_ms)
+            return _result(False, f"Weather.gov returned HTTP {resp.status} ({url})", elapsed_ms)
+    except Exception as e:
+        elapsed_ms = int((time.time() - t0) * 1000)
+        return _result(False, f"Weather.gov unreachable: {e} ({url})", elapsed_ms)
+
+
+async def run_all_checks(timeout: float = 5.0) -> list[dict]:
+    """Run all connectivity checks in parallel."""
+    async with aiohttp.ClientSession() as session:
+        return await asyncio.gather(
+            check_llm(session, timeout),
+            check_rss(session, timeout),
+            check_weather(session, timeout),
+        )
+
+
+def format_results(results: list[dict]) -> str:
+    """Console-friendly output for connectivity results."""
+    lines = ["\nConnectivity Checks:"]
+    lines.append("-" * 62)
+    labels = ["LLM Host", "RSS Feed", "Weather.gov"]
+    ok_count = 0
+    for label, res in zip(labels, results):
+        status = "OK" if res["ok"] else "WARN"
+        icon = "+" if res["ok"] else "!"
+        if res["ok"]:
+            ok_count += 1
+        ms = f"{res['duration_ms']}ms" if res["duration_ms"] is not None else "N/A"
+        lines.append(f"  [{icon}] {label:<16} {status:<6} ({ms})")
+        if not res["ok"]:
+            lines.append(f"       {res['message']}")
+    lines.append("-" * 62)
+    failed = 3 - ok_count
+    lines.append(f"  Result: {ok_count}/3 passed, {failed} warning(s)")
+    return "\n".join(lines)
+
+
+def report(results: list[dict], file=sys.stderr) -> bool:
+    """Print formatted results. Returns True if all passed."""
+    print(format_results(results), file=file)
+    return all(r["ok"] for r in results)

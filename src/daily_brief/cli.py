@@ -7,11 +7,13 @@ Usage:
     python -m daily_brief config list-categories
     python -m daily_brief config list-lakes
     python -m daily_brief config show-prompt <name>
+    python -m daily_brief config check-connectivity
 """
 
 from __future__ import annotations
 
 import argparse
+import asyncio
 import sys
 import yaml
 
@@ -50,6 +52,10 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["summary", "summary_strict", "system_batch", "system_alert"],
         help="Prompt name to display",
     )
+    config_subs.add_parser(
+        "check-connectivity",
+        help="Run pre-flight connectivity checks (LLM, RSS, Weather)",
+    )
 
     return parser
 
@@ -80,6 +86,8 @@ def run(argv: list[str] | None = None) -> int | None:
         return cmd_list_lakes()
     if args.config_subcommand == "show-prompt":
         return cmd_show_prompt(args.name)
+    if args.config_subcommand == "check-connectivity":
+        return cmd_check_connectivity()
 
     return 1
 
@@ -139,3 +147,14 @@ def cmd_show_prompt(name: str) -> int:
     print(f"--- prompts.{name} ---")
     print(val)
     return 0
+
+
+async def _cmd_check_connectivity_impl() -> int:
+    from daily_brief.connectivity import run_all_checks, report
+    results = await run_all_checks(timeout=5.0)
+    all_ok = report(results, file=sys.stdout)
+    return 0 if all_ok else 1
+
+
+def cmd_check_connectivity() -> int:
+    return asyncio.run(_cmd_check_connectivity_impl())

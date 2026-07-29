@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 — v1.0.38
+# TODO: Daily Brief v01 — v1.0.39
 
 ## Status Legend
 - `[ ]` — TODO (not started)
@@ -115,7 +115,7 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 - `[x]` Add CLI config command — P6.2 v1.0.38 (validate, show, list-categories, list-lakes, show-prompt)
 - `[x]` Make `tagging.py` read from `config.yaml:tagging_mappings` (not inline dict) — DONE v1.0.15 via P2
 - `[x]` Make `ordered_categories_for_render` use `config.yaml:category_priority` (not hardcoded) — DONE v1.0.15 via P2
-- `[ ]` Add connectivity checks — P6.3 (LLM host, RSS feeds, weather endpoints)
+- `[x]` Add connectivity checks — P6.3 v1.0.39 (LLM/RSS/Weather parallel probes, warning-only)
 
 ---
 

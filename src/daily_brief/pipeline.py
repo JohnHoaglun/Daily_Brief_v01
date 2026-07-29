@@ -100,6 +100,13 @@ async def main():
             print(f"CONFIG ERROR: {ci}", file=sys.stderr)
         sys.exit(1)
 
+    # --- Pre-flight connectivity checks (warning only, never abort) ---
+    from daily_brief.connectivity import run_all_checks, format_results
+    conn_results = await run_all_checks(timeout=5.0)
+    conn_output = format_results(conn_results)
+    sys.stderr.write(conn_output + "\n")
+    sys.stderr.flush()
+
     global RUN_LOGFILE, OUTPUT_DIR, _llm_client
     _llm_client = create_llm_client(LLM_MODEL, OLLAMA_HOST + "/v1" if "/v1" not in OLLAMA_HOST else OLLAMA_HOST, timeout=180)
     OUTPUT_DIR = NEWS_DIR

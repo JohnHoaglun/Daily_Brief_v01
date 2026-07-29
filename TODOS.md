@@ -164,8 +164,8 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 | Bug | Priority | File | Effort | Rationale |
 |---|---|---|---|---|
 | **2.2a — Widening logs lie** | P2 | `pipelines/rss_dedup.py` | 30min | `[x] DONE v1.0.40 — Added cumulative count log line after widening loop. Exhausted message still showed existing_count (which equals cat_widened_count in that branch), so logic was correct — just needed unambiguous logging.` |
-| **4.4 — Render 0-story headers** | P2 | `rendering/report.py` | 30min | Conroe/Montgomery County categories don't render any section header when they have 0 stories after dedup. Should show "Category Name — No Stories" instead of disappearing silently. Improves user confidence. |
-| **LLM log says "Qwen"** | P0 | `pipeline.py` or `llm/summarizer.py` | 15min | Log shows `[3BC] Running BATCH summaries via Qwen...` but model is `gemma4-e2b`. Format string likely prints model name incorrectly. Pure display bug. |
+| **4.4 — Render 0-story headers** | P2 | `rendering/report.py` | 30min | `[x] DONE v1.0.41 — Categories with 0 stories now render `## Category\n_No stories found._` header. Also updated Test_validate_run.py section regex to match both `##` and `###` headers. |
+| **LLM log says "Qwen"** | P0 | `pipeline.py` | 15min | `[!] ALREADY CORRECT — `{LLM_MODEL}` at pipeline.py:199 resolves to `gemma4-e2b`. Old logs were from separate Prod deployment with different config. No code change needed. |
 
 ### Round 2 — Frozen Data Investigation (v1.0.43 → .44 → .45) — **3 hrs total, Risk: Low**
 *Read-only investigation. Run pipeline twice, diff output. If frozen, add debug logging to scrape function.*
@@ -227,6 +227,7 @@ Round 5 (climate verification)        ──→ v1.0.54    (30 min, standalone)
 **Total: ~13 hours, 6 version bumps, 12 bugs cleared.**
 
 ### Recent Updates
+- [2026-07-29 18:00] **Round 1 complete — v1.0.41** — 3 bugs targeted: 2.2a (widening logs) fixed at v1.0.40, 4.4 (0-story headers) fixed at v1.0.41, Qwen log bug already correct. Ready for Round 2 (frozen data investigation).
 - [2026-07-29 00:20] **Bug Fix Plan created** — 12 active bugs organized into 5 rounds. Round 1 (zero risk, 45min) → Round 2 (investigation, 3hr) → Tier 1 tests (safety net, 2hr) → Round 3 (LLM quality, 4hr) → Round 4 (retry infra, 3hr) → Round 5 (climate verify, 30min). Target: v1.0.54.
 - [2026-07-29 00:05] **P6.3 complete — v1.0.39** — Connectivity checks (LLM/RSS/Weather, 3/3 pass). All refactoring P0-P6 done.
 - [2026-07-28 01:09] **Tag distribution goal achieved — v1.0.29** — All 61 stories have ≥3 tags. Avg: 3.90. Distribution: `{3:30, 4:7, 5:24}`. Changes: (1) expanded `config.yaml` keywords for 15+ tags, (2) category boosts fire on membership not just keyword match, (3) moved `min_tags=3` promotion after conflict resolution, (4) last-resort category-derived fallback tags.

@@ -291,7 +291,7 @@ def parse_output(text):
     # Category sections in order: ## <Category> (N stories)
     section_order = []
     sections = {}
-    section_iter = list(re.finditer(r"^##\s+(.+?)(?:\s*\((\d+)\s*stories\))?\s*$", body, re.MULTILINE))
+    section_iter = list(re.finditer(r"^#{2,3}\s+(.+?)(?:\s*\((\d+)\s*stories\))?\s*$", body, re.MULTILINE))
     for i, m in enumerate(section_iter):
         name = m.group(1).strip()
         count_str = m.group(2)

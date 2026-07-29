@@ -134,14 +134,14 @@ def build_markdown(stories, weather, sections_map, ordered_cats, config_kwargs):
     md.append(f"# Daily Brief -- {now.strftime('%B %d, %Y')}")
     md.extend(build_weather_markdown(weather))
 
-    # Category sections — skip empty categories
+    # Category sections — render header even for empty categories
     for cn in ordered_cats:
         if cn == WEATHER_SECTION_TITLE or cn == "Weather Forecast 77316":
             continue
         cat_stories = sections_map.get(cn, [])
         if not cat_stories:
-            logger.info(f"  Empty category: {cn} (rendering header)")
-            md += ["", f"## {cn} (0 stories)", ""]
+            logger.info(f"  Empty category: {cn} — rendering header")
+            md += ["", f"## {cn}", "_No stories found._", ""]
             continue
         md += ["", f"## {cn} ({len(cat_stories)} stories)", ""]
         for idx, st in enumerate(cat_stories):

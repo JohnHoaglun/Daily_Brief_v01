@@ -4,6 +4,8 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+- [2026-07-29 17:54] Version bumped to **v1.0.41** — Fix 4.4: render section headers for 0-story categories.
+- [2026-07-29 17:54] Fix (4.4) — Updated `rendering/report.py:137-145`: changed comment from "skip empty categories" to "render header even for empty categories", updated empty-category rendering from `## cat (0 stories)` to `## cat\n_No stories found._`, updated harness `Test_validate_run.py:294` section-parsing regex from `^##\s+` to `^#{2,3}\s+` to support both formats. Bumped `config.yaml` and `__init__.py` to v1.0.41. Verified: Conroe TX News renders "## Conroe TX News\n_No stories found._" at line 89-90 of output.
 - [2026-07-29 17:40] Version bumped to **v1.0.40** — Fix 2.2a: widening log clarification.
 - [2026-07-29 17:40] Fix (2.2a) — Added `logger.info()` line at `rss_dedup.py:255-257` that prints cumulative count at end of widening loop: `"[WIDEN] '<cat>' widening complete: {existing} -> {final} stories (added: {delta})"`. This fires before the recovered/exhausted if/else, making the actual final count unambiguous regardless of outcome. No logic bug was found — `cat_widened_count` was already tracking correctly, and the exhausted branch only fires when `cat_widened_count == existing_count` (counter only increments). Bumped `config.yaml` and `__init__.py` to v1.0.40. Verified: Conroe TX News `0 -> 0`, Montgomery County `1 -> 3`, Karpathy `0 -> 3`, Hermes `1 -> 3` — all counts accurate.
 - [2026-07-29 00:05] Version bumped to **v1.0.39** — P6.3 Connectivity checks complete.

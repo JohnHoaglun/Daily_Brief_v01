@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 — v1.0.39
+# TODO: Daily Brief v01 — v1.0.39 (Bug Fix Plan)
 
 ## Status Legend
 - `[ ]` — TODO (not started)
@@ -154,35 +154,81 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 
 ---
 
-## Bugs (Test Harness FAILs — v1.0.14, 2026-07-27 run)
+## Bug Fix Plan — 12 Active Bugs, 5 Rounds
 
-### P0 — Immediate Fixes (verified by Test_validate_run.py)
-- `[x]` **2.6** FIX: Hermes Agent News query typo: `herms agent` → `hermes agent` in `config.yaml` (commit 6feacad)
-- `[x]` **3.2** FIX: Summary failure counter — now counts empty strings as failed (commit 910d62b)
-- `[ ]` **3.2** RESIDUAL: 7 "Unavailable" summaries in v02 output — LLM quality issue, not pipeline bug (requires retry/re-prompt strategy)
-- `[x]` **3.3** FIX: Added swap detection for adjacent story misalignment in batch summary parser (commit e31a741)
-- `[ ]` **3.3** RESIDUAL: US News #4 still shows zero keyword overlap in v02 — LLM returned wrong summary for that story
-- `[x]` **4.3** FIX: Frontmatter `categories` now counts actual rendered sections (commit 7e6e027)
-- `[x]` **4.8** FIX: Read `frontmatter_tag_segments` from `runtime.config`, not `runtime_defaults` (commit 8f9313f)
-- `[x]` **Tags: 1 per story (target 3) — QUALITY REGRESSION — FIXED v15** — Root cause was 2 issues: (1) keyword taxonomy too narrow (212 keywords didn't cover general news topics like war, diplomacy, executions). (2) strict word boundary matching failed on stemmed words ("arrested" ≠ "arrest") and possessive without apostrophe ("Houstons" ≠ "houston"). Fix: expanded keyword mappings (added `geopolitical`, `defense`, `government`, `diplomacy` tags; expanded `politics`, `economy`, `crime`, `international`, `sports`, `environment`), added suffix-tolerant matching (+s/+es/+ed/+ing), added possessive fallback. Result: v12 {1:38, 2:11, 3:3, 5:11} → v13+ {1:23, 2:19, 3:7, 4:3, 5:13}. 1-tag down 15, 2+ tag stories up 15.
-- `[x]` **Station data bug — avg_monthly_rainfall failing** — Variable name mismatch: climate page retry edit changed `html` → `climate_html` at fetch but references at lines 591-593 stayed `html`, causing `NameError` silently swallowed. Fix + 3-attempt retry on all 3 weather fetches (Wunderground station, Wunderground range, climate.gov). v15: 0 FAILs.
-- `[ ]` **LLM should be Gemma, not QWEN** — Log shows `[3BC] Running BATCH summaries via Qwen...` but requirements/docs specify Gemma model. `LLM_MODEL` in `config.py` reads `llm.model` — check if `config.yaml` is set to Qwen, or if the pipeline should force Gemma for summaries. (BUG)
+**Rationale:** Bugs are grouped by dependency and risk. Rounds 1-2 are code-only fixes with zero risk. Round 3 touches LLM logic (medium risk) — requires Tier 1 unit tests as safety net first. Rounds 4-5 build on prior fixes.
 
-### P1 — Remaining FAILs (LLM quality, requires pipeline changes)
-- `[ ]` **3.2** Implement retry/re-prompt for failed summaries — currently 3/52 stories get no valid summary
-- `[ ]` **3.3** Strengthen batch prompt enforcement (STORY_N ordering) or add post-run swap detection for larger batches
-- `[ ]` **Fallback index mismatch in batch summary parser** — Log shows `Unmatched stories by headline: indices [0, 1, 2] (will use fallback index matching)` on every run. Summary parser cannot match LLM output headlines back to input stories by text, must fall back to positional index matching. Likely causes: LLM truncates/headlines differ from input, or fuzzy matching threshold too strict. Risk: wrong summary assigned to wrong story if order drifts.
+### Round 1 — Low-Hanging Fruit (v1.0.40 → .41 → .42) — **45 min total, Risk: Zero**
+*No LLM dependency. Code-only fixes. Each commit verified independently with a pipeline run.*
 
-### P2 — WARN-Category Improvements (test harness flags, non-blocking)
-- `[ ]` **F.4** Climate Normal High == 95°F — verify live parse succeeded (not fallback default)
-- `[ ]` **2.2a** Widening logs lie: "0 stories, giving up" but output renders widened stories** — Log prints `[fetch_rss] Category 'Conroe TX News' widened to 7 days, still 0 stories — giving up` yet v04 output renders 3 stories for Conroe TX News (from 2026-07-21/23). Same for Montgomery County TX News: log says "0 stories at 7 days" but 4 stories rendered. Root cause: widen loop logs "0 stories" for every day that returns 0, then the *next* iteration finds stories. The "giving up" message appears because the loop exhausted to 7d for a *different* category or the `else` clause on the `for` fires after the last iteration where 0 was returned, even though previous widening iterations *did* find stories. Log misleads about actual story count. (BUG)
-- `[ ]` **F.2** Investigate frozen feeds — Houston Tropical Weather, OpenAI, Anthropic, SpaceX, Karpathy all show 100% URL overlap
-- `[ ]` **F.2** Investigate frozen lake data — conroe, corpus_christi, travis values identical across runs
-- `[ ]` **F.2** Investigate frozen station data — avg_temp_today/rainfall identical across runs
-- `[ ]` **3.5** Reduce generic/boilerplate summaries
-- `[ ]` **4.4** Render section headers for 0-story categories (Conroe, Montgomery County)
+| Bug | Priority | File | Effort | Rationale |
+|---|---|---|---|---|
+| **2.2a — Widening logs lie** | P2 | `pipelines/rss_dedup.py` | 30min | `for/else` "giving up" message fires after last 0-iteration even when widening found stories earlier. Misleading to operators. Fix: track `total_added` counter, log actual count. |
+| **4.4 — Render 0-story headers** | P2 | `rendering/report.py` | 30min | Conroe/Montgomery County categories don't render any section header when they have 0 stories after dedup. Should show "Category Name — No Stories" instead of disappearing silently. Improves user confidence. |
+| **LLM log says "Qwen"** | P0 | `pipeline.py` or `llm/summarizer.py` | 15min | Log shows `[3BC] Running BATCH summaries via Qwen...` but model is `gemma4-e2b`. Format string likely prints model name incorrectly. Pure display bug. |
+
+### Round 2 — Frozen Data Investigation (v1.0.43 → .44 → .45) — **3 hrs total, Risk: Low**
+*Read-only investigation. Run pipeline twice, diff output. If frozen, add debug logging to scrape function.*
+
+| Bug | Priority | File | Effort | Rationale |
+|---|---|---|---|---|
+| **F.2 — Frozen feeds (×5 cats)** | P2 | `config.yaml` + `sources/rss.py` | 1hr | Houston Tropical, OpenAI, Anthropic, SpaceX, Karpathy all show 100% URL overlap across runs. Could be Google News caching, too-narrow queries, or feedparser caching. Fix: try URL dedup with timestamp params or broaden queries. |
+| **F.2 — Frozen lake data** | P2 | `sources/lakes.py` + `rendering/weather_table.py` | 1hr | conroe, corpus_christi, travis show identical values across runs. Hypothesis: scrape returns data but table renderer overwrites with cached/fallback values. Or genuinely unchanged over weekends (lakes change slowly). Debug: print raw scrape response. |
+| **F.2 — Frozen station data** | P2 | `sources/wunderground.py` | 1hr | avg_temp_today/rainfall identical across runs. Same hypothesis as lakes — scrape failing silently or truly unchanged. Wunderground page may be served cached. Debug: add response logging. |
+
+**Investigation approach:** Run pipeline twice with sleep between, diff the markdown output. If frozen, add `logger.debug()` to the scrape function to verify HTTP response is fresh. If scrape works but rendering caches, fix the renderer. If genuinely unchanged (lakes/station), document as expected behavior.
+
+### Round 3 — LLM Quality (v1.0.46 → .47 → .48) — **4 hrs, Risk: Medium**
+*Touches LLM interaction logic. **Requires Tier 1 unit tests before proceeding.** Priority order matters — fix index mismatch first (highest risk of wrong summary → wrong story).*
+
+| Bug | Priority | File | Effort | Rationale |
+|---|---|---|---|---|
+| **Fallback index mismatch** | P1 | `llm/summarizer.py` (batch parser) | 2hr | Parser can't match LLM output headlines to input stories by text, falls back to positional index **every run**. Risk: if LLM reorders even slightly, wrong summary → wrong story. Fix: improve fuzzy headline matching (normalize case/whitespace, use difflib ratio > 0.7) or log warning when fallback triggers. |
+| **3.3 — Strengthen swap detection** | P1 | `llm/summarizer.py` | 1hr | Existing swap detection only handles *adjacent* pairs. Larger reorderings (3+ story shift) not detected. Fix: after assigning summaries, check keyword overlap for all stories; flag any with <20% overlap as "topic mismatch" in logs. |
+| **3.5 — Boilerplate summaries** | P2 | `llm/summarizer.py` + `config.yaml` | 1hr | Summaries are too generic ("This article discusses..."). Already has 3-attempt retry (step 3E). Fix: increase `summary_options.temperature` slightly (0.3→0.5), tighten `summary_strict` prompt with "DO NOT use filler phrases" instruction, or increase `summary_trim_min_chars` to weed out short vapid summaries. |
+
+### Gap — Unit Tests (v1.0.48 → .49 → .50)
+**Before Round 4, build Tier 1 unit tests as safety net.** Round 4 modifies retry logic — need tests to prevent regressions.
+
+| Test | File | Effort | Coverage Target |
+|---|---|---|---|
+| `test_config.py` | config loads, required keys, types, defaults | 1hr | 95% |
+| `test_utils.py` | `_safe_text`, `strip_html`, number parsing | 30min | 90% |
+| `test_tagging.py` | keyword matching, scoring, thresholds | 30min | 90% |
+
+### Round 4 — Retry Infrastructure (v1.0.51 → .52 → .53) — **3 hrs, Risk: Medium**
+*Builds on Round 3 fixes and unit tests. Risk is medium because retry logic touches the hot path.*
+
+| Bug | Priority | File | Effort | Rationale |
+|---|---|---|---|---|
+| **3.2 — Retry failed summaries** | P1 | `llm/summarizer.py` | 2hr | 3/52 stories get no valid summary. Need configurable retry: N attempts (default 2), exponential backoff (0.5s, 1s), switch to `summary_strict` prompt on retry, then mark as failed with "Unavailable" if exhausted. |
+| **3.2 RESIDUAL — "Unavailable" count** | P1 | `llm/summarizer.py` | 1hr | 7 stories show "Unavailable" — same root cause as 3.2. The 3E retry step (boilerplate) doesn't cover genuinely empty responses. Fix: integrate with 3.2's retry loop. |
+| **3.3 RESIDUAL — Zero keyword overlap** | P1 | (depends on Round 3) | 30min | US News #4 summary has 0% keyword overlap — LLM hallucinated from wrong story. Fix in Round 3 (index mismatch + swap detection) should resolve. Verify post-R3. |
+
+### Round 5 — Climate Verification (v1.0.54) — **30 min, Risk: Low**
+
+| Bug | Priority | File | Rationale |
+|---|---|---|---|
+| **F.4 — Climate Normal 95°F** | P2 | `sources/climate.py` | Climate Normal High is 95°F — verify this is real Open-Meteo ERA5 data, not a hardcoded fallback default (e.g., 95 = magic number). Add `logger.debug()` to inspect raw JSON response. |
+
+---
+
+### Execution Order & Version Targets
+
+```
+Round 1 (2.2a → 4.4 → Qwen log)      ──→ v1.0.42    (45 min, zero risk)
+Round 2 (F.2 frozen ×3)               ──→ v1.0.45    (3 hrs, read-only investigation)
+Tier 1 Unit Tests (config/utils/tag)   ──→ v1.0.48   (2 hrs, safety net for R3/R4)
+Round 3 (index → swap → boilerplate)  ──→ v1.0.51    (4 hrs, medium risk)
+Round 4 (retry → unavailable)         ──→ v1.0.53    (3 hrs, depends on R3 + tests)
+Round 5 (climate verification)        ──→ v1.0.54    (30 min, standalone)
+```
+
+**Total: ~13 hours, 6 version bumps, 12 bugs cleared.**
 
 ### Recent Updates
+- [2026-07-29 00:20] **Bug Fix Plan created** — 12 active bugs organized into 5 rounds. Round 1 (zero risk, 45min) → Round 2 (investigation, 3hr) → Tier 1 tests (safety net, 2hr) → Round 3 (LLM quality, 4hr) → Round 4 (retry infra, 3hr) → Round 5 (climate verify, 30min). Target: v1.0.54.
+- [2026-07-29 00:05] **P6.3 complete — v1.0.39** — Connectivity checks (LLM/RSS/Weather, 3/3 pass). All refactoring P0-P6 done.
 - [2026-07-28 01:09] **Tag distribution goal achieved — v1.0.29** — All 61 stories have ≥3 tags. Avg: 3.90. Distribution: `{3:30, 4:7, 5:24}`. Changes: (1) expanded `config.yaml` keywords for 15+ tags, (2) category boosts fire on membership not just keyword match, (3) moved `min_tags=3` promotion after conflict resolution, (4) last-resort category-derived fallback tags.
 - [2026-07-27 00:45] **P0 fixes complete** — Fixed 2.6 (Hermes typo), 3.2 (failure counter), 3.3 (swap detection), 4.3 (categories count), 4.8 (missing tag). HARNESS FAILs: 6→2. Remaining: 3.2 residual (LLM quality), 3.3 residual (LLM quality)
 - [2026-07-27 01:30] **Bugs logged** — Tag scoring fix didn't fix single tags. Widening logs say "giving up" but stories render. LLM is QWEN, should be Gemma. Fallback index matching on every run.

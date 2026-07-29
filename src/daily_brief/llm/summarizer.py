@@ -1,6 +1,8 @@
+import difflib
 import logging
 import re
 import time
+import warnings
 from daily_brief.utils import _safe_text
 from daily_brief.config import (
     LLM_MODEL,
@@ -133,6 +135,35 @@ def parse_batch_summary_response(response, count, story_headlines=None):
             if not summary_text:
                 continue
 
+            # Strategy 0: Fuzzy headline matching via difflib SequenceMatcher
+            # Compare the headline excerpt (before '=') against input headlines.
+            # Catches cases where keyword overlap fails due to LLM paraphrasing.
+            def _normalize(text):
+                return re.sub(r"\s+", " ", text.strip().lower())
+
+            # Extract the headline excerpt portion (before '=' if present)
+            headline_excerpt = rest_text.split('=', 1)[0].strip()
+
+            best_fuzzy_idx = None
+            best_fuzzy_score = 0.0
+            if headline_excerpt:
+                excerpt_normalized = _normalize(headline_excerpt)
+                for si, sh in enumerate(story_headlines):
+                    sh_normalized = _normalize(sh)
+                    ratio = difflib.SequenceMatcher(None, excerpt_normalized, sh_normalized).ratio()
+                    if ratio > best_fuzzy_score:
+                        best_fuzzy_score = ratio
+                        best_fuzzy_idx = si
+
+            fuzzy_threshold = 0.7
+            if headline_excerpt and best_fuzzy_idx is not None and best_fuzzy_score >= fuzzy_threshold and best_fuzzy_idx < count:
+                cleaned_summary = _safe_sentence_summary(summary_text)
+                if cleaned_summary:
+                    results[best_fuzzy_idx] = cleaned_summary
+                    matched_by_headline.add(best_fuzzy_idx)
+                logger.debug(f"Parsed STORY_{idx} -> fuzzy match headline[{best_fuzzy_idx}] score {best_fuzzy_score:.2f}")
+                continue
+
             # Strategy 1: Match by summary-to-headline keyword overlap
             # Find the best matching story by checking keyword overlap between
             # the summary text and each headline
@@ -193,15 +224,15 @@ def parse_batch_summary_response(response, count, story_headlines=None):
                         logger.debug(f"Parsed STORY_{idx} -> matched headline[{best_idx2}] 'excerpt overlap {best_score2:.2f}'")
                         break
 
-    # Log unmatched stories
+    # Log unmatched stories — warn when positional fallback is needed
     matched_count = len(matched_by_headline)
     unmatched = [i for i in range(count) if i not in matched_by_headline]
     if not matched_count:
-        logger.debug(f"[MATCH] 0/{count} by headline keyword — all positional fallback")
+        logger.warning(f"[MATCH] 0/{count} by fuzzy/keyword — falling back to positional index for ALL stories")
     elif unmatched:
-        logger.debug(f"[MATCH] {matched_count}/{count} by headline, {len(unmatched)} positional fallback")
+        logger.warning(f"[MATCH] {matched_count}/{count} by fuzzy/keyword, {len(unmatched)} stories falling back to positional index")
     else:
-        logger.debug(f"[MATCH] {matched_count}/{count} by headline — all resolved")
+        logger.debug(f"[MATCH] {matched_count}/{count} by fuzzy/keyword — all resolved")
 
     # Fallback: original index-based positional parsing for unmatched stories
     heading_re = re.compile(

@@ -71,7 +71,9 @@ Automated daily news brief generator that fetches news from 17 content categorie
 - [2026-07-14 02:00] Enhancement - Extended keyword mapping to include specialized categories
 - [2026-07-14 02:00] Release - Tagged v1.0.5 and pushed to dev branch
 
+- [2026-07-29 20:50] Version bumped to **v1.0.43** — Bug F.2: frozen RSS feeds investigation.
+- [2026-07-29 20:50] Investigation (F.2) — Ran pipeline twice 2min apart, compared per-category URL overlap for 5 flagged categories: Houston Tropical Weather (100% overlap, 3/3 frozen), OpenAI News (80%, 4/5, 1 rotated), Anthropic News (100%, 4/4 frozen), SpaceX News (33%, 1/3, 2 rotated), Andrej Karpathy Activity (100%, 3/3 frozen). 3 of 5 are genuinely frozen (100% same URLs), 2 have normal turnover. Root cause: topic saturation — narrow queries ("Houston Tropical Weather", "anthropic news", "Andrej Karpathy") return same 3-5 results from Google News RSS between runs 2min apart. No code bug: `fetch_feed` does not cache (raw text to feedparser), widening uses same URL (only age limit changes). Confirmed: global turnover is 14% (56/66 shared URLs across runs — only low-volume categories stay static). No fix required; this is expected behavior for low-volume topics.
 ## Status
-Fully functional. Pipeline v1.0.40: all refactoring P0-P6 complete. 66 stories, 15 categories, widening logs unambiguous.
+Fully functional. Pipeline v1.0.43: all refactoring P0-P6 complete. Bug F.2 confirmed as topic saturation (not a code bug).
 
 

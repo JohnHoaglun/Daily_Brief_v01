@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 — v1.0.58 (Tier 1 testing in progress)
+# TODO: Daily Brief v01 — v1.0.58 (ALL BUGS CLEARED ✅ — Tier 1 complete)
 
 ## Status Legend
 - `[ ]` — TODO (not started)
@@ -128,7 +128,7 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 - `[x]` `tests/test_weather_table.py` (31 tests) — v1.0.55
 - `[x]` `tests/test_report.py` (35 tests) — v1.0.56
 - `[x]` `tests/test_summarizer.py` (63 tests) — v1.0.57
-- `[~]` `tests/test_alerter.py` — alert format parsing, TRUE/FALSE extraction per story
+- `[x]` `tests/test_alerter.py` (35 tests) — v1.0.58
 
 ### Tier 1 Implementation Plan — v1.0.55-.58
 
@@ -137,7 +137,7 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 | `tests/test_weather_table.py` | v1.0.55 | 31 | `build_weather_markdown` | 1 | `[x] DONE` |
 | `tests/test_report.py` | v1.0.56 | 35 | `build_sections`, `compute_output_path`, `build_markdown`, `write_report` | 4 | `[x] DONE` |
 | `tests/test_summarizer.py` | v1.0.57 | 63 | `_safe_sentence_summary`, `_is_refusal`, `_is_boilerplate`, `_count_sentences`, `parse_batch_summary_response`, `StoryPipelineState`, `_generate_auto_fallback`, `build_context`, `_summarize` | 8 | `[x] DONE` |
-| `tests/test_alerter.py` | v1.0.58 | ~25 | `parse_alert_batch_response`, `batch_evaluate_alerts` | 2 | `[ ]` |
+| `tests/test_alerter.py` | v1.0.58 | 35 | `parse_alert_batch_response`, `batch_evaluate_alerts` | 2 | `[x] DONE` |
 
 **Test patterns per file:**
 
@@ -245,7 +245,7 @@ Round 5 (climate verification)         ──→ v1.0.54    (30 min, standalone)
 **Total: ~13 hours, 6 version bumps, 12 bugs cleared.**
 
 ### Recent Updates
-- [2026-07-30 00:00] **Tier 1/5 complete — v1.0.57** — `test_summarizer.py` (63 tests): _safe_sentence_summary (9), _is_refusal (6), _is_boilerplate (6), _count_sentences (4), parse_batch_summary_response (22), StoryPipelineState (4), _generate_auto_fallback (5), build_context (5), _summarize mocked (6). 332 total tests (269 existing + 63 new).
+- [2026-07-30] **Tier 1 complete — v1.0.58** — `test_alerter.py` (35 tests): parse_alert_batch_response (27: STORY_N format, numbered format, lowercase, malformed, partial parse, type checks), batch_evaluate_alerts mocked (8: empty, alert true/false, unavailable exclusion, bracket exclusion, category grouping, exception all-false, alert idx mismatch, global index mapping). 367 total tests (332 existing + 35 new). Tier 1 done: 4/4 files, 164 new tests.
 - [2026-07-29 22:00] **Tier 1/4 complete — v1.0.55** — `test_weather_table.py` (31 tests): full data render, empty forecast fallback, forecast padding, station Unavailable, lake labels, table structure. 234 total tests.
 - [2026-07-29] **Tier 1 plan created — v1.0.55-.58** — 4 test files, ~145 new tests targeting weather table, report, summarizer, alerter. Total will be ~348 tests.
 - [2026-07-29 21:27] **Round 5 complete — v1.0.54** — Climate normal 95°F verified as real Open-Meteo ERA5 data (raw: 95.9°F → 96°F Jul 30). No hardcoded fallback. Debug logging added to `climate.py` for raw JSON inspection.

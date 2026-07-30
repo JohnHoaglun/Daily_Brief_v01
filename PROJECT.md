@@ -1,4 +1,4 @@
-# Project: Daily Brief v01 (v1.0.57)
+# Project: Daily Brief v01 (v1.0.58)
 
 ## Overview
 Automated daily news brief generator that pulls category RSS stories and produces AI-summarized Markdown reports. Currently undergoing architectural refactoring to modularize the codebase.
@@ -48,5 +48,5 @@ Primary runtime configuration is loaded from `config.yaml` (parsed by `config.py
 See `TODOS.md` for detailed phase-by-phase plan (P0-P6).
 
 ## Status
-**v1.0.57**: Tier 1 testing in progress (3/4 files done, 129 new tests). All refactoring P0-P6 complete. 332 tests total.
+**v1.0.58**: Tier 1 testing complete (4/4 files, 164 new tests). 367 total tests. All refactoring P0-P6 complete. All bugs cleared.
 

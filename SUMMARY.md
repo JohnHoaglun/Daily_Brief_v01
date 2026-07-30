@@ -16,10 +16,11 @@ Automated daily news brief generator that fetches news from 17 content categorie
 - `tests/test_weather_table.py`: 31 tests covering `build_weather_markdown()` — full data render (12), empty forecast fallback (4), partial forecast padding (3), station Unavailable (2), empty lakes (2), lake label formatting (3), table structure (5), missing values (2), empty config (1)
 - 234 total tests (203 existing + 31 new)
 
-### v1.0.58 — Tier 1 Unit Tests (in progress)
-- Created test plan for 4 remaining Tier 1 test files: `test_weather_table.py` (31 done), `test_report.py` (35 done), `test_summarizer.py` (63 done), `test_alerter.py` (~25)
-- 332 total tests (269 existing + 63 new). Remaining target: ~25 tests, ~357 total
+### v1.0.58 — test_alerter.py (35 tests) — Tier 1 complete
+- `tests/test_alerter.py`: 35 tests covering `parse_alert_batch_response` (27: STORY_N format TRUE/FALSE, lowercase case-insensitive, numbered format, mixed formats, malformed lines, no-colon, non-integer index, garbage text, partial parse, whitespace-only, empty string, type checks) and `batch_evaluate_alerts` mocked (8: empty stories, single story alert true/false, unavailable summary exclusion, bracket summary exclusion, multi-category grouping, LLM exception all-false, alert idx mismatch, global index mapping)
+- 367 total tests (332 existing + 35 new). Tier 1 complete: 4/4 test files, 164 new tests across the tier
 
+- [2026-07-30] Version bumped to **v1.0.58** — Tier 1 testing complete, 35 new alerter tests.
 - [2026-07-29 21:27] Version bumped to **v1.0.54** — Round 5: climate normal verification.
 - [2026-07-29 21:27] Verification (Round 5) — Confirmed climate normal high is real Open-Meteo ERA5 data, not hardcoded fallback. Added `logger.debug()` to `climate.py` to log raw ERA5 JSON responses: response keys, daily block, temperature_2m_max list, request params, and raw→rounded value. Live pipeline showed ERA5 returning `temperature_2m_max: [95.9]` → rounded to 96°F for Jul 30. Full fallback chain verified: (1) ERA5 API → live value, (2) None → forecast high fallback, (3) still missing → "Unavailable". No hardcoded 95°F anywhere in codebase.
 - [2026-07-29 23:26] Version bumped to **v1.0.45** — Bug F.2: frozen station investigation.
@@ -94,6 +95,6 @@ Automated daily news brief generator that fetches news from 17 content categorie
 - [2026-07-29 20:50] Version bumped to **v1.0.43** — Bug F.2: frozen RSS feeds investigation.
 - [2026-07-29 20:50] Investigation (F.2) — Ran pipeline twice 2min apart, compared per-category URL overlap for 5 flagged categories: Houston Tropical Weather (100% overlap, 3/3 frozen), OpenAI News (80%, 4/5, 1 rotated), Anthropic News (100%, 4/4 frozen), SpaceX News (33%, 1/3, 2 rotated), Andrej Karpathy Activity (100%, 3/3 frozen). 3 of 5 are genuinely frozen (100% same URLs), 2 have normal turnover. Root cause: topic saturation — narrow queries ("Houston Tropical Weather", "anthropic news", "Andrej Karpathy") return same 3-5 results from Google News RSS between runs 2min apart. No code bug: `fetch_feed` does not cache (raw text to feedparser), widening uses same URL (only age limit changes). Confirmed: global turnover is 14% (56/66 shared URLs across runs — only low-volume categories stay static). No fix required; this is expected behavior for low-volume topics.
 ## Status
-Fully functional. Pipeline v1.0.43: all refactoring P0-P6 complete. Bug F.2 confirmed as topic saturation (not a code bug).
+Fully functional. Pipeline v1.0.58: all refactoring P0-P6 complete. Tier 1 testing complete (4/4 files, 367 total tests). All bugs cleared.
 
 

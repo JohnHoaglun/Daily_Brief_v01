@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 — v1.0.45 (Bug Fix Plan)
+# TODO: Daily Brief v01 — v1.0.48 (Round 3 complete)
 
 ## Status Legend
 - `[ ]` — TODO (not started)
@@ -183,9 +183,9 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 
 | Bug | Priority | File | Effort | Rationale |
 |---|---|---|---|---|
-| **Fallback index mismatch** | P1 | `llm/summarizer.py` (batch parser) | 2hr | Parser can't match LLM output headlines to input stories by text, falls back to positional index **every run**. Risk: if LLM reorders even slightly, wrong summary → wrong story. Fix: improve fuzzy headline matching (normalize case/whitespace, use difflib ratio > 0.7) or log warning when fallback triggers. |
-| **3.3 — Strengthen swap detection** | P1 | `llm/summarizer.py` | 1hr | Existing swap detection only handles *adjacent* pairs. Larger reorderings (3+ story shift) not detected. Fix: after assigning summaries, check keyword overlap for all stories; flag any with <20% overlap as "topic mismatch" in logs. |
-| **3.5 — Boilerplate summaries** | P2 | `llm/summarizer.py` + `config.yaml` | 1hr | Summaries are too generic ("This article discusses..."). Already has 3-attempt retry (step 3E). Fix: increase `summary_options.temperature` slightly (0.3→0.5), tighten `summary_strict` prompt with "DO NOT use filler phrases" instruction, or increase `summary_trim_min_chars` to weed out short vapid summaries. |
+| **Fallback index mismatch** | P1 | `llm/summarizer.py` (batch parser) | 2hr | `[x] DONE v1.0.46 — Added Strategy 0: fuzzy headline matching via `difflib.SequenceMatcher.ratio() >= 0.7`. Positional fallback now warns via `logger.warning`. Fuzzy match scores 0.86-1.00 for paraphrased headlines. |
+| **3.3 — Strengthen swap detection** | P1 | `llm/summarizer.py` | 1hr | `[x] DONE v1.0.47 — All-pairs keyword overlap validation (lines 410-446). Flags stories with <20% headline→summary overlap, scans other headlines for best mismatch target. Logs `[SWAP DETECTED]` with source, target index, and overlap %. |
+| **3.5 — Boilerplate summaries** | P2 | `llm/summarizer.py` + `config.yaml` | 1hr | `[x] DONE v1.0.48 — Expanded boilerplate detection (25 phrases), prompt updated with anti-boilerplate instructions, temperature 0.3→0.5. Single retry with SUMMARY_STRICT on boilerplate detection. Batch parser catches boilerplate, falls back to headline fallback. |
 
 ### Gap — Unit Tests (v1.0.48 → .49 → .50)
 **Before Round 4, build Tier 1 unit tests as safety net.** Round 4 modifies retry logic — need tests to prevent regressions.
@@ -227,6 +227,7 @@ Round 5 (climate verification)        ──→ v1.0.54    (30 min, standalone)
 **Total: ~13 hours, 6 version bumps, 12 bugs cleared.**
 
 ### Recent Updates
+- [2026-07-29 18:30] **Round 3 complete — v1.0.48** — Fuzzy headline matching (v1.0.46), all-pairs swap detection (v1.0.47), boilerplate detection + retry (v1.0.48). Next: Tier 1 unit tests (safety net for Round 4).
 - [2026-07-29 18:00] **Round 1 complete — v1.0.41** — 3 bugs targeted: 2.2a (widening logs) fixed at v1.0.40, 4.4 (0-story headers) fixed at v1.0.41, Qwen log bug already correct. Ready for Round 2 (frozen data investigation).
 - [2026-07-29 00:20] **Bug Fix Plan created** — 12 active bugs organized into 5 rounds. Round 1 (zero risk, 45min) → Round 2 (investigation, 3hr) → Tier 1 tests (safety net, 2hr) → Round 3 (LLM quality, 4hr) → Round 4 (retry infra, 3hr) → Round 5 (climate verify, 30min). Target: v1.0.54.
 - [2026-07-29 00:05] **P6.3 complete — v1.0.39** — Connectivity checks (LLM/RSS/Weather, 3/3 pass). All refactoring P0-P6 done.

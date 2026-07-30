@@ -125,7 +125,7 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 - `[x]` `tests/test_config.py` (53 tests) — v1.0.49
 - `[x]` `tests/test_utils.py` (106 tests) — v1.0.50
 - `[x]` `tests/test_tagging.py` (44 tests) — v1.0.51
-- `[~]` `tests/test_weather_table.py` — markdown table renders correctly with/without data, "Unavailable" handled
+- `[x]` `tests/test_weather_table.py` (31 tests) — v1.0.55
 - `[~]` `tests/test_report.py` — frontmatter correct, categories in priority order, 0-story categories omitted
 - `[~]` `tests/test_summarizer.py` — response parsing with mock LLM output, batch splitting, context truncation
 - `[~]` `tests/test_alerter.py` — alert format parsing, TRUE/FALSE extraction per story
@@ -134,7 +134,7 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 
 | File | vTarget | Tests | Targets | Functions | Status |
 |---|---|---|---|---|---|
-| `tests/test_weather_table.py` | v1.0.55 | ~25 | `build_weather_markdown` | 1 | `[ ]` |
+| `tests/test_weather_table.py` | v1.0.55 | 31 | `build_weather_markdown` | 1 | `[x] DONE` |
 | `tests/test_report.py` | v1.0.56 | ~35 | `build_sections`, `compute_output_path`, `build_markdown`, `write_report` | 4 | `[ ]` |
 | `tests/test_summarizer.py` | v1.0.57 | ~60 | `_safe_sentence_summary`, `_is_refusal`, `_is_boilerplate`, `_count_sentences`, `parse_batch_summary_response`, `StoryPipelineState`, `_generate_auto_fallback`, `build_context`, `_summarize` | 8 | `[ ]` |
 | `tests/test_alerter.py` | v1.0.58 | ~25 | `parse_alert_batch_response`, `batch_evaluate_alerts` | 2 | `[ ]` |
@@ -245,6 +245,7 @@ Round 5 (climate verification)         ──→ v1.0.54    (30 min, standalone)
 **Total: ~13 hours, 6 version bumps, 12 bugs cleared.**
 
 ### Recent Updates
+- [2026-07-29 22:00] **Tier 1/4 complete — v1.0.55** — `test_weather_table.py` (31 tests): full data render, empty forecast fallback, forecast padding, station Unavailable, lake labels, table structure. 234 total tests.
 - [2026-07-29] **Tier 1 plan created — v1.0.55-.58** — 4 test files, ~145 new tests targeting weather table, report, summarizer, alerter. Total will be ~348 tests.
 - [2026-07-29 21:27] **Round 5 complete — v1.0.54** — Climate normal 95°F verified as real Open-Meteo ERA5 data (raw: 95.9°F → 96°F Jul 30). No hardcoded fallback. Debug logging added to `climate.py` for raw JSON inspection.
 - [2026-07-29 19:30] **Round 4 complete — v1.0.53** — Retry infrastructure (v1.0.52: N attempts, backoff, strict prompt) + auto fallback for unavailable (v1.0.53: `[Auto] {headline}` + batch Phase 3F). 0 Unavailable, 1 Auto in live run. 203 tests still green.

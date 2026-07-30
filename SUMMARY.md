@@ -4,6 +4,10 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.55 — test_weather_table.py (31 tests) — Tier 1/4
+- `tests/test_weather_table.py`: 31 tests covering `build_weather_markdown()` — full data render (12), empty forecast fallback (4), partial forecast padding (3), station Unavailable (2), empty lakes (2), lake label formatting (3), table structure (5), missing values (2), empty config (1)
+- 234 total tests (203 existing + 31 new)
+
 ### v1.0.58 — Tier 1 Unit Tests (in progress)
 - Created test plan for 4 remaining Tier 1 test files: `test_weather_table.py` (~25), `test_report.py` (~35), `test_summarizer.py` (~60), `test_alerter.py` (~25)
 - ~145 new tests, ~348 total. Target coverage: 90-95%

@@ -49,4 +49,4 @@ __all__ = [
     "validate_config",
 ]
 
-__version__ = "1.0.47"
+__version__ = "1.0.49"

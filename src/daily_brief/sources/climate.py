@@ -55,13 +55,20 @@ async def _fetch_climate_normal_high(
             **{"params": params, "timeout": 10},
         )
         if not climate:
+            logger.debug(f"  [ERA5] No climate response from {archive_url}")
             return None
+        logger.debug(f"  [ERA5] Raw response keys: {list(climate.keys())}")
+        logger.debug(f"  [ERA5] Full daily block: {climate.get('daily', {})}")
         daily = climate.get("daily", {})
         temps = daily.get("temperature_2m_max", [])
+        logger.debug(f"  [ERA5].temperature_2m_max list: {temps}")
+        logger.debug(f"  [ERA5] Request params: {params}")
         if temps:
             val = round(temps[0])
-            logger.debug(f"  Climate normal high for {today_str}: {val}°F")
+            logger.debug(f"  Climate normal high for {today_str}: {val}°F (raw: {temps[0]})")
             return val
+        logger.debug(f"  [ERA5] No temperature_2m_max data in response")
+        return None
     except Exception as e:
         logger.warning(f"  WARNING Open-Meteo climate normal fetch failed: {e}")
     return None

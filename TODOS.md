@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 — v1.0.54 (ALL BUGS CLEARED ✅)
+# TODO: Daily Brief v01 — v1.0.58 (Tier 1 testing in progress)
 
 ## Status Legend
 - `[ ]` — TODO (not started)
@@ -125,10 +125,28 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 - `[x]` `tests/test_config.py` (53 tests) — v1.0.49
 - `[x]` `tests/test_utils.py` (106 tests) — v1.0.50
 - `[x]` `tests/test_tagging.py` (44 tests) — v1.0.51
-- `[ ]` `tests/test_weather_table.py` — markdown table renders correctly with/without data, "Unavailable" handled
-- `[ ]` `tests/test_report.py` — frontmatter correct, categories in priority order, 0-story categories omitted
-- `[ ]` `tests/test_summarizer.py` — response parsing with mock LLM output, batch splitting, context truncation
-- `[ ]` `tests/test_alerter.py` — alert format parsing, TRUE/FALSE extraction per story
+- `[~]` `tests/test_weather_table.py` — markdown table renders correctly with/without data, "Unavailable" handled
+- `[~]` `tests/test_report.py` — frontmatter correct, categories in priority order, 0-story categories omitted
+- `[~]` `tests/test_summarizer.py` — response parsing with mock LLM output, batch splitting, context truncation
+- `[~]` `tests/test_alerter.py` — alert format parsing, TRUE/FALSE extraction per story
+
+### Tier 1 Implementation Plan — v1.0.55-.58
+
+| File | vTarget | Tests | Targets | Functions | Status |
+|---|---|---|---|---|---|
+| `tests/test_weather_table.py` | v1.0.55 | ~25 | `build_weather_markdown` | 1 | `[ ]` |
+| `tests/test_report.py` | v1.0.56 | ~35 | `build_sections`, `compute_output_path`, `build_markdown`, `write_report` | 4 | `[ ]` |
+| `tests/test_summarizer.py` | v1.0.57 | ~60 | `_safe_sentence_summary`, `_is_refusal`, `_is_boilerplate`, `_count_sentences`, `parse_batch_summary_response`, `StoryPipelineState`, `_generate_auto_fallback`, `build_context`, `_summarize` | 8 | `[ ]` |
+| `tests/test_alerter.py` | v1.0.58 | ~25 | `parse_alert_batch_response`, `batch_evaluate_alerts` | 2 | `[ ]` |
+
+**Test patterns per file:**
+
+- `test_weather_table.py` (~25 tests): Full data render, empty forecast fallback (3× "Dynamic"), empty station ("Unavailable"), empty lakes, Lake label prefix (avoid double "Lake"), table structure (headers, separators, delimiters)
+- `test_report.py` (~35 tests): `build_sections_from_stories` (grouping, alerts, dates), `compute_output_path` (auto-versioning, date stamp, existing files), `build_markdown` (frontmatter, tags, category order, empty cats, weather), `write_report` (file write, encoding), edge cases (0 stories, missing summary)
+- `test_summarizer.py` (~60 tests): Sentence utils (truncation, cleanup, empty), refusal/boilerplate detection, `parse_batch_summary_response` (STORY_N format, numbered, fuzzy headline match, keyword overlap, positional fallback, swap detection), `StoryPipelineState` (slots, defaults), `_generate_auto_fallback` (title cleanup, None), `build_context` (cap, fallbacks), `_summarize` mocked (retry, boilerplate retry, auto fallback)
+- `test_alerter.py` (~25 tests): `parse_alert_batch_response` (STORY_N format, numbered format, malformed lines, empty/garbage, partial parse), `batch_evaluate_alerts` mocked (empty skip, category grouping, alert flagging, LLM failure grace)
+
+**Conventions:** Follow existing test file patterns (unittest.TestCase, `sys.path` insert for `src/`). No network — mock LLM client where needed. Each commit verified with `pytest tests/test_<file>.py -v`.
 
 ### Tier 2: Source Tests (Mocked Network with `aioresponses`)
 - `[ ]` `tests/test_sources/test_weather.py` — NWS forecast JSON parsed, date/period extraction, "Unavailable" on empty
@@ -227,6 +245,7 @@ Round 5 (climate verification)         ──→ v1.0.54    (30 min, standalone)
 **Total: ~13 hours, 6 version bumps, 12 bugs cleared.**
 
 ### Recent Updates
+- [2026-07-29] **Tier 1 plan created — v1.0.55-.58** — 4 test files, ~145 new tests targeting weather table, report, summarizer, alerter. Total will be ~348 tests.
 - [2026-07-29 21:27] **Round 5 complete — v1.0.54** — Climate normal 95°F verified as real Open-Meteo ERA5 data (raw: 95.9°F → 96°F Jul 30). No hardcoded fallback. Debug logging added to `climate.py` for raw JSON inspection.
 - [2026-07-29 19:30] **Round 4 complete — v1.0.53** — Retry infrastructure (v1.0.52: N attempts, backoff, strict prompt) + auto fallback for unavailable (v1.0.53: `[Auto] {headline}` + batch Phase 3F). 0 Unavailable, 1 Auto in live run. 203 tests still green.
 - [2026-07-29 19:00] **Tier 1 tests complete — v1.0.51** — 203 tests passing across test_config (53), test_utils (106), test_tagging (44). Safety net for Round 4 retry logic is green.

@@ -4,6 +4,10 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.58 — Tier 1 Unit Tests (in progress)
+- Created test plan for 4 remaining Tier 1 test files: `test_weather_table.py` (~25), `test_report.py` (~35), `test_summarizer.py` (~60), `test_alerter.py` (~25)
+- ~145 new tests, ~348 total. Target coverage: 90-95%
+
 - [2026-07-29 21:27] Version bumped to **v1.0.54** — Round 5: climate normal verification.
 - [2026-07-29 21:27] Verification (Round 5) — Confirmed climate normal high is real Open-Meteo ERA5 data, not hardcoded fallback. Added `logger.debug()` to `climate.py` to log raw ERA5 JSON responses: response keys, daily block, temperature_2m_max list, request params, and raw→rounded value. Live pipeline showed ERA5 returning `temperature_2m_max: [95.9]` → rounded to 96°F for Jul 30. Full fallback chain verified: (1) ERA5 API → live value, (2) None → forecast high fallback, (3) still missing → "Unavailable". No hardcoded 95°F anywhere in codebase.
 - [2026-07-29 23:26] Version bumped to **v1.0.45** — Bug F.2: frozen station investigation.

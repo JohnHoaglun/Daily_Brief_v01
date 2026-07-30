@@ -126,7 +126,7 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 - `[x]` `tests/test_utils.py` (106 tests) — v1.0.50
 - `[x]` `tests/test_tagging.py` (44 tests) — v1.0.51
 - `[x]` `tests/test_weather_table.py` (31 tests) — v1.0.55
-- `[~]` `tests/test_report.py` — frontmatter correct, categories in priority order, 0-story categories omitted
+- `[x]` `tests/test_report.py` (35 tests) — v1.0.56
 - `[~]` `tests/test_summarizer.py` — response parsing with mock LLM output, batch splitting, context truncation
 - `[~]` `tests/test_alerter.py` — alert format parsing, TRUE/FALSE extraction per story
 
@@ -135,7 +135,7 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 | File | vTarget | Tests | Targets | Functions | Status |
 |---|---|---|---|---|---|
 | `tests/test_weather_table.py` | v1.0.55 | 31 | `build_weather_markdown` | 1 | `[x] DONE` |
-| `tests/test_report.py` | v1.0.56 | ~35 | `build_sections`, `compute_output_path`, `build_markdown`, `write_report` | 4 | `[ ]` |
+| `tests/test_report.py` | v1.0.56 | 35 | `build_sections`, `compute_output_path`, `build_markdown`, `write_report` | 4 | `[x] DONE` |
 | `tests/test_summarizer.py` | v1.0.57 | ~60 | `_safe_sentence_summary`, `_is_refusal`, `_is_boilerplate`, `_count_sentences`, `parse_batch_summary_response`, `StoryPipelineState`, `_generate_auto_fallback`, `build_context`, `_summarize` | 8 | `[ ]` |
 | `tests/test_alerter.py` | v1.0.58 | ~25 | `parse_alert_batch_response`, `batch_evaluate_alerts` | 2 | `[ ]` |
 

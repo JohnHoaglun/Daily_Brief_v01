@@ -4,13 +4,17 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.56 — test_report.py (35 tests) — Tier 1/4
+- `tests/test_report.py`: 35 tests covering `build_sections_from_stories` (8), `compute_output_path` (8), `build_markdown` (13), `write_report` (6) — story grouping, alerts, date formatting, auto-versioning, frontmatter, tags sorted, category order, empty categories, weather section, link fallback, UTF-8 encoding
+- 269 total tests (234 existing + 35 new)
+
 ### v1.0.55 — test_weather_table.py (31 tests) — Tier 1/4
 - `tests/test_weather_table.py`: 31 tests covering `build_weather_markdown()` — full data render (12), empty forecast fallback (4), partial forecast padding (3), station Unavailable (2), empty lakes (2), lake label formatting (3), table structure (5), missing values (2), empty config (1)
 - 234 total tests (203 existing + 31 new)
 
 ### v1.0.58 — Tier 1 Unit Tests (in progress)
-- Created test plan for 4 remaining Tier 1 test files: `test_weather_table.py` (~25), `test_report.py` (~35), `test_summarizer.py` (~60), `test_alerter.py` (~25)
-- ~145 new tests, ~348 total. Target coverage: 90-95%
+- Created test plan for 4 remaining Tier 1 test files: `test_weather_table.py` (31 done), `test_report.py` (35 done), `test_summarizer.py` (~60), `test_alerter.py` (~25)
+- 269 total tests (234 existing + 35 new). Remaining target: ~89 tests, ~358 total
 
 - [2026-07-29 21:27] Version bumped to **v1.0.54** — Round 5: climate normal verification.
 - [2026-07-29 21:27] Verification (Round 5) — Confirmed climate normal high is real Open-Meteo ERA5 data, not hardcoded fallback. Added `logger.debug()` to `climate.py` to log raw ERA5 JSON responses: response keys, daily block, temperature_2m_max list, request params, and raw→rounded value. Live pipeline showed ERA5 returning `temperature_2m_max: [95.9]` → rounded to 96°F for Jul 30. Full fallback chain verified: (1) ERA5 API → live value, (2) None → forecast high fallback, (3) still missing → "Unavailable". No hardcoded 95°F anywhere in codebase.

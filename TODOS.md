@@ -122,9 +122,9 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 ## Testing Strategy
 
 ### Tier 1: Unit Tests (Fast, No Network)
-- `[ ]` `tests/test_config.py` — YAML loads, required keys present, types correct, key typos caught, defaults applied
-- `[ ]` `tests/test_utils.py` — `_safe_text`, `strip_html`, number parsing edge cases
-- `[ ]` `tests/test_tagging.py` — keywords match config.yaml, scoring works, tag thresholds correct
+- `[x]` `tests/test_config.py` (53 tests) — v1.0.49
+- `[x]` `tests/test_utils.py` (106 tests) — v1.0.50
+- `[x]` `tests/test_tagging.py` (44 tests) — v1.0.51
 - `[ ]` `tests/test_weather_table.py` — markdown table renders correctly with/without data, "Unavailable" handled
 - `[ ]` `tests/test_report.py` — frontmatter correct, categories in priority order, 0-story categories omitted
 - `[ ]` `tests/test_summarizer.py` — response parsing with mock LLM output, batch splitting, context truncation
@@ -172,9 +172,9 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 
 | Bug | Priority | File | Effort | Rationale |
 |---|---|---|---|---|
-| **F.2 — Frozen feeds (×5 cats)** | P2 | `config.yaml` + `sources/rss.py` | 1hr | Houston Tropical, OpenAI, Anthropic, SpaceX, Karpathy all show 100% URL overlap across runs. Could be Google News caching, too-narrow queries, or feedparser caching. Fix: try URL dedup with timestamp params or broaden queries. |
-| **F.2 — Frozen lake data** | P2 | `sources/lakes.py` + `rendering/weather_table.py` | 1hr | conroe, corpus_christi, travis show identical values across runs. Hypothesis: scrape returns data but table renderer overwrites with cached/fallback values. Or genuinely unchanged over weekends (lakes change slowly). Debug: print raw scrape response. |
-| **F.2 — Frozen station data** | ~~P2~~ ✅ | `sources/wunderground.py` | Investigation | **RESOLVED — no bug.** All 3 scrapers verified live: avg_temp_today (94°F, Open-Meteo ERA5 climatology), avg_monthly_rainfall (3.77in, climate.gov normals), current_monthly_rainfall (7.42in, Wunderground). Values genuinely stable on short time scales. weather.py guard at L220 correctly nullifies identical avg/current. v1.0.45. |
+| **F.2 — Frozen feeds (×5 cats)** | P2 | `config.yaml` + `sources/rss.py` | 1hr | `[x] DONE v1.0.43 — No code bug. 3/5 frozen (narrow topic saturation: Houston Tropical, Anthropic, Karpathy). 2/5 turn normally (OpenAI 80%, SpaceX 33%). Global turnover 14%, healthy. |
+| **F.2 — Frozen lake data** | P2 | `sources/lakes.py` + `rendering/weather_table.py` | 1hr | `[x] DONE v1.0.44 — No bug. Reservoir levels from waterdatafortexas.org update daily, not sub-daily. Expected behavior. |
+| **F.2 — Frozen station data** | ~~P2~~ ✅ | `sources/wunderground.py` | 1hr | `[x] DONE v1.0.45 — No bug. All scrapers verified live. Values genuinely stable on short timescales. |
 
 **Investigation approach:** Run pipeline twice with sleep between, diff the markdown output. If frozen, add `logger.debug()` to the scrape function to verify HTTP response is fresh. If scrape works but rendering caches, fix the renderer. If genuinely unchanged (lakes/station), document as expected behavior.
 
@@ -203,7 +203,7 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 |---|---|---|---|---|
 | **3.2 — Retry failed summaries** | P1 | `llm/summarizer.py` | 2hr | `[x] DONE v1.0.52 — Configurable retry (N attempts, exponential backoff, strict prompt on retry). `[Summary Unavailable]` only after exhaustion. |
 | **3.2 RESIDUAL — "Unavailable" count** | P1 | `llm/summarizer.py` | 1hr | `[x] DONE v1.0.53 — Auto fallback (`[Auto] {headline}`) when retry exhausts. Batch Phase 3F: per-story LLM retry for empty batch summaries. `[Auto]` accepted in validation. 0 Unavailable, 1 Auto in live run. |
-| **3.3 RESIDUAL — Zero keyword overlap** | P1 | (depends on Round 3) | 30min | `[~] Verify post-R4 — swap detection + fuzzy matching should have resolved. Check for 0% overlap stories in latest run. |
+| **3.3 RESIDUAL — Zero keyword overlap** | P1 | (depends on Round 3) | 30min | `[x] DONE — Resolved by Round 3. Fuzzy matching + all-pairs swap detection eliminated misassignment. |
 
 ### Round 5 — Climate Verification (v1.0.54) — **30 min, Risk: Low**
 
@@ -216,12 +216,12 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 ### Execution Order & Version Targets
 
 ```
-Round 1 (2.2a → 4.4 → Qwen log)      ──→ v1.0.42    (45 min, zero risk)
-Round 2 (F.2 frozen ×3)               ──→ v1.0.45    (3 hrs, read-only investigation)
-Tier 1 Unit Tests (config/utils/tag)   ──→ v1.0.48   (2 hrs, safety net for R3/R4)
-Round 3 (index → swap → boilerplate)  ──→ v1.0.51    (4 hrs, medium risk)
-Round 4 (retry → unavailable)         ──→ v1.0.53    (3 hrs, depends on R3 + tests)
-Round 5 (climate verification)        ──→ v1.0.54    (30 min, standalone)
+Round 1 (2.2a → 4.4 → Qwen log)       ──→ v1.0.41    (45 min, zero risk)     ✅
+Round 2 (F.2 frozen ×3)                ──→ v1.0.45    (3 hrs, read-only)      ✅
+Tier 1 Unit Tests (config/utils/tag)    ──→ v1.0.51    (2 hrs, safety net)     ✅
+Round 3 (index → swap → boilerplate)   ──→ v1.0.48    (4 hrs, medium risk)    ✅
+Round 4 (retry → unavailable)          ──→ v1.0.53    (3 hrs, depends on R3)  ✅
+Round 5 (climate verification)         ──→ v1.0.54    (30 min, standalone)    ✅
 ```
 
 **Total: ~13 hours, 6 version bumps, 12 bugs cleared.**
@@ -365,6 +365,6 @@ Daily_Brief_v01/
 ---
 
 ## Version Notes
-- Current version: **v1.0.35** (P5.1 complete — RSS dedup extraction, pipeline.py reduced to 364L)
-- Last stable: v1.0.34 (P5 pipeline + config extraction)
-- Branch: `dev_opencode`, ahead of `origin/dev_opencode`
+- Current version: **v1.0.54** (All 5 rounds complete — 12 bugs cleared, 203 tests passing)
+- Last stable: v1.0.53 (Round 4 retry infra + auto fallback)
+- Branch: `dev_opencode`, synced with `origin/dev_opencode`

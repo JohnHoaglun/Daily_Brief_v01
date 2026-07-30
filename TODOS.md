@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 — v1.0.48 (Round 3 complete)
+# TODO: Daily Brief v01 — v1.0.51 (Tier 1 tests complete)
 
 ## Status Legend
 - `[ ]` — TODO (not started)
@@ -187,14 +187,14 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 | **3.3 — Strengthen swap detection** | P1 | `llm/summarizer.py` | 1hr | `[x] DONE v1.0.47 — All-pairs keyword overlap validation (lines 410-446). Flags stories with <20% headline→summary overlap, scans other headlines for best mismatch target. Logs `[SWAP DETECTED]` with source, target index, and overlap %. |
 | **3.5 — Boilerplate summaries** | P2 | `llm/summarizer.py` + `config.yaml` | 1hr | `[x] DONE v1.0.48 — Expanded boilerplate detection (25 phrases), prompt updated with anti-boilerplate instructions, temperature 0.3→0.5. Single retry with SUMMARY_STRICT on boilerplate detection. Batch parser catches boilerplate, falls back to headline fallback. |
 
-### Gap — Unit Tests (v1.0.48 → .49 → .50)
-**Before Round 4, build Tier 1 unit tests as safety net.** Round 4 modifies retry logic — need tests to prevent regressions.
+### Gap — Unit Tests (v1.0.49 → .50 → .51) ✅ **COMPLETE**
+**Safety net for Round 4. All 3 test files created and passing (203 tests total).**
 
-| Test | File | Effort | Coverage Target |
+| Test | File | Tests | Status |
 |---|---|---|---|
-| `test_config.py` | config loads, required keys, types, defaults | 1hr | 95% |
-| `test_utils.py` | `_safe_text`, `strip_html`, number parsing | 30min | 90% |
-| `test_tagging.py` | keyword matching, scoring, thresholds | 30min | 90% |
+| `test_config.py` | loads, required keys, types, defaults, validation | 53 | `[x] DONE v1.0.49` |
+| `test_utils.py` | `_safe_text`, `strip_html`, number parsing, etc. | 106 | `[x] DONE v1.0.50` |
+| `test_tagging.py` | keyword matching, scoring, thresholds | 44 | `[x] DONE v1.0.51` |
 
 ### Round 4 — Retry Infrastructure (v1.0.51 → .52 → .53) — **3 hrs, Risk: Medium**
 *Builds on Round 3 fixes and unit tests. Risk is medium because retry logic touches the hot path.*
@@ -227,6 +227,7 @@ Round 5 (climate verification)        ──→ v1.0.54    (30 min, standalone)
 **Total: ~13 hours, 6 version bumps, 12 bugs cleared.**
 
 ### Recent Updates
+- [2026-07-29 19:00] **Tier 1 tests complete — v1.0.51** — 203 tests passing across test_config (53), test_utils (106), test_tagging (44). Safety net for Round 4 retry logic is green.
 - [2026-07-29 18:30] **Round 3 complete — v1.0.48** — Fuzzy headline matching (v1.0.46), all-pairs swap detection (v1.0.47), boilerplate detection + retry (v1.0.48). Next: Tier 1 unit tests (safety net for Round 4).
 - [2026-07-29 18:00] **Round 1 complete — v1.0.41** — 3 bugs targeted: 2.2a (widening logs) fixed at v1.0.40, 4.4 (0-story headers) fixed at v1.0.41, Qwen log bug already correct. Ready for Round 2 (frozen data investigation).
 - [2026-07-29 00:20] **Bug Fix Plan created** — 12 active bugs organized into 5 rounds. Round 1 (zero risk, 45min) → Round 2 (investigation, 3hr) → Tier 1 tests (safety net, 2hr) → Round 3 (LLM quality, 4hr) → Round 4 (retry infra, 3hr) → Round 5 (climate verify, 30min). Target: v1.0.54.

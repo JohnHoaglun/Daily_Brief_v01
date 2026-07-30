@@ -72,6 +72,10 @@ LLM_SUMMARY_TRIM_MIN_CHARS = _get_nested(CONFIG_YAML, 'runtime_defaults.llm_summ
 LLM_SUMMARY_OPTIONS = _get_nested(CONFIG_YAML, 'runtime_defaults.llm_summary_options') or {"temperature": 0.3, "top_p": 0.8}
 LLM_ALERT_OPTIONS = _get_nested(CONFIG_YAML, 'runtime_defaults.llm_alert_options') or {"temperature": 0.1, "top_p": 0.3}
 
+# Summary retry configuration
+LLM_SUMMARY_RETRY_ATTEMPTS = int(_get_nested(CONFIG_YAML, 'runtime_defaults.summary_retry.attempts') or 2)
+LLM_SUMMARY_RETRY_BACKOFF = list(_get_nested(CONFIG_YAML, 'runtime_defaults.summary_retry.backoff') or [0.5, 1.0])
+
 # Category definitions
 CATEGORIES_RAW = _get_nested(CONFIG_YAML, 'categories') or {}
 CATEGORY_SETTINGS = _get_nested(CONFIG_YAML, 'category_settings') or {}

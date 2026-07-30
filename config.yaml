@@ -1,4 +1,4 @@
-version: 1.0.51
+version: 1.0.52
 llm:
   model: gemma4-e2b
   host: http://192.168.4.52:8007
@@ -18,6 +18,11 @@ runtime_defaults:
   llm_summary_context_chars: 6000
   llm_context_preview_chars: 600
   llm_summary_trim_min_chars: 100
+  summary_retry:
+    attempts: 2
+    backoff:
+    - 0.5
+    - 1.0
 directories:
   log_dir: /Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/Dev/logs
   news_dir: /Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/Dev/news

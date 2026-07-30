@@ -9,6 +9,8 @@ from daily_brief.config import (
     LLM_SUMMARY_TRIM_MIN_CHARS,
     LLM_SUMMARY_CONTEXT_CHARS,
     LLM_SUMMARY_OPTIONS,
+    LLM_SUMMARY_RETRY_ATTEMPTS,
+    LLM_SUMMARY_RETRY_BACKOFF,
     LLM_CONTEXT_PREVIEW_CHARS,
     SUMMARY_PROMPT,
     SUMMARY_STRICT_PROMPT,
@@ -474,11 +476,23 @@ class StoryPipelineState:
 
 
 def _summarize(client, context, min_chars=LLM_SUMMARY_TRIM_MIN_CHARS, strict=False):
-    """Blocking summary call with retry and boilerplate detection. Set strict=True to use the stricter anti-boilerplate prompt."""
+    """Blocking summary call with configurable retry and boilerplate detection.
+
+    On retry: switches to strict prompt, applies exponential backoff.
+    If all attempts exhausted: returns "[Summary Unavailable]" marker.
+
+    Configured via runtime_defaults.summary_retry in config.yaml.
+    """
+    from daily_brief.config import LLM_SUMMARY_RETRY_ATTEMPTS, LLM_SUMMARY_RETRY_BACKOFF
+
     if not context or len(context.strip()) < min_chars:
         return None
+
+    max_attempts = LLM_SUMMARY_RETRY_ATTEMPTS
+    backoff_delays = LLM_SUMMARY_RETRY_BACKOFF
     prompt = SUMMARY_STRICT_PROMPT if strict else SUMMARY_PROMPT
-    for attempt in range(2):
+
+    for attempt in range(max_attempts):
         try:
             t0 = time.time()
             r = client.chat_completions_create(
@@ -499,12 +513,16 @@ def _summarize(client, context, min_chars=LLM_SUMMARY_TRIM_MIN_CHARS, strict=Fal
                 continue
             return summary_text
         except Exception as e:
-            if attempt == 0:
-                logger.warning(f"{'STRICT ' if strict else ''}SUMMARIZE attempt 1 failed ({e}), retrying 3s...")
-                time.sleep(3)
+            is_last = attempt >= max_attempts - 1
+            delay = backoff_delays[attempt] if attempt < len(backoff_delays) else backoff_delays[-1]
+            if not is_last:
+                logger.warning(f"[RETRY] attempt {attempt+1}/{max_attempts} failed ({e}), retrying in {delay}s")
+                time.sleep(delay)
+                prompt = SUMMARY_STRICT_PROMPT
+                strict = True
             else:
                 logger.warning(f"{'STRICT ' if strict else ''}SUMMARIZE ERROR (final): {e}")
-    return None
+    return "[Summary Unavailable]"
 
 
 def build_context(story):

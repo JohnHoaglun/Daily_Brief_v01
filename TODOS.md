@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 — v1.0.51 (Tier 1 tests complete)
+# TODO: Daily Brief v01 — v1.0.53 (Round 4 complete)
 
 ## Status Legend
 - `[ ]` — TODO (not started)
@@ -201,9 +201,9 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 
 | Bug | Priority | File | Effort | Rationale |
 |---|---|---|---|---|
-| **3.2 — Retry failed summaries** | P1 | `llm/summarizer.py` | 2hr | 3/52 stories get no valid summary. Need configurable retry: N attempts (default 2), exponential backoff (0.5s, 1s), switch to `summary_strict` prompt on retry, then mark as failed with "Unavailable" if exhausted. |
-| **3.2 RESIDUAL — "Unavailable" count** | P1 | `llm/summarizer.py` | 1hr | 7 stories show "Unavailable" — same root cause as 3.2. The 3E retry step (boilerplate) doesn't cover genuinely empty responses. Fix: integrate with 3.2's retry loop. |
-| **3.3 RESIDUAL — Zero keyword overlap** | P1 | (depends on Round 3) | 30min | US News #4 summary has 0% keyword overlap — LLM hallucinated from wrong story. Fix in Round 3 (index mismatch + swap detection) should resolve. Verify post-R3. |
+| **3.2 — Retry failed summaries** | P1 | `llm/summarizer.py` | 2hr | `[x] DONE v1.0.52 — Configurable retry (N attempts, exponential backoff, strict prompt on retry). `[Summary Unavailable]` only after exhaustion. |
+| **3.2 RESIDUAL — "Unavailable" count** | P1 | `llm/summarizer.py` | 1hr | `[x] DONE v1.0.53 — Auto fallback (`[Auto] {headline}`) when retry exhausts. Batch Phase 3F: per-story LLM retry for empty batch summaries. `[Auto]` accepted in validation. 0 Unavailable, 1 Auto in live run. |
+| **3.3 RESIDUAL — Zero keyword overlap** | P1 | (depends on Round 3) | 30min | `[~] Verify post-R4 — swap detection + fuzzy matching should have resolved. Check for 0% overlap stories in latest run. |
 
 ### Round 5 — Climate Verification (v1.0.54) — **30 min, Risk: Low**
 
@@ -227,6 +227,7 @@ Round 5 (climate verification)        ──→ v1.0.54    (30 min, standalone)
 **Total: ~13 hours, 6 version bumps, 12 bugs cleared.**
 
 ### Recent Updates
+- [2026-07-29 19:30] **Round 4 complete — v1.0.53** — Retry infrastructure (v1.0.52: N attempts, backoff, strict prompt) + auto fallback for unavailable (v1.0.53: `[Auto] {headline}` + batch Phase 3F). 0 Unavailable, 1 Auto in live run. 203 tests still green.
 - [2026-07-29 19:00] **Tier 1 tests complete — v1.0.51** — 203 tests passing across test_config (53), test_utils (106), test_tagging (44). Safety net for Round 4 retry logic is green.
 - [2026-07-29 18:30] **Round 3 complete — v1.0.48** — Fuzzy headline matching (v1.0.46), all-pairs swap detection (v1.0.47), boilerplate detection + retry (v1.0.48). Next: Tier 1 unit tests (safety net for Round 4).
 - [2026-07-29 18:00] **Round 1 complete — v1.0.41** — 3 bugs targeted: 2.2a (widening logs) fixed at v1.0.40, 4.4 (0-story headers) fixed at v1.0.41, Qwen log bug already correct. Ready for Round 2 (frozen data investigation).

@@ -4,6 +4,10 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.57 — test_summarizer.py (63 tests) — Tier 1/5
+- `tests/test_summarizer.py`: 63 tests covering `_safe_sentence_summary` (9: truncation, cleanup, empty/None, whitespace), `_is_refusal` (6: refusal phrases, factual text, empty), `_is_boilerplate` (6: boilerplate phrases, factual text), `_count_sentences` (4: multiple, single, empty, mixed punctuation), `parse_batch_summary_response` (22: STORY_N format with/without equals, numbered format, fuzzy headline match, keyword overlap, positional fallback, swap detection, edge cases), `StoryPipelineState` (4: slots, defaults, settable), `_generate_auto_fallback` (5: format, colon cleanup, None/empty, whitespace), `build_context` (5: context cap, snippet/title fallback, category fallback, empty), `_summarize` mocked (6: success, empty response, exception fallback, retry with recovery, title fallback, None title)
+- 332 total tests (269 existing + 63 new)
+
 ### v1.0.56 — test_report.py (35 tests) — Tier 1/4
 - `tests/test_report.py`: 35 tests covering `build_sections_from_stories` (8), `compute_output_path` (8), `build_markdown` (13), `write_report` (6) — story grouping, alerts, date formatting, auto-versioning, frontmatter, tags sorted, category order, empty categories, weather section, link fallback, UTF-8 encoding
 - 269 total tests (234 existing + 35 new)
@@ -13,8 +17,8 @@ Automated daily news brief generator that fetches news from 17 content categorie
 - 234 total tests (203 existing + 31 new)
 
 ### v1.0.58 — Tier 1 Unit Tests (in progress)
-- Created test plan for 4 remaining Tier 1 test files: `test_weather_table.py` (31 done), `test_report.py` (35 done), `test_summarizer.py` (~60), `test_alerter.py` (~25)
-- 269 total tests (234 existing + 35 new). Remaining target: ~89 tests, ~358 total
+- Created test plan for 4 remaining Tier 1 test files: `test_weather_table.py` (31 done), `test_report.py` (35 done), `test_summarizer.py` (63 done), `test_alerter.py` (~25)
+- 332 total tests (269 existing + 63 new). Remaining target: ~25 tests, ~357 total
 
 - [2026-07-29 21:27] Version bumped to **v1.0.54** — Round 5: climate normal verification.
 - [2026-07-29 21:27] Verification (Round 5) — Confirmed climate normal high is real Open-Meteo ERA5 data, not hardcoded fallback. Added `logger.debug()` to `climate.py` to log raw ERA5 JSON responses: response keys, daily block, temperature_2m_max list, request params, and raw→rounded value. Live pipeline showed ERA5 returning `temperature_2m_max: [95.9]` → rounded to 96°F for Jul 30. Full fallback chain verified: (1) ERA5 API → live value, (2) None → forecast high fallback, (3) still missing → "Unavailable". No hardcoded 95°F anywhere in codebase.

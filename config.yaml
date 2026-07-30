@@ -1,4 +1,4 @@
-version: 1.0.46
+version: 1.0.48
 llm:
   model: gemma4-e2b
   host: http://192.168.4.52:8007
@@ -11,6 +11,13 @@ llm:
   context_preview_chars: 600
   summary_context_chars: 6000
   summary_trim_min_chars: 100
+runtime_defaults:
+  llm_summary_options:
+    temperature: 0.5
+    top_p: 0.8
+  llm_summary_context_chars: 6000
+  llm_context_preview_chars: 600
+  llm_summary_trim_min_chars: 100
 directories:
   log_dir: /Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/Dev/logs
   news_dir: /Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/Dev/news
@@ -54,8 +61,13 @@ runtime:
 cleanup:
   max_log_versions: 5
 prompts:
-  summary: You are an objective news editor. Write a detailed summary of at least
-    3 sentences covering the key facts of this article.
+  summary: "You are an objective news editor. Write a detailed summary of at least\
+    \ 3 sentences covering the key facts of this article. Use concrete facts only:\
+    \ names, places, numbers, dates, specific actions. Use active voice with specific\
+    \ actors: 'X announced', 'Y filed', 'Z said'. CRITICAL: DO NOT use filler phrases\
+    \ like 'This article discusses', 'This story covers', 'The author writes', 'According\
+    \ to', 'The report states', 'In this piece'. ALWAYS state the SPECIFIC subject\
+    \ and event directly. Start with the WHO and WHAT. Be direct and factual."
   summary_strict: "You are an objective news editor. Write a detailed summary of 3\
     \ sentences covering the key facts of this article. RULES: Use concrete facts\
     \ only \u2014 names, places, numbers, dates, specific actions. NEVER use vague\

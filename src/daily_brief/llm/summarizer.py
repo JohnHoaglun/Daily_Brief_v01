@@ -73,6 +73,18 @@ def _is_boilerplate(text):
         "this underscores",
         "this reflects",
         "this signals",
+        "this article discusses",
+        "this story covers",
+        "the author writes",
+        "according to",
+        "the report states",
+        "in this piece",
+        "this piece explores",
+        "this article explores",
+        "the article examines",
+        "this story examines",
+        "the following article",
+        "the following story",
     ]
     return any(p in t for p in boilerplate_phrases)
 
@@ -462,7 +474,7 @@ class StoryPipelineState:
 
 
 def _summarize(client, context, min_chars=LLM_SUMMARY_TRIM_MIN_CHARS, strict=False):
-    """Blocking summary call with retry. Set strict=True to use the stricter anti-boilerplate prompt."""
+    """Blocking summary call with retry and boilerplate detection. Set strict=True to use the stricter anti-boilerplate prompt."""
     if not context or len(context.strip()) < min_chars:
         return None
     prompt = SUMMARY_STRICT_PROMPT if strict else SUMMARY_PROMPT
@@ -480,6 +492,11 @@ def _summarize(client, context, min_chars=LLM_SUMMARY_TRIM_MIN_CHARS, strict=Fal
             logger.debug(f"{'STRICT ' if strict else ''}SUMMARIZE: {time.time() - t0:.2f}s")
             summary_text = r.choices[0].message.content or ""
             summary_text = " ".join([ln.strip() for ln in str(summary_text).splitlines() if ln.strip()])
+            if not strict and _is_boilerplate(summary_text):
+                logger.warning(f"BOILERPLACE DETECTED in summary attempt {attempt+1}, retrying with strict prompt...")
+                prompt = SUMMARY_STRICT_PROMPT
+                strict = True
+                continue
             return summary_text
         except Exception as e:
             if attempt == 0:
@@ -582,6 +599,11 @@ def batch_summarize_all(client, stories, session=None):
 
                     if not summary or not summary.strip():
                         s.summary = ""
+                        continue
+
+                    if _is_boilerplate(summary):
+                        logger.warning(f"BOILERPLACE DETECTED for story {idx} ({headline}): '{summary[:80]}...' — falling back to headline")
+                        s.summary = f"[Headline] {s.title}"
                         continue
 
                     if not is_invalid_summary(summary):

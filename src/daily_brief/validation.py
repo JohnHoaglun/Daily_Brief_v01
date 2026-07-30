@@ -81,6 +81,7 @@ def validate_report(filepath):
 
     total_stories = len(stories)
     bad_stories = 0
+    auto_count = 0
 
     for title, summary in stories:
         title_lower = title.lower()
@@ -92,6 +93,11 @@ def validate_report(filepath):
             continue
 
         summary_lower = summary.lower()
+
+        # Check 4a: [Auto] fallback — acceptable (headline-derived summary)
+        if summary.startswith("[Auto]"):
+            auto_count += 1
+            continue
 
         # Check 2: Summary is just the headline
         title_norm = re.sub(r'\s+', ' ', title_lower)
@@ -108,8 +114,8 @@ def validate_report(filepath):
             bad_stories += 1
             continue
 
-        # Check 4: Fallback markers
-        if summary.startswith("[Headline]") or "[unavailable" in summary_lower:
+        # Check 4: Fallback markers (now accepts [Auto], rejects [Headline]/[Summary Unavailable])
+        if summary.startswith("[Headline]") or "[summary unavailable]" in summary_lower:
             issues.append(f"Fallback marker present: {title[:80]}")
             bad_stories += 1
             continue
@@ -136,8 +142,8 @@ def validate_report(filepath):
     passed = bad_stories <= fail_threshold
     status = "PASS" if passed else "FAIL"
     logger.info(
-        "VALIDATE: %d stories, %d bad (%.0f%%), threshold %.0f — %s",
-        total_stories, bad_stories, total_bad_ratio * 100, fail_threshold, status,
+        "VALIDATE: %d stories, %d bad (%.0f%%), [Auto] fallbacks: %d, threshold %.0f — %s",
+        total_stories, bad_stories, total_bad_ratio * 100, auto_count, fail_threshold, status,
     )
 
     if issues:

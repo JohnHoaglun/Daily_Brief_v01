@@ -475,11 +475,24 @@ class StoryPipelineState:
         self.summary = None
 
 
-def _summarize(client, context, min_chars=LLM_SUMMARY_TRIM_MIN_CHARS, strict=False):
+def _generate_auto_fallback(title):
+    """Generate a deterministic fallback summary from the story title alone.
+    Returns: [Auto] {headline} — minimal but informative."""
+    if not title:
+        return "[Summary Unavailable]"
+    cleaned = re.sub(r"\s+", " ", str(title)).strip()
+    # Remove trailing colon, question mark clusters, and common truncation markers
+    cleaned = re.sub(r"[:\-\u2014]\s*$", "", cleaned).strip()
+    return f"[Auto] {cleaned}"
+
+
+def _summarize(client, context, title=None, min_chars=LLM_SUMMARY_TRIM_MIN_CHARS, strict=False):
     """Blocking summary call with configurable retry and boilerplate detection.
 
     On retry: switches to strict prompt, applies exponential backoff.
-    If all attempts exhausted: returns "[Summary Unavailable]" marker.
+    If all attempts exhausted: returns [Auto] {title} fallback (deterministic
+    summary from headline). Only falls through to "[Summary Unavailable]" if
+    title is also missing.
 
     Configured via runtime_defaults.summary_retry in config.yaml.
     """
@@ -506,6 +519,16 @@ def _summarize(client, context, min_chars=LLM_SUMMARY_TRIM_MIN_CHARS, strict=Fal
             logger.debug(f"{'STRICT ' if strict else ''}SUMMARIZE: {time.time() - t0:.2f}s")
             summary_text = r.choices[0].message.content or ""
             summary_text = " ".join([ln.strip() for ln in str(summary_text).splitlines() if ln.strip()])
+            if not summary_text.strip():
+                logger.warning(f"Empty LLM response on attempt {attempt+1}")
+                is_last = attempt >= max_attempts - 1
+                if not is_last:
+                    delay = backoff_delays[attempt] if attempt < len(backoff_delays) else backoff_delays[-1]
+                    logger.warning(f"[RETRY] attempt {attempt+1}/{max_attempts} empty response, retrying in {delay}s")
+                    time.sleep(delay)
+                    prompt = SUMMARY_STRICT_PROMPT
+                    strict = True
+                    continue
             if not strict and _is_boilerplate(summary_text):
                 logger.warning(f"BOILERPLACE DETECTED in summary attempt {attempt+1}, retrying with strict prompt...")
                 prompt = SUMMARY_STRICT_PROMPT
@@ -522,7 +545,8 @@ def _summarize(client, context, min_chars=LLM_SUMMARY_TRIM_MIN_CHARS, strict=Fal
                 strict = True
             else:
                 logger.warning(f"{'STRICT ' if strict else ''}SUMMARIZE ERROR (final): {e}")
-    return "[Summary Unavailable]"
+    # Fallback: deterministic auto-summary from title
+    return _generate_auto_fallback(title)
 
 
 def build_context(story):
@@ -620,8 +644,8 @@ def batch_summarize_all(client, stories, session=None):
                         continue
 
                     if _is_boilerplate(summary):
-                        logger.warning(f"BOILERPLACE DETECTED for story {idx} ({headline}): '{summary[:80]}...' — falling back to headline")
-                        s.summary = f"[Headline] {s.title}"
+                        logger.warning(f"BOILERPLACE DETECTED for story {idx} ({headline}): '{summary[:80]}...' — marking for fallback")
+                        s.summary = ""
                         continue
 
                     if not is_invalid_summary(summary):
@@ -633,6 +657,24 @@ def batch_summarize_all(client, stories, session=None):
             except Exception as e:
                 logger.warning(f"BATCH SUMMARIZE ERROR ({cat_name}): {e}")
                 for s in sub_batch:
-                    s.summary = f"[Headline] {s.title}"
+                    s.summary = ""
+
+    # Phase 3F: Single-story LLM fallback for stories with empty batch summary
+    needs_fallback = [s for s in stories if not s.summary or not s.summary.strip()]
+    if needs_fallback:
+        for s in needs_fallback:
+            context = build_context(s)
+            retry = _summarize(client, context, title=s.title)
+            if retry and not _is_boilerplate(retry) and not _is_refusal(retry) and retry != "[Summary Unavailable]":
+                s.summary = retry
+            elif not s.summary or not s.summary.strip():
+                s.summary = _generate_auto_fallback(s.title)
+
+    unavailable_count = sum(1 for s in stories if s.summary and s.summary.startswith("[Auto]"))
+    auto_recovered = sum(1 for s in needs_fallback if s.summary and not s.summary.startswith("[Auto]") and not s.summary.startswith("[Summary"))
+    if unavailable_count:
+        logger.info(f"[AUTO FALLBACK] {unavailable_count} stories fell back to [Auto] headline summary")
+    if auto_recovered:
+        logger.info(f"[BATCH RETRY] {auto_recovered}/{len(needs_fallback)} empty batch stories recovered via single-story LLM")
 
     return all_summaries

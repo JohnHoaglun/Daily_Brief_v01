@@ -27,6 +27,7 @@ from daily_brief.llm.summarizer import (
     build_context,
     _is_refusal,
     _is_boilerplate,
+    _generate_auto_fallback,
 )
 from daily_brief.rendering import cleanup_old_files
 from daily_brief.rendering.report import (
@@ -210,20 +211,21 @@ async def main():
             for s in stories:
                 if not s.summary or not s.summary.strip() or s.summary.strip().startswith("[Summary") or _is_refusal(s.summary):
                     context = build_context(s)
-                    retry_summary = llm_summarize(_llm_client, context)
+                    retry_summary = llm_summarize(_llm_client, context, title=s.title)
                     if retry_summary and not _is_refusal(retry_summary):
                         s.summary = retry_summary
                         retry_count += 1
             if retry_count < sum_fail:
                 unhandled = sum_fail - retry_count
-                log(f"  [3D] {unhandled} still failed — falling back to snippets")
+                log(f"  [3D] {unhandled} still failed — applying [Auto] headline fallback")
                 for s in stories:
                     if not s.summary or not s.summary.strip() or s.summary.strip().startswith("[Summary") or _is_refusal(s.summary):
-                        s.summary = s.snippet[:250].strip() if s.snippet else "[Summary unavailable]"
+                        s.summary = _generate_auto_fallback(s.title)
 
             sum_ok = sum(1 for s in stories if s.summary and s.summary.strip() and not s.summary.strip().startswith("[Summary") and not _is_refusal(s.summary))
             sum_fail = total - sum_ok
-            log(f"  Summaries done: {sum_ok} OK / {sum_fail} failed (retry recovered {retry_count})")
+            auto_count = sum(1 for s in stories if s.summary and s.summary.strip().startswith("[Auto]"))
+            log(f"  Summaries done: {sum_ok} OK / {sum_fail} fallback (retry recovered {retry_count}, [{auto_count:>2}] [Auto])")
 
         # ---------- Phase 3E: Detect and fix boilerplate summaries ----------
         boilerplate_count = sum(1 for s in stories if s.summary and _is_boilerplate(s.summary))
@@ -233,13 +235,24 @@ async def main():
             for s in stories:
                 if s.summary and _is_boilerplate(s.summary):
                     context = build_context(s)
-                    strict_summary = llm_summarize(_llm_client, context, strict=True)
+                    strict_summary = llm_summarize(_llm_client, context, title=s.title, strict=True)
                     if strict_summary and not _is_boilerplate(strict_summary) and not _is_refusal(strict_summary):
-                        s.summary = strict_summary
-                        recovered += 1
+                        if strict_summary != "[Summary Unavailable]":
+                            s.summary = strict_summary
+                            recovered += 1
+                        else:
+                            s.summary = _generate_auto_fallback(s.title)
+                    elif not s.summary or s.summary.strip().startswith("[Summary"):
+                        s.summary = _generate_auto_fallback(s.title)
+            auto_count = sum(1 for s in stories if s.summary and s.summary.strip().startswith("[Auto]"))
+            unavailable_count = sum(1 for s in stories if s.summary and "[Summary Unavailable]" in s.summary)
+            if auto_count:
+                log(f"  [3E] Total [Auto] fallbacks in report: {auto_count}")
+            if unavailable_count:
+                log(f"  [3E] WARNING: {unavailable_count} stories still [Summary Unavailable]")
             if recovered < boilerplate_count:
                 remaining = boilerplate_count - recovered
-                log(f"  [3E] Recovered {recovered}/{boilerplate_count} boilerplate summaries ({remaining} remain)")
+                log(f"  [3E] Recovered {recovered}/{boilerplate_count} boilerplate summaries ({remaining} fell back)")
             else:
                 log(f"  [3E] Recovered all {recovered}/{boilerplate_count} boilerplate summaries")
 

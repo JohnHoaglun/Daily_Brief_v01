@@ -234,6 +234,10 @@ def parse_batch_summary_response(response, count, story_headlines=None):
     else:
         logger.debug(f"[MATCH] {matched_count}/{count} by fuzzy/keyword — all resolved")
 
+    # Ensure matched_by_headline exists for positional fallback
+    if 'matched_by_headline' not in dir():
+        matched_by_headline = set()
+
     # Fallback: original index-based positional parsing for unmatched stories
     heading_re = re.compile(
         r"^\s*(?:###\s*)?(?:\*\*)?(?:(\d+)[\)\.]\s*|STORY[_\-\s]*(\d+)\s*[:\)]?\s*)(.*)$",
@@ -309,6 +313,41 @@ def parse_batch_summary_response(response, count, story_headlines=None):
         # Skip if already matched by headline
         if idx in matched_by_headline:
             continue
+
+        # Fuzzy headline matching in positional fallback
+        # Try to match the heading text to story headlines, preventing
+        # wrong summary assignment when LLM reorders output
+        fuzzy_idx = idx
+        fuzzy_score = 0.0
+        if story_headlines:
+            _norm = lambda t: re.sub(r"\s+", " ", str(t).strip().lower())
+            _sig = lambda t: set(re.findall(r'\b[a-z]{4,}\b', _norm(t)))
+            raw_clean = _norm(re.sub(r"^(#{2,3}\s*)?\*{0,2}\d+[\)\.]\s*", "", raw))
+            best_si = None
+            best_s = 0.0
+            for si, sh in enumerate(story_headlines):
+                s = _sig(raw_clean) & _sig(sh)
+                ratio = len(s) / max(len(_sig(sh)), 1)
+                if ratio > best_s:
+                    best_s = ratio
+                    best_si = si
+            # Also try difflib ratio on full text
+            if best_s < 0.7:
+                rn = _norm(raw_clean)
+                for si, sh in enumerate(story_headlines):
+                    sn = _norm(sh)
+                    r = difflib.SequenceMatcher(None, rn, sn).ratio()
+                    if r > best_s:
+                        best_s = r
+                        best_si = si
+            if best_si is not None and best_s >= 0.15:
+                fuzzy_idx = best_si
+                fuzzy_score = best_s
+
+        # If fuzzy target already matched by STORY_N block, use positional idx
+        if fuzzy_idx != idx and fuzzy_idx in matched_by_headline:
+            fuzzy_idx = idx
+
         start = line_idx
         end = len(lines)
         if n + 1 < len(headers):
@@ -338,7 +377,11 @@ def parse_batch_summary_response(response, count, story_headlines=None):
         summary = re.sub(r"^(###\s*)?\**\d+[\)\.]\s*", "", summary)
         summary = re.sub(r"^Summary:\s*", "", summary, flags=re.IGNORECASE)
         summary = re.sub(r"\*\*|\*{2,}$", "", summary).strip()
-        results[idx] = _safe_sentence_summary(summary)
+        target_idx = fuzzy_idx if fuzzy_idx != idx else idx
+        results[target_idx] = _safe_sentence_summary(summary)
+        if fuzzy_idx != idx:
+            matched_by_headline.add(target_idx)
+            logger.debug(f"[MATCH] Pos idx {idx} -> fuzzy headline idx {target_idx} (score {fuzzy_score:.2f})")
 
     # Post-match: detect and fix adjacent swap pairs
     # If two adjacent stories' summaries are each a better match for the OTHER

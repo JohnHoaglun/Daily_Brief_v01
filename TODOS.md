@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 — v1.0.53 (Round 4 complete)
+# TODO: Daily Brief v01 — v1.0.54 (ALL BUGS CLEARED ✅)
 
 ## Status Legend
 - `[ ]` — TODO (not started)
@@ -209,7 +209,7 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 
 | Bug | Priority | File | Rationale |
 |---|---|---|---|
-| **F.4 — Climate Normal 95°F** | P2 | `sources/climate.py` | Climate Normal High is 95°F — verify this is real Open-Meteo ERA5 data, not a hardcoded fallback default (e.g., 95 = magic number). Add `logger.debug()` to inspect raw JSON response. |
+| **F.4 — Climate Normal 95°F** | P2 | `sources/climate.py` | `[x] DONE v1.0.54 — VERIFIED: real ERA5 data. Raw API returned `temperature_2m_max: [95.9]` → 96°F for Jul 30. No hardcoded 95°F anywhere in codebase. Fallback chain: ERA5 → forecast high → "Unavailable". Added debug logging for raw JSON inspection. |
 
 ---
 
@@ -227,6 +227,7 @@ Round 5 (climate verification)        ──→ v1.0.54    (30 min, standalone)
 **Total: ~13 hours, 6 version bumps, 12 bugs cleared.**
 
 ### Recent Updates
+- [2026-07-29 21:27] **Round 5 complete — v1.0.54** — Climate normal 95°F verified as real Open-Meteo ERA5 data (raw: 95.9°F → 96°F Jul 30). No hardcoded fallback. Debug logging added to `climate.py` for raw JSON inspection.
 - [2026-07-29 19:30] **Round 4 complete — v1.0.53** — Retry infrastructure (v1.0.52: N attempts, backoff, strict prompt) + auto fallback for unavailable (v1.0.53: `[Auto] {headline}` + batch Phase 3F). 0 Unavailable, 1 Auto in live run. 203 tests still green.
 - [2026-07-29 19:00] **Tier 1 tests complete — v1.0.51** — 203 tests passing across test_config (53), test_utils (106), test_tagging (44). Safety net for Round 4 retry logic is green.
 - [2026-07-29 18:30] **Round 3 complete — v1.0.48** — Fuzzy headline matching (v1.0.46), all-pairs swap detection (v1.0.47), boilerplate detection + retry (v1.0.48). Next: Tier 1 unit tests (safety net for Round 4).

@@ -407,6 +407,44 @@ def parse_batch_summary_response(response, count, story_headlines=None):
                 results[i], results[j] = results[j], results[i]
                 logger.debug(f"SWAP FIX: swapped stories {i} and {j} (cross-overlap {overlap_i_to_j:.2f}/{overlap_j_to_i:.2f} > normal {overlap_i_normal:.2f}/{overlap_j_normal:.2f})")
 
+        # All-pairs keyword overlap validation: detect non-adjacent swaps (3+ story shift)
+        for i in range(len(results)):
+            if i >= len(story_headlines):
+                continue
+            headline = story_headlines[i]
+            summary = results[i]
+            if not headline or not summary:
+                continue
+            hl_words = set(re.findall(r'\b[a-z]{3,}\b', headline.lower()))
+            sum_words = set(re.findall(r'\b[a-z]{3,}\b', summary.lower()))
+            if not hl_words:
+                continue
+            overlap_pct = len(hl_words & sum_words) / len(hl_words)
+            if overlap_pct < 0.2:
+                # Find which story's headline this summary matches best
+                best_mismatch_idx = None
+                best_mismatch_score = 0.0
+                for m in range(len(story_headlines)):
+                    if m == i:
+                        continue
+                    mh_words = set(re.findall(r'\b[a-z]{3,}\b', story_headlines[m].lower()))
+                    if not mh_words:
+                        continue
+                    m_score = len(mh_words & sum_words) / len(mh_words)
+                    if m_score > best_mismatch_score:
+                        best_mismatch_score = m_score
+                        best_mismatch_idx = m
+                if best_mismatch_idx is not None:
+                    logger.warning(
+                        f"[SWAP DETECTED] Story {i} (headline \"{headline}\") assigned summary from story "
+                        f"{best_mismatch_idx} — keyword overlap {overlap_pct * 100:.0f}%"
+                    )
+                else:
+                    logger.warning(
+                        f"[SWAP DETECTED] Story {i} (headline \"{headline}\") — topic mismatch, "
+                        f"keyword overlap {overlap_pct * 100:.0f}%"
+                    )
+
     return results
 
 

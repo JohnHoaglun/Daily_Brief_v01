@@ -199,7 +199,7 @@ async def main():
         # ---------- Phase 3B/3C: Batch summary ----------
         log(f"  [3BC] Running BATCH summaries via {LLM_MODEL}...")
         t3 = time.time()
-        sum_results = llm_batch_summarize_all(_llm_client, stories, session=session)
+        llm_batch_summarize_all(_llm_client, stories, session=session)
         sum_ok = sum(1 for s in stories if s.summary and s.summary.strip() and not s.summary.strip().startswith("[Summary") and not _is_refusal(s.summary))
         sum_fail = total - sum_ok
         log(f"  Batch summaries: {sum_ok} OK / {sum_fail} failed")

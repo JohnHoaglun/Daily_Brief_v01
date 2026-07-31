@@ -9,6 +9,8 @@ from __future__ import annotations
 import re
 from typing import Optional
 
+_HTML_TAG_RE = re.compile(r"<.*?>")
+
 
 def _safe_text(value, fallback="N/A") -> str:
     """Normalize user-facing text values for markdown rendering."""
@@ -25,8 +27,7 @@ def strip_html(html_text: str) -> str:
     """Remove HTML tags from text."""
     if not html_text:
         return ""
-    clean = re.compile(r"<.*?>")
-    return re.sub(clean, "", html_text).strip()
+    return _HTML_TAG_RE.sub("", html_text).strip()
 
 
 def _present_weather_value(value, fallback="Unavailable") -> str:

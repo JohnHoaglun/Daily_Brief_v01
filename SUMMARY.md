@@ -4,6 +4,10 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.72 — A.3 Unused sum_results Assignment Removed
+- `src/daily_brief/pipeline.py:202`: removed unused `sum_results` local assignment. Batch summarizer call unchanged — LLM mutations and side effects remain intact.
+- 762 tests passed, 0 failures.
+
 ### v1.0.70 — A.2 Precompiled HTML-Strip Regex
 - `src/daily_brief/utils.py`: precompiled `_HTML_TAG_RE` at module level, removing per-call `re.compile()` in `strip_html()`.
 - 762 tests passed, 0 failures.

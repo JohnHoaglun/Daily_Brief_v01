@@ -1,4 +1,4 @@
-# Project: Daily Brief v01 (v1.0.67)
+# Project: Daily Brief v01 (v1.0.68)
 
 ## Purpose
 Daily Brief aggregates RSS stories from configured categories, enriches them with weather and lake data, summarizes them through a vLLM OpenAI-compatible endpoint, and writes a Markdown report.

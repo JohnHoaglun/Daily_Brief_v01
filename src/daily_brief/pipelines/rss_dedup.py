@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from zoneinfo import ZoneInfo
 
 
 async def fetch_and_dedup(

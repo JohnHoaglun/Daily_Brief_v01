@@ -266,6 +266,22 @@ class TestFetchAndDedup(TestCase):
         self.assertEqual(len(deduped), 0)
         self.assertEqual(stats["total_before"], 0)
 
+    def test_zoneinfo_uses_configured_timezone(self):
+        """A.1 Bug-1: verify feed_and_dedup() resolves the configured timezone via ZoneInfo."""
+        cats = []  # empty categories, no network
+        session = self._make_session({})
+        logs = []
+
+        async def _run():
+            return await fetch_and_dedup(session, cats, logs.append)
+
+        with mock.patch(
+            "daily_brief.pipelines.rss_dedup.ZoneInfo",
+            wraps=ZoneInfo,
+        ) as zi_mock:
+            asyncio.get_event_loop().run_until_complete(_run())
+            zi_mock.assert_any_call("America/Chicago")
+
 
 # ---------------------------------------------------------------------------
 # widen_category

@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 - v1.0.67
+# TODO: Daily Brief v01 - v1.0.68
 
 ## Status Legend
 - `[ ]` TODO
@@ -9,7 +9,7 @@
 Detailed findings, implementation constraints, and verification commands are in `PLAN.md`.
 
 ### Phase A - Quick Wins (2-3 hours, low risk)
-- [ ] A.1 `Bug-1`: import `ZoneInfo` for RSS age filtering.
+- [x] A.1 `Bug-1`: import `ZoneInfo` for RSS age filtering.
 - [ ] A.2 `Clean-8`: precompile the HTML-strip regex.
 - [ ] A.3 `Clean-5`: remove the unused `sum_results` assignment.
 - [ ] A.4 `Clean-9`: retain one `WEATHER_POINT_URL` assignment.

@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 - v1.0.75
+# TODO: Daily Brief v01 - v1.0.76
 
 ## Status Legend
 - `[ ]` TODO
@@ -14,7 +14,7 @@ Detailed findings, implementation constraints, and verification commands are in 
 - [x] A.3 `Clean-5`: remove the unused `sum_results` assignment.
 - [x] A.4 `Clean-9`: retain one `WEATHER_POINT_URL` assignment.
 - [x] A.5 `Clean-6`: remove unused configuration constants.
-- [ ] A.6 `Rel-3`: create output/log directories before logging setup or listing.
+- [x] A.6 `Rel-3`: create output/log directories before logging setup or listing.
 - [ ] A.7 `Rel-4`: restore TLS verification in RSS connectivity probes.
 - [ ] A.8 `Bug-6`: reject and diagnose unsuccessful RSS HTTP responses.
 - [ ] A.9 `Quality-6`: add monotonic total and per-phase timings.
@@ -47,7 +47,7 @@ Detailed findings, implementation constraints, and verification commands are in 
 - [ ] D.7 `Rel-5`, `Quality-2`, `Quality-5`, `Arch-5`: clarify harness failures, weather errors, logging, and probe ownership.
 
 ## Verification Gate
-- [x] Establish a three-run timing and report-quality baseline before Phase A. (Recorded: 761 tests pass. Wall-clock 137–147s. P1 ~8s, P2 ~3.5s, P3 96–100s, P4 30s. LLM dominant.)
+- [x] Establish a three-run timing and report-quality baseline before Phase A. (Recorded: 764 tests pass. Wall-clock 137–147s. P1 ~8s, P2 ~3.5s, P3 96–100s, P4 30s. LLM dominant.)
 - [ ] Run phase-specific tests and `pytest -q` after each phase.
 - [ ] Record timing medians, report validation, and production outcomes in `SUMMARY.md`.
 

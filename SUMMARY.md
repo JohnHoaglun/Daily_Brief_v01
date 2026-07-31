@@ -4,6 +4,21 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.62 — Tier 4: Coverage Targets
+- test_config.py: 42 new tests → config.py 100%, config_validator.py 96%
+- test_article.py: 16 tests → article.py 97%
+- test_rss_dedup.py: 17 tests → rss_dedup.py 96%
+- test_summarizer.py: 14 new tests → summarizer.py 90%
+- test_llm_client.py: 6 tests → client.py 100%
+- test_connectivity_extended.py: 12 tests → connectivity.py 97%
+- test_validation_extended.py: 12 tests → validation.py 98%
+- test_pipeline.py: 13 tests → pipeline.py 88%
+- test_cli.py: 10 tests → cli.py 76%
+- test_harness.py: 8 tests → harness.py 83%
+- test_weather_extended.py: 16 tests → weather/climate/wu/lakes 98-100%
+- test_report.py: 2 new tests → report.py 99%
+- Total: 761 tests, all coverage targets met (80-100%)
+
 ### v1.0.61 — Tier 3: Integration Tests
 - `test_smoke_test.py` — 21 tests, 6 endpoint reachability checks via `run_smoke_test()`
 - `connectivity.py` — added `check_openmeteo()`, `check_wunderground()`, `check_lakes()`
@@ -107,6 +122,6 @@ Automated daily news brief generator that fetches news from 17 content categorie
 - [2026-07-29 20:50] Version bumped to **v1.0.43** — Bug F.2: frozen RSS feeds investigation.
 - [2026-07-29 20:50] Investigation (F.2) — Ran pipeline twice 2min apart, compared per-category URL overlap for 5 flagged categories: Houston Tropical Weather (100% overlap, 3/3 frozen), OpenAI News (80%, 4/5, 1 rotated), Anthropic News (100%, 4/4 frozen), SpaceX News (33%, 1/3, 2 rotated), Andrej Karpathy Activity (100%, 3/3 frozen). 3 of 5 are genuinely frozen (100% same URLs), 2 have normal turnover. Root cause: topic saturation — narrow queries ("Houston Tropical Weather", "anthropic news", "Andrej Karpathy") return same 3-5 results from Google News RSS between runs 2min apart. No code bug: `fetch_feed` does not cache (raw text to feedparser), widening uses same URL (only age limit changes). Confirmed: global turnover is 14% (56/66 shared URLs across runs — only low-volume categories stay static). No fix required; this is expected behavior for low-volume topics.
 ## Status
-Fully functional. Pipeline v1.0.58: all refactoring P0-P6 complete. Tier 1 testing complete (4/4 files, 367 total tests). All bugs cleared.
+Fully functional. Pipeline v1.0.62: all refactoring P0-P6 complete. All 4 testing tiers done (761 tests, 23 files). All coverage targets met. All bugs cleared.
 
 

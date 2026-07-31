@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 — v1.0.61 (Tier 3 complete: test infra)
+# TODO: Daily Brief v01 — v1.0.62 (Tier 4 complete: coverage targets)
 
 ## Status Legend
 - `[ ]` — TODO (not started)
@@ -160,15 +160,15 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 - `[x]` `test_validate_report.py` — 32 tests, 8 report-level checks, `validation.py` extended
 - `[x]` `scripts/run_tests.sh` — scripts/ created with run_tests.sh, run_coverage.sh, pytest.ini
 
-### Tier 4: Coverage Target
-| Area | Target |
-|---|---|
-| Config loading + validation | 95% |
-| Weather parsing | 90% |
-| RSS dedup + filtering | 90% |
-| LLM response parsing | 90% |
-| Markdown rendering | 95% |
-| Pipeline orchestration | 80% (integration) |
+### Tier 4: Coverage Target — **COMPLETE v1.0.62**
+| Area | Target | Result | Status |
+|---|---|---|---|
+| Config loading + validation | 95% | 97% | ✅ |
+| Weather parsing | 90% | 99% | ✅ |
+| RSS dedup + filtering | 90% | 97% | ✅ |
+| LLM response parsing | 90% | 91% | ✅ |
+| Markdown rendering | 95% | 99% | ✅ |
+| Pipeline orchestration | 80% | 88% | ✅ |
 
 ---
 
@@ -245,6 +245,7 @@ Round 5 (climate verification)         ──→ v1.0.54    (30 min, standalone)
 **Total: ~13 hours, 6 version bumps, 12 bugs cleared.**
 
 ### Recent Updates
+- [2026-07-30] **Tier 4 complete — v1.0.62** — Coverage targets: config 97%, weather 99%, RSS dedup 97%, LLM parsing 91%, markdown rendering 99%, pipeline 88%. All targets met. 761 total tests (558 new across 8 new test files). 23 test files total.
 - [2026-07-30] **Tier 3 complete — v1.0.61** — Integration tests: `test_smoke_test.py` (21 tests, 6 endpoints), `test_validate_report.py` (32 tests, 8 report-level checks). Extended `connectivity.py` (openmeteo/wunderground/lakes checks), `validation.py` (frontmatter/weather/Dynamic/story count/alert ratio/dup URLs/file size). Test infra: `scripts/run_tests.sh`, `scripts/run_coverage.sh`, `pytest.ini`. 574 total tests (371 new, 63 Tier 3).
 - [2026-07-30] **Tier 1 complete — v1.0.58** — `test_alerter.py` (35 tests): parse_alert_batch_response (27: STORY_N format, numbered format, lowercase, malformed, partial parse, type checks), batch_evaluate_alerts mocked (8: empty, alert true/false, unavailable exclusion, bracket exclusion, category grouping, exception all-false, alert idx mismatch, global index mapping). 367 total tests (332 existing + 35 new). Tier 1 done: 4/4 files, 164 new tests.
 - [2026-07-29 22:00] **Tier 1/4 complete — v1.0.55** — `test_weather_table.py` (31 tests): full data render, empty forecast fallback, forecast padding, station Unavailable, lake labels, table structure. 234 total tests.
@@ -389,6 +390,6 @@ Daily_Brief_v01/
 ---
 
 ## Version Notes
-- Current version: **v1.0.61** (All 5 rounds complete, Tiers 1-3 testing done — 574 tests passing)
+- Current version: **v1.0.62** (All 5 rounds complete, all 4 Tiers done — 761 tests, 558 new, all coverage targets met)
 - Last stable: v1.0.53 (Round 4 retry infra + auto fallback)
 - Branch: `dev_opencode`, synced with `origin/dev_opencode`

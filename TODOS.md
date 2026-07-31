@@ -156,9 +156,9 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 - `[x]` `tests/test_sources/test_rss.py` (47 tests) — v1.0.60 — feed parsing, age filtering, title dedup, real estate/obituary filtering
 
 ### Tier 3: Integration (Smoke + Validation, Every Run) — **COMPLETE**
-- `[x]` `test_smoke_test.py` — 21 tests: 6 endpoint checks (LLM/RSS/NWS/Open-Meteo/Wunderground/Lakes), parallel asyncio.gather, timeout handling
-- `[x]` `test_validate_report.py` — 32 tests: 8 report-level checks (frontmatter, weather, Dynamic/Unavailable, story count, alert ratio, dup URLs, file size) + per-story regression
-- `[x]` `scripts/run_tests.sh` + `run_coverage.sh`, `pytest.ini` — test runner, coverage runner, pytest config
+- `[x]` `test_smoke_test.py` — 21 tests, 6 endpoints, `connectivity.py` extended
+- `[x]` `test_validate_report.py` — 32 tests, 8 report-level checks, `validation.py` extended
+- `[x]` `scripts/run_tests.sh` — scripts/ created with run_tests.sh, run_coverage.sh, pytest.ini
 
 ### Tier 4: Coverage Target
 | Area | Target |

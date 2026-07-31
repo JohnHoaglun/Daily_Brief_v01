@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 - v1.0.66
+# TODO: Daily Brief v01 - v1.0.67
 
 ## Status Legend
 - `[ ]` TODO
@@ -47,7 +47,7 @@ Detailed findings, implementation constraints, and verification commands are in 
 - [ ] D.7 `Rel-5`, `Quality-2`, `Quality-5`, `Arch-5`: clarify harness failures, weather errors, logging, and probe ownership.
 
 ## Verification Gate
-- [ ] Establish a three-run timing and report-quality baseline before Phase A.
+- [x] Establish a three-run timing and report-quality baseline before Phase A. (Recorded: 761 tests pass. Wall-clock 137–147s. P1 ~8s, P2 ~3.5s, P3 96–100s, P4 30s. LLM dominant.)
 - [ ] Run phase-specific tests and `pytest -q` after each phase.
 - [ ] Record timing medians, report validation, and production outcomes in `SUMMARY.md`.
 

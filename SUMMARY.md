@@ -4,6 +4,18 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.67 — Optimization Baseline
+- **Test baseline:** 761 tests passed, 148 deprecation warnings, 3.93s (`pytest -q`)
+- **Pipeline baseline (3 runs):** wall-clock 137–147s, internal ~105–114s
+  - Phase 1 (weather): 5–11s (variable, ~8s avg)
+  - Phase 2 (RSS, 15 feeds): ~3.5s
+  - Phase 3 (LLM enrich+summarize): 96–100s — **dominant path** (~88% of internal time)
+  - Phase 4 (render/write): 30s
+  - LLM: batch-of-3 model on gemma4-e2b, ~24 batch requests + 10–15 retry/boilerplate/fix requests = 39 total
+  - Stories: 71–73 per run, 0 failed, ~1–3 [Auto] fallbacks
+- Credible Phase B target (weather+RSS concurrency): 93–103s internal
+- LLM concurrency/batching (Phase C) is the only path below 90s
+
 ### v1.0.66 - Documentation Tracking Reorganization
 - Rebuilt `TODOS.md` as a lean live execution board: 30 actionable phase items, 3 verification gates, and 2 explicit blockers.
 - Moved the canonical research review, runtime budget, technical findings, phase rationale, and verification detail to `PLAN.md`.

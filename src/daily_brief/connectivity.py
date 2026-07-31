@@ -19,6 +19,7 @@ from daily_brief.config import (
     CATEGORIES,
     RSS_BASE,
     RSS_PARAMS,
+    WEATHER_LAKE_URLS,
 )
 
 
@@ -79,6 +80,55 @@ async def check_weather(session: aiohttp.ClientSession, timeout: float = 5.0) ->
         return _result(False, f"Weather.gov unreachable: {e} ({url})", elapsed_ms)
 
 
+async def check_openmeteo(session: aiohttp.ClientSession, timeout: float = 5.0) -> dict:
+    url = "https://geocoding-api.open-meteo.com/api/docs"
+    t0 = time.time()
+    try:
+        async with session.get(
+            url, timeout=aiohttp.ClientTimeout(total=timeout)
+        ) as resp:
+            elapsed_ms = int((time.time() - t0) * 1000)
+            if resp.status == 200:
+                return _result(True, f"Open-Meteo reachable ({url})", elapsed_ms)
+            return _result(False, f"Open-Meteo returned HTTP {resp.status} ({url})", elapsed_ms)
+    except Exception as e:
+        elapsed_ms = int((time.time() - t0) * 1000)
+        return _result(False, f"Open-Meteo unreachable: {e} ({url})", elapsed_ms)
+
+
+async def check_wunderground(session: aiohttp.ClientSession, timeout: float = 5.0) -> dict:
+    url = "https://www.wunderground.com/"
+    t0 = time.time()
+    try:
+        async with session.head(
+            url, timeout=aiohttp.ClientTimeout(total=timeout)
+        ) as resp:
+            elapsed_ms = int((time.time() - t0) * 1000)
+            if resp.status in (200, 301, 302):
+                return _result(True, f"Wunderground reachable ({url})", elapsed_ms)
+            return _result(False, f"Wunderground returned HTTP {resp.status} ({url})", elapsed_ms)
+    except Exception as e:
+        elapsed_ms = int((time.time() - t0) * 1000)
+        return _result(False, f"Wunderground unreachable: {e} ({url})", elapsed_ms)
+
+
+async def check_lakes(session: aiohttp.ClientSession, timeout: float = 5.0) -> dict:
+    lake_urls = list(WEATHER_LAKE_URLS.values()) if WEATHER_LAKE_URLS else []
+    url = lake_urls[0] if lake_urls else "https://waterdatafortexas.org/"
+    t0 = time.time()
+    try:
+        async with session.head(
+            url, timeout=aiohttp.ClientTimeout(total=timeout)
+        ) as resp:
+            elapsed_ms = int((time.time() - t0) * 1000)
+            if resp.status in (200, 301, 302):
+                return _result(True, f"Lakes source reachable ({url.split('/')[2]})", elapsed_ms)
+            return _result(False, f"Lakes source returned HTTP {resp.status} ({url})", elapsed_ms)
+    except Exception as e:
+        elapsed_ms = int((time.time() - t0) * 1000)
+        return _result(False, f"Lakes source unreachable: {e} ({url})", elapsed_ms)
+
+
 async def run_all_checks(timeout: float = 5.0) -> list[dict]:
     """Run all connectivity checks in parallel."""
     async with aiohttp.ClientSession() as session:
@@ -87,6 +137,31 @@ async def run_all_checks(timeout: float = 5.0) -> list[dict]:
             check_rss(session, timeout),
             check_weather(session, timeout),
         )
+
+
+async def run_smoke_test(timeout: float = 5.0) -> list[dict]:
+    """Run all 6 connectivity checks in parallel, returning results with name field."""
+    async with aiohttp.ClientSession() as session:
+        check_map = [
+            ("LLM Host", check_llm),
+            ("RSS Feed", check_rss),
+            ("Weather.gov", check_weather),
+            ("Open-Meteo", check_openmeteo),
+            ("Wunderground", check_wunderground),
+            ("Lakes", check_lakes),
+        ]
+
+        async def _wrapped(name: str, fn):
+            try:
+                res = await asyncio.wait_for(fn(session, timeout), timeout=timeout)
+                res["name"] = name
+                return res
+            except asyncio.TimeoutError:
+                return {"name": name, "ok": False, "message": f"Timeout after {timeout}s", "duration_ms": int(timeout * 1000)}
+            except Exception as e:
+                return {"name": name, "ok": False, "message": str(e), "duration_ms": None}
+
+        return await asyncio.gather(*[_wrapped(name, fn) for name, fn in check_map])
 
 
 def format_results(results: list[dict]) -> str:

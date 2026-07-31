@@ -4,6 +4,12 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.63 — Performance & Optimization Plan
+- Added 17-item performance/cleanup plan to TODOS.md: 6 performance, 9 cleanup, 1 architecture, 1 bug fix
+- Quick wins: `ZoneInfo` import bug (rss_dedup.py), parallel lake fetching, parallel weather sub-sources
+- High impact: async LLM client (AsyncOpenAI), HTTP retry for all sources, `time.sleep` → `asyncio.sleep`
+- Cleanup: duplicate functions, dead code, unused imports, regex recompilation
+
 ### v1.0.62 — Tier 4: Coverage Targets
 - test_config.py: 42 new tests → config.py 100%, config_validator.py 96%
 - test_article.py: 16 tests → article.py 97%

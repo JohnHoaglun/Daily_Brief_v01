@@ -59,7 +59,6 @@ RSS_PARAMS = _get_nested(CONFIG_YAML, 'rss.params') or '&hl=en-US&gl=US&ceid=US:
 TIMEZONE = _get_nested(CONFIG_YAML, 'timezone') or 'America/Chicago'
 
 USER_AGENT = _get_nested(CONFIG_YAML, 'user_agent') or "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
-USER_AGENT_WEATHER_SUFFIX = _get_nested(CONFIG_YAML, 'user_agent_weather_suffix') or "/DailyBrief/1.0"
 
 MAX_LOG_VERSIONS = _get_nested(CONFIG_YAML, 'cleanup_api.max_log_versions') or 5
 FRONTMATTER_TAG_SEEDS = _get_nested(CONFIG_YAML, 'runtime.frontmatter_tag_segments') or _get_nested(CONFIG_YAML, 'runtime_defaults.frontmatter_tag_seeds') or ["daily-intelligently", "news-summary", "ai-generated"]
@@ -78,7 +77,6 @@ LLM_SUMMARY_RETRY_BACKOFF = list(_get_nested(CONFIG_YAML, 'runtime_defaults.summ
 
 # Category definitions
 CATEGORIES_RAW = _get_nested(CONFIG_YAML, 'categories') or {}
-CATEGORY_SETTINGS = _get_nested(CONFIG_YAML, 'category_settings') or {}
 
 # Build CATEGORIES as list of tuples for compatibility with existing codebase (name, query, max_stories)
 CATEGORIES = []
@@ -106,8 +104,6 @@ DEDUPE_WINDOW_HOURS = RSS_SETTINGS.get('dedupi_window_hours', 24)
 DEFAULT_AGE_LIMIT_HOURS = RSS_SETTINGS.get('default_age_limit_hours', 24)
 
 FILTERING_KEYWORDS = _get_nested(CONFIG_YAML, 'filtering_keywords') or {}
-REAL_ESTATE_KEYWORDS = FILTERING_KEYWORDS.get('real_estate', [])
-OBITUARY_KEYWORDS = FILTERING_KEYWORDS.get('obituary', [])
 
 TAGGING_MAPPINGS = _get_nested(CONFIG_YAML, 'tagging_mappings') or {}
 TAGGING_CONFIG = _get_nested(CONFIG_YAML, 'tagging_config') or {"max_tags": 5, "score_cap": 5.0, "score_threshold": 0.3}

@@ -155,10 +155,10 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 - `[x]` `tests/test_sources/test_lakes.py` (20 tests) — v1.0.60 — reservoir percentage extraction with sample HTML
 - `[x]` `tests/test_sources/test_rss.py` (47 tests) — v1.0.60 — feed parsing, age filtering, title dedup, real estate/obituary filtering
 
-### Tier 3: Integration (Smoke + Validation, Every Run)
-- `[ ]` Implement `smoke_test()` — can we reach every endpoint before pipeline runs? (NWS, Open-Meteo, vLLM, Google News, Wunderground, Lakes)
-- `[ ]` Implement `validate_report()` — post-run assertions: frontmatter, weather section, no "Dynamic"/"Unavailable", story count, alert count plausible, no duplicate URLs, file size reasonable
-- `[ ]` Add `scripts/run_tests.sh` — full pytest suite runner
+### Tier 3: Integration (Smoke + Validation, Every Run) — **COMPLETE**
+- `[x]` `test_smoke_test.py` — 21 tests: 6 endpoint checks (LLM/RSS/NWS/Open-Meteo/Wunderground/Lakes), parallel asyncio.gather, timeout handling
+- `[x]` `test_validate_report.py` — 32 tests: 8 report-level checks (frontmatter, weather, Dynamic/Unavailable, story count, alert ratio, dup URLs, file size) + per-story regression
+- `[x]` `scripts/run_tests.sh` + `run_coverage.sh`, `pytest.ini` — test runner, coverage runner, pytest config
 
 ### Tier 4: Coverage Target
 | Area | Target |
@@ -245,6 +245,7 @@ Round 5 (climate verification)         ──→ v1.0.54    (30 min, standalone)
 **Total: ~13 hours, 6 version bumps, 12 bugs cleared.**
 
 ### Recent Updates
+- [2026-07-30] **Tier 3 complete — v1.0.61** — Integration tests: `test_smoke_test.py` (21 tests, 6 endpoints), `test_validate_report.py` (32 tests, 8 report-level checks). Extended `connectivity.py` (openmeteo/wunderground/lakes checks), `validation.py` (frontmatter/weather/Dynamic/story count/alert ratio/dup URLs/file size). Test infra: `scripts/run_tests.sh`, `scripts/run_coverage.sh`, `pytest.ini`. 574 total tests (371 new, 63 Tier 3).
 - [2026-07-30] **Tier 1 complete — v1.0.58** — `test_alerter.py` (35 tests): parse_alert_batch_response (27: STORY_N format, numbered format, lowercase, malformed, partial parse, type checks), batch_evaluate_alerts mocked (8: empty, alert true/false, unavailable exclusion, bracket exclusion, category grouping, exception all-false, alert idx mismatch, global index mapping). 367 total tests (332 existing + 35 new). Tier 1 done: 4/4 files, 164 new tests.
 - [2026-07-29 22:00] **Tier 1/4 complete — v1.0.55** — `test_weather_table.py` (31 tests): full data render, empty forecast fallback, forecast padding, station Unavailable, lake labels, table structure. 234 total tests.
 - [2026-07-29 23:00] **Tier 2 source tests complete — v1.0.60** — 5 files, 154 tests (weather 38, wunderground 28, climate 21, lakes 20, rss 47). All mocked with `aioresponses`/`unittest.mock`. 521 total tests passing. 0 failures.
@@ -388,6 +389,6 @@ Daily_Brief_v01/
 ---
 
 ## Version Notes
-- Current version: **v1.0.54** (All 5 rounds complete — 12 bugs cleared, 203 tests passing)
+- Current version: **v1.0.61** (All 5 rounds complete, Tiers 1-3 testing done — 574 tests passing)
 - Last stable: v1.0.53 (Round 4 retry infra + auto fallback)
 - Branch: `dev_opencode`, synced with `origin/dev_opencode`

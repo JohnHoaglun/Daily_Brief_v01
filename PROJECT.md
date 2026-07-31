@@ -48,5 +48,5 @@ Primary runtime configuration is loaded from `config.yaml` (parsed by `config.py
 See `TODOS.md` for detailed phase-by-phase plan (P0-P6).
 
 ## Status
-**v1.0.60**: Tiers 1 & 2 testing complete. 521 total tests (367 + 154 source tests). All refactoring P0-P6 complete. All bugs cleared.
+**v1.0.61**: Tiers 1, 2 & 3 testing complete. 574 total tests (203 original + 371 new). 15 test files (13 existing + 2 new: test_smoke_test.py, test_validate_report.py). New files: scripts/run_tests.sh, scripts/run_coverage.sh, pytest.ini. New code: extended `connectivity.py` (6 checks), extended `validation.py` (8 report-level checks). All refactoring P0-P6 complete. All bugs cleared.
 

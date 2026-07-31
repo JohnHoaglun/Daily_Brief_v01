@@ -4,11 +4,15 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
-### v1.0.61 — test infrastructure — Tier 3
-- `scripts/run_tests.sh`: Full pytest suite runner with banner and exit code reporting
-- `scripts/run_coverage.sh`: Coverage runner with term-missing and HTML report output
-- `pytest.ini`: Test configuration — testpaths, markers (slow, integration), src path
-- All 521 existing tests pass via `run_tests.sh`
+### v1.0.61 — Tier 3: Integration Tests
+- `test_smoke_test.py` — 21 tests, 6 endpoint reachability checks via `run_smoke_test()`
+- `connectivity.py` — added `check_openmeteo()`, `check_wunderground()`, `check_lakes()`
+- `test_validate_report.py` — 32 tests, 8 report-level checks in `validate_report()`
+- `validation.py` — extended with frontmatter, weather section, Dynamic/Unavailable, story/alert count, duplicate URLs, file size checks
+- `scripts/run_tests.sh` — full pytest suite runner
+- `scripts/run_coverage.sh` — coverage runner with term-missing + HTML report
+- `pytest.ini` — test config (paths, src pythonpath, markers)
+- Total: 574 tests (371 new, 63 Tier 3)
 
 ### v1.0.57 — test_summarizer.py (63 tests) — Tier 1/5
 - `tests/test_summarizer.py`: 63 tests covering `_safe_sentence_summary` (9: truncation, cleanup, empty/None, whitespace), `_is_refusal` (6: refusal phrases, factual text, empty), `_is_boilerplate` (6: boilerplate phrases, factual text), `_count_sentences` (4: multiple, single, empty, mixed punctuation), `parse_batch_summary_response` (22: STORY_N format with/without equals, numbered format, fuzzy headline match, keyword overlap, positional fallback, swap detection, edge cases), `StoryPipelineState` (4: slots, defaults, settable), `_generate_auto_fallback` (5: format, colon cleanup, None/empty, whitespace), `build_context` (5: context cap, snippet/title fallback, category fallback, empty), `_summarize` mocked (6: success, empty response, exception fallback, retry with recovery, title fallback, None title)

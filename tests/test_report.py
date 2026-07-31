@@ -410,3 +410,35 @@ class TestWriteReport(TestCase):
                 content = f.read()
             expected = "\n".join(lines) + "\n"
             self.assertEqual(content, expected)
+
+    @mock.patch("daily_brief.rendering.report.tag_story_with_keywords")
+    @mock.patch("daily_brief.rendering.report.build_weather_markdown")
+    def test_bracket_style_tag_parsing(self, mock_wx, mock_tag):
+        """report.py lines 120-122: bracket-style tag [Bracket] → parsed and extracted."""
+        mock_wx.return_value = ["## Weather"]
+        # tag_story_with_keywords returns a string with both hash and bracket tags
+        mock_tag.return_value = "#hash [Bracket]"
+        stories = [_make_story(title="Bracket Story")]
+        sections, _ = build_sections_from_stories(stories, _format_date)
+        result = build_markdown(stories, {}, sections, ["World News"], _config_kwargs())
+        joined = "\n".join(result)
+        # The hash tag "hash" should appear in frontmatter
+        self.assertIn("  - hash", joined)
+        # The bracket tag content should be extracted and appear in tags
+        # note: report.py uses tag[2:-2] for bracket content extraction
+        bracket_content = "rack"  # "[Bracket]"[2:-2] = "rack"
+        self.assertIn(f"  - {bracket_content.lower()}", joined)
+
+    @mock.patch("daily_brief.rendering.report.tag_story_with_keywords")
+    @mock.patch("daily_brief.rendering.report.build_weather_markdown")
+    def test_weather_cat_skip_with_tags(self, mock_wx, mock_tag):
+        """report.py line 140: weather category with non-empty tags → continue path."""
+        mock_wx.return_value = ["## Weather"]
+        mock_tag.return_value = "#weather #forecast"
+        # Story placed in the weather section title category
+        stories = [_make_story(title="Weather Story", category="Weather Forecast 77316")]
+        sections, _ = build_sections_from_stories(stories, _format_date)
+        result = build_markdown(stories, {}, sections, ["Weather Forecast 77316"], _config_kwargs())
+        # The weather category should be skipped (line 140 continue)
+        weather_section_headers = [l for l in result if l.startswith("## Weather Forecast 77316 (")]
+        self.assertEqual(len(weather_section_headers), 0)

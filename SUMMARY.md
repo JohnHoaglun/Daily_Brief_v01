@@ -4,6 +4,11 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.74 — A.4 Consolidated WEATHER_POINT_URL
+- `src/daily_brief/config.py`: removed redundant `WEATHER_POINT_URL` reassignment block, retaining single canonical NWS template at weather-constants section.
+- `tests/test_sources/test_weather.py`: strengthened `test_point_url_constructed_from_lat_lon` to assert exact NWS point URL (`https://api.weather.gov/points/30.286,-95.566`).
+- 762 tests passed, 0 failures.
+
 ### v1.0.72 — A.3 Unused sum_results Assignment Removed
 - `src/daily_brief/pipeline.py:202`: removed unused `sum_results` local assignment. Batch summarizer call unchanged — LLM mutations and side effects remain intact.
 - 762 tests passed, 0 failures.

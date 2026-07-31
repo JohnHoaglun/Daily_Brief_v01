@@ -1,4 +1,4 @@
-# Plan: Daily Brief v01 - v1.0.72
+# Plan: Daily Brief v01 - v1.0.74
 
 ## Objective
 Reduce the measured ~105s pipeline runtime while improving correctness, reliability, and maintainability. This plan is the canonical record of the research-agent review; `TODOS.md` is the executable checklist.

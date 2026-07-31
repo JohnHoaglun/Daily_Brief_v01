@@ -1,4 +1,4 @@
-# Daily Brief v1.0.72
+# Daily Brief v1.0.74
 
 ## Overview
 
@@ -15,7 +15,7 @@ Modular codebase in `src/daily_brief/`:
 - **`rendering/`** — weather table generation, Markdown report assembly, output cleanup
 - **`config.py` / `config_validator.py`** — YAML-based configuration, loading, and validation
 - **`tagging.py` / `categorization.py`** — config-driven keyword tagging, category ordering
-- **`tests/`** — 761 tests (unit, mocked, integration, smoke, post-run validation)
+- **`tests/`** — 762 tests (unit, mocked, integration, smoke, post-run validation)
 
 ## Requirements
 
@@ -39,7 +39,7 @@ All runtime settings in `config.yaml`. Key groups:
 
 | Key | Description | Default |
 |---|---|---|
-| `version` | Pipeline version | `1.0.72` |
+| `version` | Pipeline version | `1.0.74` |
 | `llm.model` | Model for summarization | `gemma4-e2b` |
 | `llm.host` | vLLM API endpoint | `http://192.168.4.52:8007` |
 | `directories.log_dir` | Log output directory | vault `Dev/logs/` |
@@ -78,7 +78,7 @@ src/daily_brief/            # Modular source code
   config_validator.py       # Configuration validation
   tagging.py                # Keyword tagging engine
   categorization.py         # Category ordering
-tests/                      # 761 tests
+tests/                      # 762 tests
 PROJECT.md                  # Architecture and status
 SUMMARY.md                  # Changelog
 TODOS.md                    # Live task board

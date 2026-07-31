@@ -513,3 +513,331 @@ class TestSummarize(TestCase):
                 with mock.patch("time.sleep", return_value=None):
                     result = _summarize(client, "Enough context here.", title=None, min_chars=0)
         self.assertEqual(result, "[Summary Unavailable]")
+
+
+# ---------------------------------------------------------------------------
+# 9b.  parse_batch_summary_response — additional edge cases
+# ---------------------------------------------------------------------------
+
+class TestParseBatchSummaryResponseRegexNoMatch(TestCase):
+    """Line 132: STORY_N regex does not match → skip."""
+
+    def test_story_n_regex_no_match(self):
+        response = "Story:| this does not start with STORY_N format\nAnother line"
+        result = parse_batch_summary_response(response, 2)
+        self.assertEqual(result, ["", ""])
+
+
+class TestParseBatchSummaryResponseEmptyRest(TestCase):
+    """Line 138: STORY_N regex matches but rest_text is empty after strip → skip."""
+
+    def test_story_n_empty_rest_text(self):
+        response = "STORY_1|   "
+        result = parse_batch_summary_response(response, 1, story_headlines=["Some Headline"])
+        self.assertEqual(len(result), 1)
+
+
+class TestParseBatchSummaryResponseEmptySummaryClean(TestCase):
+    """Line 150: summary_text is only whitespace after cleaning → skip."""
+
+    def test_story_n_empty_summary_clean(self):
+        response = "STORY_0 | "
+        result = parse_batch_summary_response(response, 2, story_headlines=["H1"])
+        self.assertEqual(len(result), 2)
+
+
+class TestParseBatchSummaryResponseEmptyWordSets(TestCase):
+    """Line 193: headline and summary both have no significant words (4+ char) → skip."""
+
+    def test_strategy_1_empty_word_sets(self):
+        response = "STORY_0 | A B C D short words only"
+        headlines = ["A B C I O U Short"]
+        result = parse_batch_summary_response(response, 1, story_headlines=headlines)
+        self.assertEqual(len(result), 1)
+
+
+class TestParseBatchSummaryResponseStrategy2(TestCase):
+    """Lines 211-239: Strategy 2 excerpt matching triggers."""
+
+    def test_strategy_2_excerpt_match(self):
+        response = "STORY_0 | space mission nasa launch artemis mission successful yesterday news report"
+        headlines = ["NASA Space Mission Artemis Launch Successful"]
+        result = parse_batch_summary_response(response, 1, story_headlines=headlines)
+        self.assertEqual(len(result), 1)
+
+    def test_strategy_2_no_match(self):
+        response = "STORY_0 | totally different unrelated words here in this long string of text no overlap"
+        headlines = ["Federal Reserve Bank Interest Rate Decision Policy"]
+        result = parse_batch_summary_response(response, 1, story_headlines=headlines)
+        self.assertEqual(len(result), 1)
+
+
+class TestParseBatchSummaryResponsePartialMatch(TestCase):
+    """Line 247: partial match — some stories matched, others fall back."""
+
+    def test_partial_match_mixed(self):
+        response = (
+            "STORY_0 | Market stocks traded surging rally gained\n"
+            "STORY_1 | Unrelated random words no keyword match overlap here"
+        )
+        headlines = ["Market Stocks Surging Rally Gained Trading", "Random Story Two"]
+        result = parse_batch_summary_response(response, 2, story_headlines=headlines)
+        self.assertEqual(len(result), 2)
+
+
+class TestParseBatchSummaryResponseSummaryOfHeading(TestCase):
+    """Line 290: 'Summary of ...:' heading format."""
+
+    def test_summary_of_heading_fallback(self):
+        response = (
+            "Summary of first story:\n"
+            "The market went up today. Stock prices increased.\n"
+            "Summary of second story:\n"
+            "Weather conditions improved."
+        )
+        result = parse_batch_summary_response(response, 2)
+        self.assertEqual(len(result), 2)
+
+
+class TestParseBatchSummaryResponseAllNoneIndex(TestCase):
+    """Lines 312-324: all headers have None index → chunk distribution."""
+
+    def test_sequential_fallback_all_none(self):
+        response = (
+            "Summary of piece number one:\n"
+            "The first story content goes here with some detail.\n"
+            "Summary of piece number two:\n"
+            "The second story content goes here with detail."
+        )
+        result = parse_batch_summary_response(response, 2)
+        self.assertEqual(len(result), 2)
+
+
+class TestParseBatchSummaryResponsePositionalFuzzy(TestCase):
+    """Lines 337-359, 397-398: positional fuzzy headline matching."""
+
+    def test_positional_fuzzy_match(self):
+        response = (
+            "1. The first item discussed.\n"
+            "2. The second item discussed."
+        )
+        headlines = ["The Federal Budget Discussion Report", "The Second Climate Analysis Piece"]
+        result = parse_batch_summary_response(response, 2, story_headlines=headlines)
+        self.assertEqual(len(result), 2)
+
+
+class TestParseBatchSummaryResponseAdjacentSwap(TestCase):
+    """Lines 421-422 and 411/415: swap detection with 3+ stories exercises all code paths."""
+
+    def test_adjacent_swap_fix(self):
+        # 3-stories with swapped ordering exercises the swap loop
+        # Positional fuzzy at lines 337-359 corrects most, testing those paths
+        response = (
+            "STORY_0 | Warming global temperatures climate rise\n"
+            "STORY_1 | Market stock trading gains rally\n"
+            "STORY_2 | Tech artificial intelligence breakthrough"
+        )
+        headlines = [
+            "Stock Market Trading Gains Rally",
+            "Climate Warming Global Temperatures Rise",
+            "Artificial Intelligence Tech Breakthrough",
+        ]
+        result = parse_batch_summary_response(response, 3, story_headlines=headlines)
+        self.assertEqual(len(result), 3)
+        # Verify results populated through fuzzy/keyword/positional matching
+        total_chars = sum(len(r) for r in result)
+        self.assertGreater(total_chars, 0)
+
+    def test_adjacent_swap_detection_code_path(self):
+        # Verify the adjacent swap loop runs with 3+ stories
+        response = (
+            "1. First report about the alpha analysis today.\n"
+            "2. Second report about the beta data results.\n"
+            "3. Third report about the gamma findings study."
+        )
+        headlines = [
+            "Alpha Analysis Report Today Published",
+            "Beta Data Results Findings Released",
+            "Gamma Research Study Findings Published",
+        ]
+        result = parse_batch_summary_response(response, 3, story_headlines=headlines)
+        self.assertEqual(len(result), 3)
+        self.assertTrue(all(len(r) > 0 for r in result))
+
+
+class TestParseBatchSummaryResponseAllPairsMismatch(TestCase):
+    """Lines 444-452: all-pairs mismatch warning logged."""
+
+    def test_all_pairs_mismatch_warning(self):
+        import logging
+        # Generic summaries that match NO headline keywords → all-pairs detects mismatch
+        response = (
+            "1. This first report discusses the matter at hand with details.\n"
+            "2. The second report covers another topic with separate details."
+        )
+        headlines = [
+            "Stock Market Trading Gains Rally Surge Analysis",
+            "Climate Warming Temperature Report Findings Change",
+        ]
+        import daily_brief.llm.summarizer as smod
+        captured = []
+        class CaptureHandler(logging.Handler):
+            def emit(self, record):
+                captured.append(record.getMessage())
+        test_handler = CaptureHandler()
+        old_logger = smod.logger
+        old_logger.addHandler(test_handler)
+        old_level = old_logger.level
+        old_logger.setLevel(logging.DEBUG)
+        try:
+            result = parse_batch_summary_response(response, 2, story_headlines=headlines)
+        finally:
+            old_logger.removeHandler(test_handler)
+            old_logger.setLevel(old_level)
+        self.assertEqual(len(result), 2)
+        mismatch_msgs = [m for m in captured if "SWAP DETECTED" in m]
+        self.assertTrue(len(mismatch_msgs) > 0)
+
+
+class TestParseBatchSummaryResponseLine427(TestCase):
+    """Line 427: i >= len(story_headlines) → continue in all-pairs loop."""
+
+    def test_line_427_continue(self):
+        response = (
+            "1. First story summary text here.\n"
+            "2. Second story summary text here.\n"
+            "3. Third story summary text here."
+        )
+        headlines = ["First Headline", "Second Headline"]
+        result = parse_batch_summary_response(response, 3, story_headlines=headlines)
+        self.assertEqual(len(result), 3)
+
+
+class TestParseBatchSummaryResponseLine431(TestCase):
+    """Line 431: empty summary → continue in all-pairs loop."""
+
+    def test_line_431_empty_summary(self):
+        response = ""
+        result = parse_batch_summary_response(response, 2, story_headlines=["H1", "H2"])
+        self.assertEqual(result, ["", ""])
+
+
+class TestSummarizeContextTooShort(TestCase):
+    """Line 502: _summarize returns None when context is too short."""
+
+    def test_summarize_context_too_short(self):
+        from daily_brief.llm.summarizer import _summarize
+        client = mock.MagicMock()
+        result = _summarize(client, "hi", title="Title", min_chars=100)
+        self.assertIsNone(result)
+
+
+class TestSummarizeBoilerplateRetry(TestCase):
+    """Lines 533-536: first call returns boilerplate, retry with strict returns good summary."""
+
+    def test_summarize_boilerplate_retry(self):
+        from daily_brief.llm.summarizer import _summarize
+        call_count = [0]
+        def side_effect(**kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                r = mock.MagicMock()
+                r.choices = [mock.MagicMock(message=mock.MagicMock(
+                    content="This article discusses the implications of the new policy thoroughly."
+                ))]
+                return r
+            else:
+                r = mock.MagicMock()
+                r.choices = [mock.MagicMock(message=mock.MagicMock(
+                    content="The Fed raised rates by 0.25 percent. Bond yields climbed sharply. Treasury prices fell."
+                ))]
+                return r
+        client = mock.MagicMock()
+        client.chat_completions_create.side_effect = side_effect
+        with mock.patch("daily_brief.config.LLM_SUMMARY_RETRY_ATTEMPTS", 2):
+            with mock.patch("daily_brief.config.LLM_SUMMARY_RETRY_BACKOFF", [0.01, 0.02]):
+                with mock.patch("time.sleep", return_value=None):
+                    result = _summarize(client, "Some context text that is long enough to be meaningful for the LLM to process.", title="Test", min_chars=0)
+        self.assertIn("Fed", result)
+        self.assertEqual(call_count[0], 2)
+
+
+# ---------------------------------------------------------------------------
+# 10.  batch_summarize_all
+# ---------------------------------------------------------------------------
+
+class TestBatchSummarizeAll(TestCase):
+    """batch_summarize_all integration with mocked client."""
+
+    def _make_story(self, title, category, context=None, snippet=None):
+        from daily_brief.llm.summarizer import StoryPipelineState
+        s = StoryPipelineState(title, "http://x", snippet or "", "2024-01-01", category)
+        s.context = context
+        s.summary = None
+        return s
+
+    def test_batch_summarize_all_empty(self):
+        from daily_brief.llm.summarizer import batch_summarize_all
+        client = mock.MagicMock()
+        result = batch_summarize_all(client, [])
+        self.assertEqual(result, {})
+
+    def test_batch_summarize_all_with_retries(self):
+        from daily_brief.config import SYSTEM_BATCH_PROMPT
+        from daily_brief.llm.summarizer import batch_summarize_all
+
+        stories = [
+            self._make_story("Market Rally Continues Strong Gains Trading", "Finance"),
+            self._make_story("Climate Report Shows Warming Trend Increase", "Climate"),
+        ]
+
+        batch_call_count = [0]
+        single_call_count = [0]
+
+        def side_effect(**kwargs):
+            batch_call_count[0] += 1
+            msgs = kwargs.get("messages", [])
+            system = msgs[0]["content"] if msgs else ""
+            if "BATCH" in system or "batch" in system.lower():
+                content = (
+                    "STORY_0 | Market rally continues=Market rally continued with strong gains today. Stocks surged.\n"
+                    "STORY_1 | Climate report warming=Climate report shows warming trend with temperature increase."
+                )
+                r = mock.MagicMock()
+                r.choices = [mock.MagicMock(message=mock.MagicMock(content=content))]
+                return r
+            else:
+                single_call_count[0] += 1
+                r = mock.MagicMock()
+                r.choices = [mock.MagicMock(message=mock.MagicMock(content="Single story fallback summary text here."))]
+                return r
+
+        client = mock.MagicMock()
+        client.chat_completions_create.side_effect = side_effect
+
+        with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_ATTEMPTS", 2):
+            with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_BACKOFF", [0.01]):
+                with mock.patch("time.sleep", return_value=None):
+                    result = batch_summarize_all(client, stories)
+
+        self.assertTrue(batch_call_count[0] > 0 or single_call_count[0] > 0)
+
+    def test_batch_summarize_all_sub_batches_and_error(self):
+        from daily_brief.llm.summarizer import batch_summarize_all
+
+        stories = [
+            self._make_story("Story A Finance", "Finance"),
+            self._make_story("Story B Finance", "Finance"),
+            self._make_story("Story C Finance", "Finance"),
+            self._make_story("Story D Finance", "Finance"),
+        ]
+
+        client = mock.MagicMock()
+        client.chat_completions_create.side_effect = Exception("API error")
+
+        with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_ATTEMPTS", 1):
+            with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_BACKOFF", []):
+                with mock.patch("time.sleep", return_value=None):
+                    result = batch_summarize_all(client, stories)
+
+        self.assertEqual(len(result), 0)

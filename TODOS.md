@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 — v1.0.60 (ALL BUGS CLEARED ✅ — Tiers 1 & 2 complete)
+# TODO: Daily Brief v01 — v1.0.61 (Tier 3 complete: test infra)
 
 ## Status Legend
 - `[ ]` — TODO (not started)

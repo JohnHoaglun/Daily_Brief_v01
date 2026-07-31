@@ -4,6 +4,18 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.65 — Research Agent Deep Review (gpt-5.6-terra)
+- Comprehensive codebase review: **47 items** across 7 categories (11 bugs, 12 performance, 9 dead code, 4 duplicate, 7 anti-patterns, 7 reliability, 5 architecture)
+- **New bugs found by research:** Alert system never wired (Bug-2/3), WU dashboard fetched twice per run (Perf-3), config schema reader vs validator misalignment (Bug-4), widening can't discover older stories due to max_stories truncation (Bug-10), version drift across 4 sources (Bug-11), RSS status check missing (Bug-6)
+- **Important correction:** `AsyncOpenAI` conversion saves **0s** wall-clock time — LLM requests remain serial. Benefit requires measured batching/concurrency experiment on vLLM.
+- Phase A (10 items, ~2.5hrs, low risk): ZoneInfo bug, dead code, dead constants, TLS fix, RSS status check, timing infrastructure, typo fix
+- Phase B (8 items, ~4-6hrs, low-medium risk): **~10-20s saved** — parallel lakes, concurrent weather sources, WU dedup, geocode cache, session reuse, RSS widening fix, preflight cache, weather orchestrator refactor
+- Phase C (5 items, ~1-3 days, medium-high risk): AsyncOpenAI + asyncio.sleep, LLM batching benchmark, HTTP retry policy, centralized summarizer recovery, alert feature decision
+- Phase D (7 items, ~2-4 days, medium risk): config schema unification, story model consolidation, dedup canonicalization, batch parser decompose, tagging precompile, misc bug fixes, system reliability
+- Credible target: ~65-75s after Phase B. Full 55-65s only if measured LLM batching proves beneficial.
+
+### v1.0.64 — Performance & Optimization Plan
+
 ### v1.0.63 — Performance & Optimization Plan
 - Added 17-item performance/cleanup plan to TODOS.md: 6 performance, 9 cleanup, 1 architecture, 1 bug fix
 - Quick wins: `ZoneInfo` import bug (rss_dedup.py), parallel lake fetching, parallel weather sub-sources

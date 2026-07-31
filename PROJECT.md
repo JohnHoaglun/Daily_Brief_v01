@@ -1,7 +1,7 @@
-# Project: Daily Brief v01 (v1.0.63)
+# Project: Daily Brief v01 (v1.0.65)
 
 ## Overview
-Automated daily news brief generator that pulls category RSS stories and produces AI-summarized Markdown reports. Currently undergoing architectural refactoring to modularize the codebase.
+Automated daily news brief generator that pulls category RSS stories and produces AI-summarized Markdown reports. Architectural refactoring P0-P6 complete. Research agent deep review complete — 47-item optimization plan across 4 phases.
 
 ## Architecture
 

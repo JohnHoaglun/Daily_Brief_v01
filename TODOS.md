@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 — v1.0.63 (Tier 4 complete, Perf/Optimization plan added)
+# TODO: Daily Brief v01 — v1.0.65 (Research agent deep review complete, 47-item phased plan)
 
 ## Status Legend
 - `[ ]` — TODO (not started)
@@ -119,96 +119,114 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 
 ---
 
-## Performance & Optimization (Post-Refactoring Cleanup)
+## Active Work: Performance & Optimization — Research Agent Review (v1.0.65)
+*Comprehensive review by research agent (gpt-5.6-terra). 47 items across 7 categories. Replaces prior 17-item plan.*
 
-### Perf-1 — Parallel Lake Fetching (Priority: High, Effort: 15 min, Risk: Zero)
-`sources/weather.py:245-247` — 12 lakes fetched sequentially in a for loop. Each lake is an independent HTTP request. With ~1-2s per lake, this adds 12-24s. Parallelizing reduces to ~2-3s.
-- `[ ]` Replace `for` loop with `asyncio.gather(*[_extract_lake_value(session, k, u, now_ref) for k, u in WEATHER_LAKE_URLS.items()])` and assign results to `weather_data["lakes"]` dict
-- `[ ]` Verify: pipeline run, all 12 lakes render correctly, Phase 1 time reduced
+**Runtime budget analysis:**
+| Area | Current cost | Reduction opportunity |
+|---|---:|---:|
+| Preflight | 0.1-1s (up to 5s on outage) | 0.1-1s |
+| Phase 1 (weather) | ~15-25s | **~10-20s** with concurrency + redundant request removal |
+| Phase 2 (RSS) | 15-5s on widening | ~1-5s per widened category |
+| Phase 3 (LLM) | ~50-85s | **~5-20s** IF batching/concurrency works on vLLM; 0s from async conversion alone |
+| Render/validation | 2s | ~0.2-2s |
+| Harness | 0-30s (blocking subprocess, outside timings) | No generation-time reduction unless made optional |
 
-### Perf-2 — Parallel Weather Sub-Sources (Priority: High, Effort: 30 min, Risk: Low)
-`sources/weather.py:182-206` — Station metrics, climate normal, and monthly rainfall fetched sequentially after NWS forecast. Only NWS → station has a dependency; climate normal and monthly rainfall are independent.
-- `[ ]` After NWS forecast completes, run `_fetch_station_metrics`, `_fetch_climate_normal_high`, and `_fetch_station_monthly_rainfall` in parallel via `asyncio.gather`
-- `[ ]` Verify: Phase 1 time reduced, all station/lake/climate data correct
+**Credible target:** ~65-75s after Phase B. Full 55-65s only if measured LLM batching proves beneficial.
 
-### Perf-3 — RSS Widening Re-fetch Elimination (Priority: Medium, Effort: 30 min, Risk: Low)
-`pipelines/rss_dedup.py:232-248` — When category has <3 stories, `widen_category` loops days 2-7 re-fetching the *same* RSS URL each iteration (only age filter changes locally). Up to 6 identical HTTP requests per widening category.
-- `[ ]` Fetch entries once in `widen_category`, then call `dedup_entries` with progressively relaxed `widen_hours` on the same entries list
-- `[ ]` Verify: widening produces same story counts, reduced HTTP requests
+### Phase A — Quick Wins (v1.0.64 → .68, ~2-3 hrs, Risk: Low)
+Establish trustworthy measurement and remove unequivocal dead work. No behavioral test changes.
 
-### Perf-4 — `time.sleep` → `asyncio.sleep` (Priority: Medium, Effort: 20 min, Risk: Low)
-`llm/summarizer.py:528,543` — `_summarize` uses blocking `time.sleep(delay)` for retry backoff, freezing the event loop during LLM retries.
-- `[ ]` Convert `_summarize` to `async def`, replace `time.sleep` with `await asyncio.sleep`
-- `[ ]` Update callers in `pipeline.py:214,238` to `await` the async `_summarize`
-- `[ ]` Verify: Phase 3 retry behavior unchanged, no event loop blocking
+| # | Ticket | File:line | Finding & Fix | Effort | Risk |
+|---|---|---|---|---:|---:|
+| A.1 | **Bug-1** | `pipelines/rss_dedup.py:35` | Missing `from zoneinfo import ZoneInfo` — every run silently falls back to UTC for RSS age filtering. Import it. | 5m | Low |
+| A.2 | **Clean-8** | `utils.py:24-29` | HTML strip regex `re.compile(r"<.*?>")` compiled on every call (~700+/run). Hoist to module-level `_HTML_STRIP_RE`. | 5m | Low |
+| A.3 | **Clean-5** | `pipeline.py:202` | `sum_results` assigned but never read — `batch_summarize_all()` mutates stories in place. Remove assignment. | 5m | Low |
+| A.4 | **Clean-9** | `config.py:53,136-138` | `WEATHER_POINT_URL` assigned 3×, including obsolete `api.weather.to` value. Collapse to single assignment. | 5m | Low |
+| A.5 | **Clean-6** | `config.py:81,109-110` | Unused `CATEGORY_SETTINGS`, `REAL_ESTATE_KEYWORDS`, `OBITUARY_KEYWORDS`, `USER_AGENT_WEATHER_SUFFIX`. Remove dead constants. | 10m | Low |
+| A.6 | **Rel-3** | `pipeline.py:119`; `__main__.py:24-30` | `os.listdir(LOG_DIR)` and `RotatingFileHandler` can fail if log dir doesn't exist. Create/validate before setup/list. | 15m | Low |
+| A.7 | **Rel-4** | `connectivity.py:38-40,55-57` | RSS connectivity checks disable TLS verification (`ssl=False`). Restore normal cert validation. | 10m | Low |
+| A.8 | **Bug-6** | `sources/rss.py:121-150` | `fetch_feed()` parses non-200 response bodies as RSS (no status check). Require 200/206, log status context safely. | 15m | Low |
+| A.9 | **Quality-6** | `pipeline.py:115-312` | Phase timings mix `time.time()` with partial phases, omit total/preflight/validation. Use `time.perf_counter()`, record all phases. | 45m | Low |
+| A.10 | **Bug-5** | `config.py:105` | Typo: `dedupi_window_hours` instead of `dedupe_window_hours`. Configured value is ignored. Correct spelling. | 5m | Low |
+| **Total** | | | **10 items** | **~2.5 hrs** | |
 
-### Perf-5 — Reuse Article Extraction Session (Priority: Low, Effort: 10 min, Risk: Zero)
-`pipeline.py:189-192` — Phase 3A creates a second `aiohttp.ClientSession` nested inside the main session. Wastes connection pool resources.
-- `[ ]` Pass the outer `session` to `stage_extract_article` instead of creating a nested session
-- `[ ]` Verify: article extraction works, no session conflicts
+### Phase B — High-Impact Performance (v1.0.69 → .75, ~4-6 hrs, Risk: Low-Medium)
+Remove unnecessary serialized network waits and redundant requests. **~10-20s saved, primarily weather.**
 
-### Clean-1 — Regex Recompilation on Every Call (Priority: Low, Effort: 5 min, Risk: Zero)
-`utils.py:28-29` — `re.compile(r"<.*?>")` runs on every `strip_html()` call (~700+ times per run).
-- `[ ]` Compile at module level: `_HTML_STRIP_RE = re.compile(r"<.*?>")`, reuse in `strip_html`
-- `[ ]` Verify: `pytest tests/test_utils.py -v` passes
+| # | Ticket | File:line | Finding & Fix | Time Saved | Effort |
+|---|---|---|---|---:|---:|
+| B.1 | **Perf-1** | `sources/weather.py:245-253` | 11 lake requests run serially. Use bounded `asyncio.gather()`, retain deterministic key ordering, collect per-lake errors. | **~8-20s** | 30m |
+| B.2 | **Perf-2** | `sources/weather.py:107-118`; `182-206` | NWS forecast, station metrics, climate normal, monthly rainfall, and lakes are largely unnecessary serialization. Start independent source calls concurrently, apply merge/fallback logic. Only forecast fallback after source results. | **~3-8s** | 1-2h |
+| B.3 | **Perf-3** | `sources/weather.py:182`; `197`; `wunderground.py:84-108,156-183` | WU dashboard fetched twice. First result wins for current rainfall, second WU request's value commonly discarded. Separate climate-normal rainfall from WU retrieval or consolidate. | ~1-5s | 1h |
+| B.4 | **Perf-4** | `sources/climate.py:30-56` | Climate normal makes a geocoding request for fixed ZIP `77316` every run, despite pipeline coords already configured. Pass lat/lon to function or cache geocode with bounded TTL. | ~0.2-1.5s | 30m |
+| B.5 | **Perf-5** | `pipeline.py:189-197` | Phase 3A opens second session/connector despite outer session existing. Reuse outer session, retain per-request 5s timeout, preserves connection pooling. | <1s | 15m |
+| B.6 | **Perf-6 / Bug-10** | `pipelines/rss_dedup.py:92-95,190-266`; `sources/rss.py:121-150` | Widen categories sequentially, each re-downloads same URL. Also: widening can't actually inspect more than `max_stories` entries because `fetch_feed()` truncates before age filtering. Fetch adequate candidate pool once, locally apply increasing age windows, widen concurrently with per-host bound. | ~1-8s | 1-2h |
+| B.7 | **Perf-11** | `pipeline.py:104-109`; `connectivity.py:132-140` | Every normal run does 3 preflight probes with new session before timings start, then repeats corresponding source traffic immediately after. Make checks opt-in or cache for short TTL. | ~0.1-1s | 30m |
+| B.8 | **Arch-1 / Perf-1** | `sources/weather.py:94-259` | Weather orchestration mixes fetch, normalization, fallback policy, formatting, logging, and provider merge decisions. Extract independent provider tasks from one deterministic merge/fallback function. Enables safe concurrency. | Enables B.1-B.4 | 3-5h |
+| **Total** | | | **8 items** | **~10-20s** | **~4-6 hrs** |
 
-### Clean-2 — Duplicate `_safe_sentence_summary` / `_count_sentences` (Priority: Low, Effort: 10 min, Risk: Zero)
-`llm/summarizer.py:23-99` and `utils.py:61-80` — Same functions exist in both files.
-- `[ ]` Remove copies from `summarizer.py`, import from `utils.py`
-- `[ ]` Verify: all Tiers 1-4 tests pass
+### Phase C — Medium-Risk Async and LLM Changes (v1.0.76+.85, ~1-3 days, Risk: Medium-High)
+Eliminate event-loop blocking and reduce serial LLM critical path. **AsyncOpenAI alone = 0s saved; benefit requires measured batching/concurrency.**
 
-### Clean-3 — Duplicate `build_context` (Priority: Low, Effort: 10 min, Risk: Zero)
-`llm/summarizer.py:552-563` and `sources/article.py:55-76` — Near-identical functions, same config imports.
-- `[ ]` Keep in `sources/article.py`, import in `summarizer.py` and `pipeline.py`
-- `[ ]` Verify: pipeline run, summaries correct
+| # | Ticket | File:line | Finding & Fix | Effort | Risk |
+|---|---|---|---|---:|---:|
+| C.1 | **Perf-8 / Perf-9** | `llm/client.py:24-28`; `summarizer.py:489-549`; `alerter.py:71-103`; `summarizer.py:528,543` | Sync `OpenAI` client blocks event loop. Migrate to `AsyncOpenAI`, `await` all callers. Replace `time.sleep()` with `await asyncio.sleep()` in retry backoff. | 2-4h | Medium |
+| C.2 | **Perf-7** | `llm/summarizer.py:579-680` | Batches capped at 3 stories, every batch issued serially. ~60-75 stories → ~20-25 sequential LLM requests. Benchmark batch sizes 4, 5, 6; benchmark concurrency 2 on actual vLLM server. Do not change blindly. | 2-4h | High |
+| C.3 | **Rel-1 / Rel-2** | `http_client.py:20-71`; `sources/rss.py:126`; `sources/article.py:37-52` | Shared HTTP helpers retry every exception identically. Add bounded retry for 429/502/503/504/timeout; respect `Retry-After`, use jitter. Route direct `session.get()` callers through common policy. | 1-2h | Medium |
+| C.4 | **Rel-6 / Rel-7 / Arch-2** | `llm/summarizer.py:604-660`; `pipeline.py:207-257` | Batch summary calls have no retry. Recovery duplicated between `batch_summarize_all()` Phase 3F and pipeline Phases 3D/3E. Centralize retry, fallback, boilerplate recovery, and metrics in summarizer service. | 1-2h | Medium |
+| C.5 | **Bug-2 / Bug-3 / Bug-9** | `pipeline.py:202; alerter.py:35; summarizer.py:465; alerter.py:27-31` | Alert system never wired. `StoryPipelineState.__slots__` excludes `_alert_idx`/`is_alert` — `batch_evaluate_alerts()` would raise `AttributeError`. Either restore full alert feature + slots + render, or formally remove it and tests/config. | 1-2h | Medium |
+| **Total** | | | **5 items** | **~1-3 days** | |
 
-### Clean-4 — Dead `WEATHER_POINT_URL` Reassignments (Priority: Low, Effort: 5 min, Risk: Zero)
-`config.py:53,136-138` — Assigned 3 times, only final value used.
-- `[ ]` Remove lines 53 and 136-137, keep single assignment at line 138
-- `[ ]` Verify: config loads, weather fetch works
+### Phase D — Architecture Polish (v1.0.86+.95, ~2 days, Risk: Medium)
+Remove divergent state/config ownership. ~0.5-2s direct; substantial maintainability gain.
 
-### Clean-5 — Unused `_create_session` / `_close_session` (Priority: Low, Effort: 2 min, Risk: Zero)
-`http_client.py:74-82` — Defined but never called.
-- `[ ]` Delete (verify not used in tests first with grep)
-- `[ ]` Verify: tests pass
+| # | Ticket | File:line | Finding & Fix | Effort | Risk |
+|---|---|---|---|---:|---:|
+| D.1 | **Bug-4 / Arch-4 / Quality-1 / Quality-7** | `config.py:16-143`; `pipeline.py:16`; `config.yaml` | Config reader uses `runtime_defaults.llm_summary_options`, `runtime.timezone`, `cleanup_api.max_log_versions` — validator checks `llm.summary_options`, `runtime.timezone`, `cleanup.max_log_versions`. Validated config is silently ignored, fallback defaults used. `globals().update(locals())` star imports conceal API. Define one typed config schema. | 2-4h | Medium |
+| D.2 | **Arch-3 / Clean-7** | `models.py:13-81`; `summarizer.py:465-475`; `report.py:13-38` | Three incompatible story representations: `Story`, `StoryPipelineState`, rendering dicts. Adopt one typed internal model with context, summary, tags, alert fields. Serialize at rendering boundary. | 4-8h | Medium |
+| D.3 | **Dup-1 to Dup-4 / Clean-1 to Clean-3** | `utils.py`; `summarizer.py`; `article.py`; `http_client.py`; `llm/__init__.py` | `_safe_sentence_summary`/`_count_sentences` dupes ×2, `build_context` dupes ×2, `_coerce_temperature_f` ×2, `_fetch_json`/`_fetch_text` dupes ×2, unused `_run_blocking`/executor exports. Canonicalize all. Update tests. | 2-4h | Medium |
+| D.4 | **Quality-3** | `llm/summarizer.py:102-462` | Batch response parsing is 360 lines of interleaved parsing, heuristic matching, logging, swap diagnosis. Repeatedly compiles regexes in loops, helper functions inside hot loops. Split format parsing from matching/validation, use golden responses. | 4-8h | High |
+| D.5 | **Quality-4 / Perf-10** | `tagging.py:23-41,86-96`; `report.py:109-124,160-166` | Tagging builds 2 regexes per keyword per title, recalculates every title twice (frontmatter + render). Precompile immutable config patterns once, compute tags once, pass/retain in section data. Category boost semantics are ambiguous (can award scores to unrelated tags). | 1-2h | Medium |
+| D.6 | **Bug-7 / Bug-8 / Bug-11 / Bug-12** | `weather.py:105-116`; `weather_table.py:41-45`; `__init__.py:52`; various | Forecastsuffix ignored. `WEATHER_LABELS["station_rows"]` indexed 0/1/2 without length validation. Version sources disagree: package `1.0.54`, YAML `1.0.54`, docs `1.0.64`. BeautifulSoup/feedparser run on event loop. Fix all. | 1-2h | Low |
+| D.7 | **Rel-5 / Quality-2 / Quality-5 / Arch-5** | `harness.py:54-77`; `weather.py:255-257`; `pipeline.py:59-70`; `connectivity.py:132-164` | Harness can't fail pipeline, blocks async main 30s. One broad `except` wraps all weather providers. Custom file logger duplicates standard logging. Preflight and smoke checks overlap. Fix systematically. | 1-2h | Medium |
+| **Total** | | | **7 items** | **~2-4 days** | |
 
-### Clean-6 — Duplicate `_coerce_temperature_f` (Priority: Low, Effort: 5 min, Risk: Zero)
-`pipeline.py:73-87` and `utils.py:129-142` — Identical function, only utils version is imported/used.
-- `[ ]` Remove from `pipeline.py`
-- `[ ]` Verify: pipeline run, no NameError
+---
 
-### Clean-7 — `globals().update(locals())` Anti-pattern (Priority: Low, Effort: 5 min, Risk: Low)
-`config.py:143` — Dumps all module variables into globals, unclear API, potential collisions.
-- `[ ]` Remove line 143. Verify no code depends on the dynamic globals injection.
-- `[ ]` Verify: all imports from `config.py` still resolve, pipeline run passes
+## Verification Strategy
 
-### Clean-8 — Missing `ZoneInfo` Import (Bug) (Priority: Medium, Effort: 2 min, Risk: Zero)
-`pipelines/rss_dedup.py:35` — Calls `ZoneInfo(CFG_TIMEZONE)` but `ZoneInfo` is never imported. Silently falls through to UTC on every run.
-- `[ ]` Add `from zoneinfo import ZoneInfo` at top of `rss_dedup.py`
-- `[ ]` Verify: RSS dedup uses correct timezone
+### Baseline Before Any Phase
+1. Run `pytest -q` — confirm 761-test baseline
+2. Run 3 full pipeline executions at comparable times
+3. Capture: total wall-clock; preflight, Phase 1-6, harness durations; weather requests by provider; RSS fetches and widening count; batch LLM calls, fallback count, retry count, generated-token/request timing; story count, category count, auto-fallback count, validation result
+4. Compare generated reports structurally (live RSS/LLM output is nondeterministic)
 
-### Clean-9 — Unused `_run_blocking` (Priority: Low, Effort: 2 min, Risk: Zero)
-`llm/client.py:36-39` — Defined but never called.
-- `[ ]` Delete (or wire into `LLMClient` — see Perf-10)
-- `[ ]` Verify: LLM calls work
+### Phase A Verification
+- `pytest tests/test_sources/test_rss_dedup.py tests/test_sources/test_rss.py tests/test_utils.py tests/test_pipeline.py tests/test_connectivity_extended.py -q`
+- `pytest -q`
+- One pipeline run. Verify: RSS logs show configured timezone; no missing dir startup errors; connectivity checks have TLS; timing output includes all phases + total wall time
 
-### Perf-10 — LLM Calls Block Event Loop (Priority: High, Effort: 45 min, Risk: Medium)
-`llm/client.py:27-28` — `chat_completions_create` uses synchronous `OpenAI` client. Phase 3 (~40+ batches) blocks the event loop for 50-85s.
-- `[ ]` Switch to `AsyncOpenAI` from `openai`: `from openai import AsyncOpenAI`
-- `[ ]` Make `LLMClient.chat_completions_create` an `async` method
-- `[ ]` Convert all callers (`summarizer.py`, `pipeline.py`) to `await`
-- `[ ]` Verify: Phase 3 works, summaries correct, no event loop issues
+### Phase B Verification
+- Add mocked source tests before changing concurrency: weather success + per-provider failure + fallback merge ordering; all configured lake results key/order-stable; RSS widening returns same or better valid story count from recorded feed; repeated fetch count drops to one per widened category
+- `pytest tests/test_sources/test_weather.py tests/test_sources/test_weather_extended.py tests/test_sources/test_lakes.py tests/test_sources/test_rss.py tests/test_sources/test_rss_dedup.py -q`
+- `pytest -q`
+- At least 3 full pipeline runs, compare median Phase 1 and Phase 2 timings against baseline
+- **Acceptance:** no loss of valid weather fields, lakes, categories, or report validation; median total reduction ≥10 seconds before proceeding to Phase C
 
-### Perf-11 — HTTP Source Retry (Priority: Medium, Effort: 45 min, Risk: Low)
-`http_client.py:20-44` — `_fetch_json` and `_fetch_text` make single attempts. Transient errors (429, 500, 503, timeouts) cause permanent failures.
-- `[ ]` Add configurable retry loop (3 attempts, exponential backoff) to both functions
-- `[ ]` Retry on 429, 502, 503, timeouts; do NOT retry on 400, 403, 404
-- `[ ]` Verify: resilient to transient failures, no infinite retry loops
+### Phase C Verification
+- Update all client/summarizer/alerter mocks to async return values. Test retry backoff without real sleeping
+- `pytest tests/test_llm_client.py tests/test_summarizer.py tests/test_alerter.py tests/test_pipeline.py -q`
+- `pytest -q`
+- Test HTTP retry with `aioresponses`: 429/502/503/504/timeouts retry; honor retry limit; no retry for 400/403/404; no event-loop blockage during retry delay
+- Controlled LLM benchmark (saved story contexts + vLLM host): batch sizes 3, 4, 5, 6; serial then concurrency 2; report parser success rate, fallback rate, validation failure rate, request count, duration
+- **Acceptance:** summary quality and validation remain at least baseline; measured median latency improves
 
-### Arch-1 — Weather Fallback Chain Simplification (Priority: Low, Effort: 30 min, Risk: Medium)
-`sources/weather.py:182-224` — Fallback chain for `avg_temp_today` spans 4 functions across 3 files with multiple override paths. Hard to reason about.
-- `[ ]` Consolidate into single `build_station_data(session)` function with clear fetch → fallback → fallback chain
-- `[ ]` Verify: all station data values correct, fallback paths work
+### Phase D Verification
+- Full test suite + coverage: `pytest -q`, `scripts/run_coverage.sh`
+- Add migration-level tests for configuration equivalence and model serialization
+- `python -m daily_brief config validate`, `python -m daily_brief config check-connectivity`, one full pipeline run
+- Package version, YAML version, report version, project docs version all aligned
 
 ---
 
@@ -470,6 +488,7 @@ Daily_Brief_v01/
 ---
 
 ## Recent Updates
+- [2026-07-31] **Research agent deep review complete — v1.0.65** — Full codebase analyzed by gpt-5.6-terra. 47 items across 7 categories: 11 bugs (ZoneInfo import, alert system never wired, config schema misalignment, WU fetched twice, RSS no status check, widening truncation, forecast suffix ignored, station_rows no length validation, numeric alert parser case bug, version drift 4 sources, dedupi typo), 12 performance items (parallel lakes ~8-20s, concurrent weather ~3-8s, WU dedup, geocode cache, session reuse, RSS widening + truncation fix, preflight cache, AsyncOpenAI + asyncio.sleep, LLM batching benchmark, HTTP retry, tagging precompile, CPU-bound parsers), 9 dead code blocks, 4 duplicate code pairs, 7 anti-patterns, 7 reliability issues, 5 architecture items. Replaced prior 17-item plan. Credible target: 65-75s.
 - [2026-07-28 21:00] **P5.1 RSS Dedup extraction complete — v1.0.35** — Extracted Phase 2 (138L) into `pipelines/rss_dedup.py` (269L: `dedup_entries`, `widen_category`, `fetch_and_dedup`). Reduced `pipeline.py` 521L → 364L. Phase 2 is now a 6-line shim call. 74 stories, 15 categories verified.
 - [2026-07-26 16:30] **P1 foundation extraction complete** — Created `src/daily_brief/` package (5 files): `__init__.py`, `__main__.py`, `models.py` (6 dataclasses), `utils.py` (7 helpers), `http_client.py` (async fetch). All imports verified. Logging uses standard Python `logging` throughout.
 - [2026-07-26 16:20] **P0 cleanup complete** — Deleted dead code (12 lines), removed duplicate `is_obituary_title` (11 lines), fixed typo `wundereground` → `wunderground` in `config.py`. Full pipeline verified: 55 stories, 0 failures. Line count: 1944 → 1921.
@@ -484,6 +503,6 @@ Daily_Brief_v01/
 ---
 
 ## Version Notes
-- Current version: **v1.0.62** (All 5 rounds complete, all 4 Tiers done — 761 tests, 558 new, all coverage targets met)
-- Last stable: v1.0.53 (Round 4 retry infra + auto fallback)
+- Current version: **v1.0.65** (Research agent deep review complete — 47-item phased optimization plan)
+- Last stable: v1.0.62 (All 5 rounds complete, all 4 Tiers done — 761 tests, 558 new, all coverage targets met)
 - Branch: `dev_opencode`, synced with `origin/dev_opencode`

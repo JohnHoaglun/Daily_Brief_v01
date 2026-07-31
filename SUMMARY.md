@@ -4,6 +4,10 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.70 — A.2 Precompiled HTML-Strip Regex
+- `src/daily_brief/utils.py`: precompiled `_HTML_TAG_RE` at module level, removing per-call `re.compile()` in `strip_html()`.
+- 762 tests passed, 0 failures.
+
 ### v1.0.68 — A.1 ZoneInfo Import Fix
 - `src/daily_brief/pipelines/rss_dedup.py`: added `from zoneinfo import ZoneInfo` import. Missing import caused `NameError` silently caught by broad exception handler, RSS age filtering fell back to UTC instead of configured `America/Chicago`.
 - `tests/test_sources/test_rss_dedup.py`: added `test_zoneinfo_uses_configured_timezone` regression test asserting `ZoneInfo` is called with configured timezone.

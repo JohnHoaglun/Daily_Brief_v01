@@ -396,8 +396,7 @@ class TestFetchWeatherEdgeCases(TestCase):
                             with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
                                 asyncio.get_event_loop().run_until_complete(fetch_weather(None, 30.286, -95.566))
         self.assertEqual(len(calls), 2)
-        self.assertIn("30.286", calls[0])
-        self.assertIn("-95.566", calls[0])
+        self.assertEqual(calls[0], "https://api.weather.gov/points/30.286,-95.566")
 
     def test_forecast_no_forecast_url_uses_suffix(self):
         point = {"properties": {}}

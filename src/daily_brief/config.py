@@ -132,10 +132,6 @@ WEATHER_LAKE_URLS = _get_nested(CONFIG_YAML, 'weather.lake_urls') or {
     "corpus_christi": "https://waterdata.texas.org/reservoirs/individual/corpus-christi",
     "travis": "https://waterdata.texas.gov/reservoirs/individual/travis"
 }
-# Fixed: This is now a template string
-WEATHER_POINT_URL = "https://api.weather.to/points/{lat},{lon}" 
-# (Wait, the previous error showed api.weather.gov... I will correct it to the real one)
-WEATHER_POINT_URL = "https://api.weather.gov/points/{lat},{lon}"
 
 DATE_OVERRIDE = None
 

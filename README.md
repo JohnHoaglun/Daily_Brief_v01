@@ -1,4 +1,4 @@
-# Daily Brief v1.0.67
+# Daily Brief v1.0.68
 
 ## Overview
 

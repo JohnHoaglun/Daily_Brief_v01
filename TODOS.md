@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 — v1.0.58 (ALL BUGS CLEARED ✅ — Tier 1 complete)
+# TODO: Daily Brief v01 — v1.0.60 (ALL BUGS CLEARED ✅ — Tiers 1 & 2 complete)
 
 ## Status Legend
 - `[ ]` — TODO (not started)
@@ -148,12 +148,12 @@ Expand lake monitoring from 3 lakes to 12 lakes. All URLs use same `waterdatafor
 
 **Conventions:** Follow existing test file patterns (unittest.TestCase, `sys.path` insert for `src/`). No network — mock LLM client where needed. Each commit verified with `pytest tests/test_<file>.py -v`.
 
-### Tier 2: Source Tests (Mocked Network with `aioresponses`)
-- `[ ]` `tests/test_sources/test_weather.py` — NWS forecast JSON parsed, date/period extraction, "Unavailable" on empty
-- `[ ]` `tests/test_sources/test_wunderground.py` — station table scraping with sample HTML, precipitation row matching
-- `[ ]` `tests/test_sources/test_climate.py` — Open-Meteo JSON parsed, climate.gov text parsed, timezone/date handling
-- `[ ]` `tests/test_sources/test_lakes.py` — reservoir percentage extraction with sample HTML
-- `[ ]` `tests/test_sources/test_rss.py` — feed parsing, age filtering, title dedup, real estate/obituary filtering
+### Tier 2: Source Tests (Mocked Network with `aioresponses`) — **COMPLETE**
+- `[x]` `tests/test_sources/test_weather.py` (38 tests) — v1.0.59 — NWS forecast JSON parsed, date/period extraction, "Unavailable" on empty
+- `[x]` `tests/test_sources/test_wunderground.py` (28 tests) — v1.0.60 — station table scraping with sample HTML, precipitation row matching
+- `[x]` `tests/test_sources/test_climate.py` (21 tests) — v1.0.60 — Open-Meteo JSON parsed, climate.gov text parsed, timezone/date handling
+- `[x]` `tests/test_sources/test_lakes.py` (20 tests) — v1.0.60 — reservoir percentage extraction with sample HTML
+- `[x]` `tests/test_sources/test_rss.py` (47 tests) — v1.0.60 — feed parsing, age filtering, title dedup, real estate/obituary filtering
 
 ### Tier 3: Integration (Smoke + Validation, Every Run)
 - `[ ]` Implement `smoke_test()` — can we reach every endpoint before pipeline runs? (NWS, Open-Meteo, vLLM, Google News, Wunderground, Lakes)
@@ -247,6 +247,8 @@ Round 5 (climate verification)         ──→ v1.0.54    (30 min, standalone)
 ### Recent Updates
 - [2026-07-30] **Tier 1 complete — v1.0.58** — `test_alerter.py` (35 tests): parse_alert_batch_response (27: STORY_N format, numbered format, lowercase, malformed, partial parse, type checks), batch_evaluate_alerts mocked (8: empty, alert true/false, unavailable exclusion, bracket exclusion, category grouping, exception all-false, alert idx mismatch, global index mapping). 367 total tests (332 existing + 35 new). Tier 1 done: 4/4 files, 164 new tests.
 - [2026-07-29 22:00] **Tier 1/4 complete — v1.0.55** — `test_weather_table.py` (31 tests): full data render, empty forecast fallback, forecast padding, station Unavailable, lake labels, table structure. 234 total tests.
+- [2026-07-29 23:00] **Tier 2 source tests complete — v1.0.60** — 5 files, 154 tests (weather 38, wunderground 28, climate 21, lakes 20, rss 47). All mocked with `aioresponses`/`unittest.mock`. 521 total tests passing. 0 failures.
+- [2026-07-29 22:00] **Tier 1 complete — v1.0.58** — 4 Tier 1 tests (weather table 31, report 35, summarizer 63, alerter 35), 164 new tests. 367 total.
 - [2026-07-29] **Tier 1 plan created — v1.0.55-.58** — 4 test files, ~145 new tests targeting weather table, report, summarizer, alerter. Total will be ~348 tests.
 - [2026-07-29 21:27] **Round 5 complete — v1.0.54** — Climate normal 95°F verified as real Open-Meteo ERA5 data (raw: 95.9°F → 96°F Jul 30). No hardcoded fallback. Debug logging added to `climate.py` for raw JSON inspection.
 - [2026-07-29 19:30] **Round 4 complete — v1.0.53** — Retry infrastructure (v1.0.52: N attempts, backoff, strict prompt) + auto fallback for unavailable (v1.0.53: `[Auto] {headline}` + batch Phase 3F). 0 Unavailable, 1 Auto in live run. 203 tests still green.

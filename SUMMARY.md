@@ -21,6 +21,8 @@ Automated daily news brief generator that fetches news from 17 content categorie
 - 367 total tests (332 existing + 35 new). Tier 1 complete: 4/4 test files, 164 new tests across the tier
 
 - [2026-07-30] Version bumped to **v1.0.58** — Tier 1 testing complete, 35 new alerter tests.
+- [2026-07-29 22:30] Version bumped to **v1.0.60** — Tier 2 source tests complete.
+- [2026-07-29 22:30] Tier 2 complete — 5 source test files, 154 new tests: `test_weather.py` (38), `test_wunderground.py` (28), `test_climate.py` (21), `test_lakes.py` (20), `test_rss.py` (47). All mocked with `aioresponses`/`unittest.mock`. 521 total tests.
 - [2026-07-29 21:27] Version bumped to **v1.0.54** — Round 5: climate normal verification.
 - [2026-07-29 21:27] Verification (Round 5) — Confirmed climate normal high is real Open-Meteo ERA5 data, not hardcoded fallback. Added `logger.debug()` to `climate.py` to log raw ERA5 JSON responses: response keys, daily block, temperature_2m_max list, request params, and raw→rounded value. Live pipeline showed ERA5 returning `temperature_2m_max: [95.9]` → rounded to 96°F for Jul 30. Full fallback chain verified: (1) ERA5 API → live value, (2) None → forecast high fallback, (3) still missing → "Unavailable". No hardcoded 95°F anywhere in codebase.
 - [2026-07-29 23:26] Version bumped to **v1.0.45** — Bug F.2: frozen station investigation.

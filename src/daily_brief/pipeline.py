@@ -61,7 +61,7 @@ def log(msg):
     global RUN_LOGFILE
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     line = f"[{timestamp}] {msg}"
-    os.makedirs(LOG_DIR, exist_ok=True)
+    os.makedirs(os.path.dirname(RUN_LOGFILE), exist_ok=True)
     with log_lock:
         with open(RUN_LOGFILE, "a", encoding="utf-8") as f:
             f.write(line + "\n")
@@ -111,6 +111,9 @@ async def main():
     global RUN_LOGFILE, OUTPUT_DIR, _llm_client
     _llm_client = create_llm_client(LLM_MODEL, OLLAMA_HOST + "/v1" if "/v1" not in OLLAMA_HOST else OLLAMA_HOST, timeout=180)
     OUTPUT_DIR = NEWS_DIR
+
+    os.makedirs(LOG_DIR, exist_ok=True)
+    os.makedirs(NEWS_DIR, exist_ok=True)
 
     t0 = time.time()
 

@@ -6,6 +6,7 @@ Run the daily brief pipeline via `python -m daily_brief`.
 
 import asyncio
 import logging
+import os
 import sys
 from logging.handlers import RotatingFileHandler
 
@@ -21,6 +22,7 @@ def setup_logging(log_dir: str = ".", verbose: bool = False) -> None:
     console.setLevel(level)
 
     # File handler
+    os.makedirs(log_dir, exist_ok=True)
     log_file = f"{log_dir}/daily_brief.log"
     file_handler = RotatingFileHandler(
         log_file,

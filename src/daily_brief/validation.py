@@ -3,27 +3,128 @@ Daily Brief v1.0.13 — Report Validation
 =========================================
 
 Reads rendered markdown and checks summary quality.
+
+Report-level checks (8):
+1. Frontmatter required fields
+2. Weather section with forecast rows
+3. No "Dynamic" fallback string
+4. No "Unavailable" fallback string
+5. Story count plausible range
+6. Alert count plausible ratio
+7. No duplicate URLs
+8. File size reasonable
+
+Per-story checks (5):
+- Non-empty summary
+- Minimum sentence count
+- Summary not headline repeat
+- No fallback markers
+- Topic overlap
 """
 
 import logging
+import os
 import re
+
+import yaml
 
 from daily_brief.llm.summarizer import _count_sentences
 
 logger = logging.getLogger(__name__)
 
 
+def _parse_frontmatter(content):
+    """Parse YAML frontmatter between --- delimiters. Returns (metadata_dict, body)."""
+    if not content.startswith("---"):
+        return {}, content
+    parts = content.split("---", 2)
+    if len(parts) < 3:
+        return {}, content
+    yamls = parts[1].strip()
+    body = parts[2].strip()
+    try:
+        metadata = yaml.safe_load(yamls) or {}
+    except Exception:
+        metadata = {}
+    return metadata, body
+
+
+def _count_forecast_rows(section_text):
+    """Count forecast table rows (lines with | that look like table rows, not separators)."""
+    rows = 0
+    for line in section_text.split("\n"):
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            continue
+        cells = [c.strip() for c in stripped.split("|") if c.strip()]
+        if len(cells) >= 3 and not all(c == "-" for c in cells):
+            rows += 1
+    return rows
+
+
+def _find_weather_section(body):
+    """Find the weather section in body. Returns the section content or None."""
+    sections = re.split(r'^##\s+', body, flags=re.MULTILINE)
+    for section in sections:
+        first_line = section.strip().split("\n")[0].lower() if section.strip() else ""
+        if "weather" in first_line or "forecast" in first_line:
+            return section.strip()
+    return None
+
+
+def _find_alerts_section(body):
+    """Find the alerts section in body. Returns the section content or None."""
+    sections = re.split(r'^##\s+', body, flags=re.MULTILINE)
+    for section in sections:
+        first_line = section.strip().split("\n")[0].lower() if section.strip() else ""
+        if "alert" in first_line:
+            return section.strip()
+    return None
+
+
+def _count_stories_in_section(section_text):
+    """Count numbered stories in a section."""
+    if not section_text:
+        return 0
+    story_blocks = re.findall(r'^\d+\.\s+\[', section_text, re.MULTILINE)
+    return len(story_blocks)
+
+
+def _extract_urls(body):
+    """Extract all markdown link URLs from body text. Returns list of (title, url) tuples."""
+    return re.findall(r'\[([^\]]+)\]\((https?://[^)]+)\)', body)
+
+
 def validate_report(filepath):
     """Validate the rendered markdown report. Returns (passed, issues) tuple.
 
-    Checks each story for:
+    Report-level checks (8):
+    1. Frontmatter required fields
+    2. Weather section with forecast rows
+    3. No "Dynamic" fallback
+    4. No "Unavailable" fallback
+    5. Story count plausible (5-200)
+    6. Alert count plausible (<50% of stories)
+    7. No duplicate URLs
+    8. File size reasonable (5KB-10MB)
+
+    Per-story checks (5):
     - Non-empty summary
-    - Minimum sentence count (2 sentences or more)
-    - Summary is not just the headline repeated
-    - Headline/summary topic overlap (keyword matching)
+    - Minimum sentence count (2+)
+    - Summary not headline repeat
+    - No fallback markers
+    - Topic overlap
 
     Returns False if >10% of stories have broken summaries.
     """
+    issues = []
+
+    try:
+        file_size = os.path.getsize(filepath)
+    except Exception as e:
+        logger.error("VALIDATE ERROR: Cannot access %s: %s", filepath, e)
+        return False, [f"Cannot access file: {e}"]
+
     try:
         with open(filepath, "r", encoding="utf-8") as fh:
             content = fh.read()
@@ -31,11 +132,76 @@ def validate_report(filepath):
         logger.error("VALIDATE ERROR: Cannot read %s: %s", filepath, e)
         return False, [f"Cannot read file: {e}"]
 
+    # Parse frontmatter
+    metadata, body = _parse_frontmatter(content)
+
+    # REPORT CHECK 1: Frontmatter required fields
+    required_fields = ["title", "date", "time_generated", "story_count_total", "categories", "tags"]
+    for field in required_fields:
+        if field not in metadata or metadata[field] is None:
+            issues.append(f"[REPORT-1] Missing frontmatter field: {field}")
+
+    # REPORT CHECK 2: Weather section with >=3 forecast rows
+    weather_section = _find_weather_section(body)
+    if not weather_section:
+        issues.append("[REPORT-2] No weather section found")
+    else:
+        forecast_rows = _count_forecast_rows(weather_section)
+        if forecast_rows < 3:
+            issues.append(f"[REPORT-2] Weather section has only {forecast_rows} forecast rows (minimum 3)")
+
+    # REPORT CHECK 3: No "Dynamic" string in body
+    if "Dynamic" in body:
+        issues.append("[REPORT-3] Weather fallback 'Dynamic' found in report body")
+
+    # REPORT CHECK 4: No "Unavailable" string in body
+    if "Unavailable" in body:
+        issues.append("[REPORT-4] Data fallback 'Unavailable' found in report body")
+
+    # REPORT CHECK 5: Story count plausible
+    story_count = metadata.get("story_count_total")
+    if story_count is not None:
+        try:
+            story_count = int(story_count)
+            if story_count == 0:
+                issues.append("[REPORT-5] story_count_total is 0 — expected 5-200")
+            elif story_count < 5:
+                issues.append(f"[REPORT-5] story_count_total is {story_count} — below minimum 5")
+            elif story_count > 200:
+                issues.append(f"[REPORT-5] story_count_total is {story_count} — above maximum 200")
+        except (ValueError, TypeError):
+            issues.append(f"[REPORT-5] story_count_total is not a valid integer: {story_count}")
+
+    # REPORT CHECK 6: Alert count plausible
+    alerts_section = _find_alerts_section(body)
+    if alerts_section is not None:
+        alert_count = _count_stories_in_section(alerts_section)
+        total = story_count if isinstance(story_count, int) and story_count > 0 else None
+        if total and alert_count > (total * 0.5):
+            issues.append(f"[REPORT-6] Alert count ({alert_count}) exceeds 50% of total stories ({total})")
+
+    # REPORT CHECK 7: No duplicate URLs
+    urls = _extract_urls(body)
+    url_list = [url for _, url in urls]
+    seen = {}
+    for u in url_list:
+        seen[u] = seen.get(u, 0) + 1
+    dupes = {u: c for u, c in seen.items() if c > 1}
+    if dupes:
+        dup_count = len(dupes)
+        issues.append(f"[REPORT-7] Found {dup_count} duplicate URL(s) in report")
+
+    # REPORT CHECK 8: File size reasonable
+    if file_size < 5 * 1024:
+        issues.append(f"[REPORT-8] File too small ({file_size} bytes) — expected at least 5KB")
+    elif file_size > 10 * 1024 * 1024:
+        issues.append(f"[REPORT-8] File too large ({file_size} bytes) — expected at most 10MB")
+
+    # --- Per-story checks ---
     # Split into sections — find category headings
     sections = re.split(r'^##\s+', content, flags=re.MULTILINE)
 
     stories = []
-    issues = []
 
     for section in sections:
         section_text = section.strip()
@@ -77,7 +243,8 @@ def validate_report(filepath):
 
     if not stories:
         logger.warning("VALIDATE: No stories found in report")
-        return False, ["No stories found in report"]
+        issues.append("No stories found in report")
+        return False, issues
 
     total_stories = len(stories)
     bad_stories = 0

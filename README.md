@@ -1,4 +1,4 @@
-# Daily Brief v1.0.74
+# Daily Brief v1.0.75
 
 ## Overview
 
@@ -39,7 +39,7 @@ All runtime settings in `config.yaml`. Key groups:
 
 | Key | Description | Default |
 |---|---|---|
-| `version` | Pipeline version | `1.0.74` |
+| `version` | Pipeline version | `1.0.75` |
 | `llm.model` | Model for summarization | `gemma4-e2b` |
 | `llm.host` | vLLM API endpoint | `http://192.168.4.52:8007` |
 | `directories.log_dir` | Log output directory | vault `Dev/logs/` |

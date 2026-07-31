@@ -7,7 +7,8 @@ Daily Brief aggregates RSS stories from configured categories, enriches them wit
 - Modular refactoring P0-P6 is complete.
 - Test baseline: 761 tests with coverage targets met at v1.0.62.
 - Research review at v1.0.65 identified the active 4-phase optimization program in `PLAN.md`.
-- Current performance baseline is approximately 85 seconds per pipeline run; Phase B has a credible 10-20 second reduction opportunity.
+- Performance baseline (v1.0.67): 105–114s internal, 137–147s wall-clock. Phase 3 (LLM) dominates at ~96–100s.
+- Phase A quick wins pending; Phase B target: 93–103s internal.
 
 ## Architecture
 - `src/daily_brief/pipeline.py`: asynchronous pipeline orchestration.
@@ -30,6 +31,6 @@ Daily Brief aggregates RSS stories from configured categories, enriches them wit
 - `SUMMARY.md`: completed, dated change history.
 
 ## Current Priorities
-1. Establish a three-run performance baseline.
-2. Execute Phase A correctness and measurement fixes.
-3. Execute Phase B weather and RSS concurrency work before attempting LLM changes.
+1. Execute Phase A (10 correctness/quick-wins items).
+2. Execute Phase B (weather + RSS concurrency) before attempting LLM changes.
+3. Resolve alert-system disposition blocker before Phase C.5.

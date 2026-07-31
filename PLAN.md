@@ -1,19 +1,19 @@
-# Plan: Daily Brief v01 - v1.0.66
+# Plan: Daily Brief v01 - v1.0.67
 
 ## Objective
-Reduce the approximately 85-second pipeline runtime while improving correctness, reliability, and maintainability. This plan is the canonical record of the research-agent review; `TODOS.md` is the executable checklist.
+Reduce the measured ~105s pipeline runtime while improving correctness, reliability, and maintainability. This plan is the canonical record of the research-agent review; `TODOS.md` is the executable checklist.
 
-## Runtime Budget
-| Area | Current cost | Credible reduction |
+## Measured Baseline (v1.0.67, 3 runs)
+| Area | Measured | Credible reduction |
 |---|---:|---:|
-| Preflight probes | 0.1-1s; up to 5s during outage | 0.1-1s |
-| Phase 1 weather | 15-25s | 10-20s |
-| Phase 2 RSS | 1-5s normally; higher while widening | 1-5s for widened categories |
-| Phase 3 LLM | 50-85s | 0s from async alone; 5-20s only if benchmarking proves batching/concurrency helps |
-| Render/validation | under 2s | 0.2-2s |
-| Harness | 0-30s, outside phase timing | no report-generation reduction unless optional |
+| Preflight probes | <1s | — |
+| Phase 1 weather | 5–11s (~8s avg) | 3–5s (parallel lakes + concurrent sources) |
+| Phase 2 RSS | ~3.5s | small (RSS widening fix, session reuse) |
+| Phase 3 LLM | 96–100s | 0s from async alone; 5–20s only if benchmarking proves batching/concurrency helps |
+| Phase 4 render | ~30s | 0.2–2s (precompile, single-pass tags) |
+| Harness | outside phase timing | no reduction unless made optional |
 
-**Target:** 65-75s after Phase B. The 55-65s target requires a measured LLM throughput gain.
+**Target:** ~93–103s after Phase B. Breaking below 90s requires a proven LLM throughput gain (Phase C).
 
 ## Research Findings
 

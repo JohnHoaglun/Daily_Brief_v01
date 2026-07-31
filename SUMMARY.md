@@ -4,6 +4,12 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.66 - Documentation Tracking Reorganization
+- Rebuilt `TODOS.md` as a lean live execution board: 30 actionable phase items, 3 verification gates, and 2 explicit blockers.
+- Moved the canonical research review, runtime budget, technical findings, phase rationale, and verification detail to `PLAN.md`.
+- Replaced stale monolithic architecture and refactoring-target references in `PROJECT.md` with the current modular architecture and tracking-file responsibilities.
+- Removed completed refactoring/test/bug-fix history, obsolete UI proposals, duplicate version notes, and agent-transcript artifacts from the live task board; historical milestones remain in this changelog.
+
 ### v1.0.65 — Research Agent Deep Review (gpt-5.6-terra)
 - Comprehensive codebase review: **47 items** across 7 categories (11 bugs, 12 performance, 9 dead code, 4 duplicate, 7 anti-patterns, 7 reliability, 5 architecture)
 - **New bugs found by research:** Alert system never wired (Bug-2/3), WU dashboard fetched twice per run (Perf-3), config schema reader vs validator misalignment (Bug-4), widening can't discover older stories due to max_stories truncation (Bug-10), version drift across 4 sources (Bug-11), RSS status check missing (Bug-6)
@@ -13,8 +19,6 @@ Automated daily news brief generator that fetches news from 17 content categorie
 - Phase C (5 items, ~1-3 days, medium-high risk): AsyncOpenAI + asyncio.sleep, LLM batching benchmark, HTTP retry policy, centralized summarizer recovery, alert feature decision
 - Phase D (7 items, ~2-4 days, medium risk): config schema unification, story model consolidation, dedup canonicalization, batch parser decompose, tagging precompile, misc bug fixes, system reliability
 - Credible target: ~65-75s after Phase B. Full 55-65s only if measured LLM batching proves beneficial.
-
-### v1.0.64 — Performance & Optimization Plan
 
 ### v1.0.63 — Performance & Optimization Plan
 - Added 17-item performance/cleanup plan to TODOS.md: 6 performance, 9 cleanup, 1 architecture, 1 bug fix
@@ -141,5 +145,3 @@ Automated daily news brief generator that fetches news from 17 content categorie
 - [2026-07-29 20:50] Investigation (F.2) — Ran pipeline twice 2min apart, compared per-category URL overlap for 5 flagged categories: Houston Tropical Weather (100% overlap, 3/3 frozen), OpenAI News (80%, 4/5, 1 rotated), Anthropic News (100%, 4/4 frozen), SpaceX News (33%, 1/3, 2 rotated), Andrej Karpathy Activity (100%, 3/3 frozen). 3 of 5 are genuinely frozen (100% same URLs), 2 have normal turnover. Root cause: topic saturation — narrow queries ("Houston Tropical Weather", "anthropic news", "Andrej Karpathy") return same 3-5 results from Google News RSS between runs 2min apart. No code bug: `fetch_feed` does not cache (raw text to feedparser), widening uses same URL (only age limit changes). Confirmed: global turnover is 14% (56/66 shared URLs across runs — only low-volume categories stay static). No fix required; this is expected behavior for low-volume topics.
 ## Status
 Fully functional. Pipeline v1.0.62: all refactoring P0-P6 complete. All 4 testing tiers done (761 tests, 23 files). All coverage targets met. All bugs cleared.
-
-

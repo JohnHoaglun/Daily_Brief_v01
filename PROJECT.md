@@ -1,52 +1,35 @@
-# Project: Daily Brief v01 (v1.0.65)
+# Project: Daily Brief v01 (v1.0.66)
 
-## Overview
-Automated daily news brief generator that pulls category RSS stories and produces AI-summarized Markdown reports. Architectural refactoring P0-P6 complete. Research agent deep review complete — 47-item optimization plan across 4 phases.
+## Purpose
+Daily Brief aggregates RSS stories from configured categories, enriches them with weather and lake data, summarizes them through a vLLM OpenAI-compatible endpoint, and writes a Markdown report.
+
+## Current Status
+- Modular refactoring P0-P6 is complete.
+- Test baseline: 761 tests with coverage targets met at v1.0.62.
+- Research review at v1.0.65 identified the active 4-phase optimization program in `PLAN.md`.
+- Current performance baseline is approximately 85 seconds per pipeline run; Phase B has a credible 10-20 second reduction opportunity.
 
 ## Architecture
-
-### Current (v1.0.10 — monolithic)
-- `dashboard_pipeline.py` (1,942 lines) — single-file orchestrator with all weather, RSS, LLM, rendering, and tagging logic
-- `config.py` (136 lines) — YAML loading, constant extraction, category building
-- `config.yaml` (176 lines) — all runtime configuration
-
-### Target (v1.1.0 — modular, post-refactoring)
-- `daily_brief/` package with ~18 files, 40-250 lines each
-- `sources/` — pluggable data sources (NWS forecast, Wunderground station, Open-Meteo ERA5, Texas reservoirs, Google News RSS)
-- `llm/` — summarization, alert evaluation, client wrapper
-- `rendering/` — weather table, report assembly, file cleanup
-- `pipeline.py` — orchestrator only (no business logic)
-- `tests/` — unit, integration, and smoke tests with recorded responses
-
-### Current (v1.0.10 — monolithic)
-- **RSS Feed Integration**: pulls and deduplicates stories from multiple sources via `feedparser`
-- **Content Processing**: batched LLM summarization via vLLM (OpenAI-compatible client, one call per content category)
-- **Data Organization**: stories grouped by 17 categories including World News, US News, Texas News, and Texas-local business/tech beats
-- **Tagging System**: automatic keyword-based tagging using predefined mappings from config
-- **Weather Integration**: dynamic weather forecast (NWS), station metrics (Wunderground), climate normals (Open-Meteo ERA5), and lake metrics (waterdatafortexas)
+- `src/daily_brief/pipeline.py`: asynchronous pipeline orchestration.
+- `src/daily_brief/sources/`: NWS, Wunderground, Open-Meteo/climate.gov, reservoir, RSS, and article extraction integrations.
+- `src/daily_brief/llm/`: OpenAI-compatible client, batch summarization, and alert evaluation.
+- `src/daily_brief/pipelines/rss_dedup.py`: RSS filtering, deduplication, and widening.
+- `src/daily_brief/rendering/`: weather table generation, report assembly, and output cleanup.
+- `src/daily_brief/config.py` and `config.yaml`: runtime configuration and defaults.
+- `src/daily_brief/config_validator.py`: startup and CLI configuration validation.
+- `tests/`: unit, mocked-source, integration, coverage, and pipeline tests.
 
 ## Configuration
-Primary runtime configuration is loaded from `config.yaml` (parsed by `config.py`).
-- Log/news directories: `directories.log_dir`, `directories.news_dir`
-- Weather sources (NWS, Wunderground, Open-Meteo, Texas reservoirs): `weather.*`
-- LLM: `llm.model`, `llm.host`, `llm.summary_options`, `llm.alert_options`
-- Categories: 17 defined under `categories.*`
-- Weather labels: `weather_labels.station_rows` (config-driven table row names)
-- Tagging mappings: `tagging_mappings.*` (to be migrated from inline dict)
-- Category priority: `category_priority` (to be used for render ordering)
+- Runtime settings are in `config.yaml`; do not store credentials in repository documentation.
+- Important groups: `directories`, `weather`, `llm`, `categories`, `tagging_mappings`, `category_priority`, and `weather_labels`.
+- Validate configuration with `python -m daily_brief config validate`.
 
-## Features
-- Automated daily news aggregation from 17 categories
-- AI-powered story summarization via vLLM (gemma4-e2b)
-- Multi-category organization by source feeds
-- Configurable story limits per category
-- Weather data integration: NWS forecast, Wunderground station, Open-Meteo climate normals, Texas reservoir levels
-- Automatic keyword-based tagging of stories
-- Markdown report generation with frontmatter, weather tables, and category sections
+## Tracking Files
+- `TODOS.md`: active executable work only.
+- `PLAN.md`: optimization strategy, research findings, risks, decisions, and verification gates.
+- `SUMMARY.md`: completed, dated change history.
 
-## Refactoring Plan (in progress)
-See `TODOS.md` for detailed phase-by-phase plan (P0-P6).
-
-## Status
-**v1.0.62**: All 4 testing tiers complete. 761 total tests (203 original + 558 new). 23 test files (15 existing + 8 new). All coverage targets met (80–100%). All refactoring P0-P6 complete. All bugs cleared.
-
+## Current Priorities
+1. Establish a three-run performance baseline.
+2. Execute Phase A correctness and measurement fixes.
+3. Execute Phase B weather and RSS concurrency work before attempting LLM changes.

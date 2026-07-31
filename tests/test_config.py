@@ -1,6 +1,7 @@
 """
 Tier 1 unit tests for config loading, type checks, defaults, and validation.
 """
+import copy
 import os
 import re
 import sys
@@ -35,6 +36,7 @@ from daily_brief.config_validator import (
     check_categories,
     check_lake_urls,
     check_prompts,
+    check_timezone_and_paths,
     validate_config,
 )
 
@@ -389,3 +391,369 @@ class TestConfigYAMLRoundtrip(TestCase):
         cats = set(cfg["categories"].keys())
         for entry in cfg.get("category_priority", []):
             self.assertIn(entry, cats, f"Priority '{entry}' not in categories")
+
+
+# ---------------------------------------------------------------------------
+# 8.  Coverage boost — uncovered branches in config.py
+# ---------------------------------------------------------------------------
+
+class TestConfigUncoveredBranches(TestCase):
+    """Hit uncovered lines in config.py for 100% coverage."""
+
+    def test_load_malformed_yaml_returns_defaults(self):
+        with mock.patch("yaml.safe_load", side_effect=yaml.YAMLError("bad yaml")):
+            result = load_config_yaml()
+            self.assertEqual(result, DEFAULTS)
+
+    def test_category_age_limits_with_category_settings(self):
+        mock_data = {
+            "version": "1.0.0",
+            "llm": {"model": "x", "host": "http://x", "summary_options": {"temperature": 0.3, "top_p": 0.8}, "alert_options": {"temperature": 0.1, "top_p": 0.3}, "context_preview_chars": 600, "summary_context_chars": 6000, "summary_trim_min_chars": 100},
+            "rss": {"base_url": "http://x", "params": "x", "default_age_limit_hours": 24},
+            "runtime": {"timezone": "UTC", "thread_pool_size": 1, "max_log_versions": 5},
+            "cleanup": {"max_log_versions": 5},
+            "directories": {"log_dir": "/tmp/logs", "news_dir": "/tmp/news"},
+            "weather": {"lat": 30.0, "lon": -95.0, "wunderground_station_id": "X", "timezone": "America/Chicago", "lake_urls": {"l": "http://x"}},
+            "categories": {"world": {"query": "news", "max_stories": 10}},
+            "category_settings": {"world": {"boost": 1.5}},
+            "category_priority": [],
+            "category_boosts": {},
+            "tagging_config": {"max_tags": 5, "score_cap": 5.0, "score_threshold": 0.3},
+            "tagging_mappings": {"g": ["a"]},
+            "tag_conflicts": [],
+            "prompts": {"summary": "A" * 30, "system_batch": "B" * 30},
+        }
+        with mock.patch("daily_brief.config.yaml.safe_load", return_value=mock_data):
+            from daily_brief import config as cfg_mod
+            import importlib
+            importlib.reload(cfg_mod)
+            self.assertIn("world", cfg_mod.CATEGORY_AGE_LIMITS)
+
+
+# ---------------------------------------------------------------------------
+# 9.  Helper — get a deep-copied valid config
+# ---------------------------------------------------------------------------
+
+def _get_cfg():
+    return copy.deepcopy(load_config_yaml())
+
+
+# ---------------------------------------------------------------------------
+# 10.  config_validator — check_types (14 tests)
+# ---------------------------------------------------------------------------
+
+class TestCheckTypes(TestCase):
+    """check_types catches each wrong type individually."""
+
+    def test_llm_temperature_not_float(self):
+        cfg = _get_cfg()
+        cfg["llm"]["summary_options"]["temperature"] = "high"
+        issues = check_types(cfg)
+        self.assertTrue(any("temperature" in i for i in issues))
+
+    def test_llm_top_p_not_float(self):
+        cfg = _get_cfg()
+        cfg["llm"]["summary_options"]["top_p"] = "one"
+        issues = check_types(cfg)
+        self.assertTrue(any("top_p" in i for i in issues))
+
+    def test_llm_char_count_not_int(self):
+        cfg = _get_cfg()
+        cfg["llm"]["context_preview_chars"] = "lots"
+        issues = check_types(cfg)
+        self.assertTrue(any("context_preview_chars" in i for i in issues))
+
+    def test_weather_lat_not_float(self):
+        cfg = _get_cfg()
+        cfg["weather"]["lat"] = "forty"
+        issues = check_types(cfg)
+        self.assertTrue(any("lat" in i for i in issues))
+
+    def test_weather_lon_not_float(self):
+        cfg = _get_cfg()
+        cfg["weather"]["lon"] = "negative"
+        issues = check_types(cfg)
+        self.assertTrue(any("lon" in i for i in issues))
+
+    def test_rss_age_limit_not_int(self):
+        cfg = _get_cfg()
+        if "rss" not in cfg:
+            cfg["rss"] = {}
+        cfg["rss"]["default_age_limit_hours"] = "24hours"
+        issues = check_types(cfg)
+        self.assertTrue(any("default_age_limit_hours" in i for i in issues))
+
+    def test_runtime_thread_pool_not_int(self):
+        cfg = _get_cfg()
+        if "runtime" not in cfg:
+            cfg["runtime"] = {}
+        cfg["runtime"]["thread_pool_size"] = "many"
+        issues = check_types(cfg)
+        self.assertTrue(any("thread_pool_size" in i for i in issues))
+
+    def test_runtime_max_log_versions_not_int(self):
+        cfg = _get_cfg()
+        if "runtime" not in cfg:
+            cfg["runtime"] = {}
+        cfg["runtime"]["max_log_versions"] = "keep"
+        issues = check_types(cfg)
+        self.assertTrue(any("max_log_versions" in i for i in issues))
+
+    def test_cleanup_max_log_versions_not_int(self):
+        cfg = _get_cfg()
+        if "cleanup" not in cfg:
+            cfg["cleanup"] = {}
+        cfg["cleanup"]["max_log_versions"] = "all"
+        issues = check_types(cfg)
+        self.assertTrue(any("max_log_versions" in i for i in issues))
+
+    def test_tagging_max_tags_not_int(self):
+        cfg = _get_cfg()
+        tc = cfg.get("tagging_config", {})
+        tc["max_tags"] = "too"
+        cfg["tagging_config"] = tc
+        issues = check_types(cfg)
+        self.assertTrue(any("max_tags" in i for i in issues))
+
+    def test_tagging_score_cap_not_float(self):
+        cfg = _get_cfg()
+        tc = cfg.get("tagging_config", {})
+        tc["score_cap"] = "none"
+        cfg["tagging_config"] = tc
+        issues = check_types(cfg)
+        self.assertTrue(any("score_cap" in i for i in issues))
+
+    def test_tagging_score_threshold_not_float(self):
+        cfg = _get_cfg()
+        tc = cfg.get("tagging_config", {})
+        tc["score_threshold"] = "low"
+        cfg["tagging_config"] = tc
+        issues = check_types(cfg)
+        self.assertTrue(any("score_threshold" in i for i in issues))
+
+    def test_lake_urls_not_dict(self):
+        cfg = _get_cfg()
+        cfg["weather"]["lake_urls"] = "not_a_dict"
+        issues = check_types(cfg)
+        self.assertTrue(any("lake_urls" in i for i in issues))
+
+    def test_directories_subkey_missing(self):
+        cfg = _get_cfg()
+        del cfg["directories"]["log_dir"]
+        issues = check_types(cfg)
+        self.assertTrue(any("log_dir" in i for i in issues))
+
+
+# ---------------------------------------------------------------------------
+# 11.  config_validator — check_ranges (14 tests)
+# ---------------------------------------------------------------------------
+
+class TestCheckRanges(TestCase):
+    """check_ranges catches each out-of-range value individually."""
+
+    def test_top_p_out_of_range(self):
+        cfg = _get_cfg()
+        cfg["llm"]["summary_options"]["top_p"] = 1.5
+        issues = check_ranges(cfg)
+        self.assertTrue(any("top_p" in i for i in issues))
+
+    def test_char_count_zero(self):
+        cfg = _get_cfg()
+        cfg["llm"]["context_preview_chars"] = 0
+        issues = check_ranges(cfg)
+        self.assertTrue(any("context_preview_chars" in i for i in issues))
+
+    def test_rss_hours_out_of_range(self):
+        cfg = _get_cfg()
+        if "rss" not in cfg:
+            cfg["rss"] = {}
+        cfg["rss"]["default_age_limit_hours"] = 200
+        issues = check_ranges(cfg)
+        self.assertTrue(any("default_age_limit_hours" in i for i in issues))
+
+    def test_rss_hours_zero(self):
+        cfg = _get_cfg()
+        if "rss" not in cfg:
+            cfg["rss"] = {}
+        cfg["rss"]["default_age_limit_hours"] = 0
+        issues = check_ranges(cfg)
+        self.assertTrue(any("default_age_limit_hours" in i for i in issues))
+
+    def test_thread_pool_zero(self):
+        cfg = _get_cfg()
+        if "runtime" not in cfg:
+            cfg["runtime"] = {}
+        cfg["runtime"]["thread_pool_size"] = 0
+        issues = check_ranges(cfg)
+        self.assertTrue(any("thread_pool_size" in i for i in issues))
+
+    def test_runtime_max_log_zero(self):
+        cfg = _get_cfg()
+        if "runtime" not in cfg:
+            cfg["runtime"] = {}
+        cfg["runtime"]["max_log_versions"] = 0
+        issues = check_ranges(cfg)
+        self.assertTrue(any("max_log_versions" in i for i in issues))
+
+    def test_cleanup_max_log_zero(self):
+        cfg = _get_cfg()
+        if "cleanup" not in cfg:
+            cfg["cleanup"] = {}
+        cfg["cleanup"]["max_log_versions"] = 0
+        issues = check_ranges(cfg)
+        self.assertTrue(any("max_log_versions" in i for i in issues))
+
+    def test_tagging_max_tags_zero(self):
+        cfg = _get_cfg()
+        tc = cfg.get("tagging_config", {})
+        tc["max_tags"] = 0
+        cfg["tagging_config"] = tc
+        issues = check_ranges(cfg)
+        self.assertTrue(any("max_tags" in i for i in issues))
+
+    def test_tagging_score_cap_zero(self):
+        cfg = _get_cfg()
+        tc = cfg.get("tagging_config", {})
+        tc["score_cap"] = 0
+        cfg["tagging_config"] = tc
+        issues = check_ranges(cfg)
+        self.assertTrue(any("score_cap" in i for i in issues))
+
+    def test_tagging_score_threshold_negative(self):
+        cfg = _get_cfg()
+        tc = cfg.get("tagging_config", {})
+        tc["score_threshold"] = -0.5
+        cfg["tagging_config"] = tc
+        issues = check_ranges(cfg)
+        self.assertTrue(any("score_threshold" in i for i in issues))
+
+    def test_tagging_score_threshold_over_one(self):
+        cfg = _get_cfg()
+        tc = cfg.get("tagging_config", {})
+        tc["score_threshold"] = 1.5
+        cfg["tagging_config"] = tc
+        issues = check_ranges(cfg)
+        self.assertTrue(any("score_threshold" in i for i in issues))
+
+    def test_tagging_mappings_empty(self):
+        cfg = _get_cfg()
+        tm = cfg.get("tagging_mappings", {})
+        tm["group"] = []
+        cfg["tagging_mappings"] = tm
+        issues = check_ranges(cfg)
+        self.assertTrue(any("tagging_mappings" in i for i in issues))
+
+    def test_tag_conflicts_not_list(self):
+        cfg = _get_cfg()
+        cfg["tag_conflicts"] = "not_a_list"
+        issues = check_ranges(cfg)
+        self.assertTrue(any("tag_conflicts" in i for i in issues))
+
+    def test_tag_conflicts_bad_pair(self):
+        cfg = _get_cfg()
+        cfg["tag_conflicts"] = [["single"]]
+        issues = check_ranges(cfg)
+        self.assertTrue(any("tag_conflicts" in i for i in issues))
+
+
+# ---------------------------------------------------------------------------
+# 12.  config_validator — check_categories (7 tests)
+# ---------------------------------------------------------------------------
+
+class TestCheckCategories(TestCase):
+    """check_categories catches each category error individually."""
+
+    def test_category_not_dict(self):
+        cfg = _get_cfg()
+        cats = cfg["categories"]
+        first_key = list(cats.keys())[0]
+        cfg["categories"] = {first_key: "not_dict"}
+        issues = check_categories(cfg)
+        self.assertTrue(any("not_dict" not in i and i for i in issues if first_key in i))
+
+    def test_category_max_stories_not_int(self):
+        cfg = _get_cfg()
+        first_key = list(cfg["categories"].keys())[0]
+        cfg["categories"][first_key]["max_stories"] = "ten"
+        issues = check_categories(cfg)
+        self.assertTrue(any("max_stories" in i for i in issues))
+
+    def test_category_min_age_not_int(self):
+        cfg = _get_cfg()
+        first_key = list(cfg["categories"].keys())[0]
+        cfg["categories"][first_key]["min_age_hours"] = "none"
+        issues = check_categories(cfg)
+        self.assertTrue(any("min_age_hours" in i for i in issues))
+
+    def test_category_min_age_out_of_range(self):
+        cfg = _get_cfg()
+        first_key = list(cfg["categories"].keys())[0]
+        cfg["categories"][first_key]["min_age_hours"] = 200
+        issues = check_categories(cfg)
+        self.assertTrue(any("min_age_hours" in i for i in issues))
+
+    def test_category_priority_missing(self):
+        cfg = _get_cfg()
+        cfg["category_priority"] = ["NONEXISTENT_CAT"]
+        issues = check_categories(cfg)
+        self.assertTrue(any("NONEXISTENT_CAT" in i for i in issues))
+
+    def test_category_boosts_missing_key(self):
+        cfg = _get_cfg()
+        cfg["category_boosts"] = {"NONEXISTENT_CAT": ["tag1"]}
+        issues = check_categories(cfg)
+        self.assertTrue(any("NONEXISTENT_CAT" in i for i in issues))
+
+    def test_category_boosts_empty_list(self):
+        cfg = _get_cfg()
+        boost_key = list(cfg.get("category_boosts", {}).keys())[0] if cfg.get("category_boosts") else list(cfg["categories"].keys())[0]
+        cfg["category_boosts"] = {boost_key: []}
+        issues = check_categories(cfg)
+        self.assertTrue(any("empty" in i.lower() or "non-empty" in i.lower() for i in issues))
+
+
+# ---------------------------------------------------------------------------
+# 13.  config_validator — other checks (5 tests)
+# ---------------------------------------------------------------------------
+
+class TestCheckOther(TestCase):
+    """check_timezone_and_paths and validate_config exceptions."""
+
+    def test_invalid_timezone(self):
+        cfg = _get_cfg()
+        if "runtime" not in cfg:
+            cfg["runtime"] = {}
+        cfg["runtime"]["timezone"] = "Not/Real"
+        issues = check_timezone_and_paths(cfg)
+        self.assertTrue(any("timezone" in i for i in issues))
+
+    def test_relative_directory_path(self):
+        cfg = _get_cfg()
+        cfg["directories"]["log_dir"] = "logs"
+        issues = check_timezone_and_paths(cfg)
+        self.assertTrue(any("log_dir" in i for i in issues))
+
+    def test_validate_config_exception_caught(self):
+        import daily_brief.config_validator as cv
+        orig_fn = cv.check_required_keys
+        cv.check_required_keys = lambda c: (_ for _ in ()).throw(RuntimeError("boom"))
+        cv.CHECK_GROUPS = [(name, fn if fn is not orig_fn else cv.check_required_keys) for name, fn in cv.CHECK_GROUPS]
+        try:
+            passed, issues = validate_config({"version": "1.0.0", "llm": {"model": "x", "host": "http://x"}, "directories": {"log_dir": "/x", "news_dir": "/x"}, "weather": {"lat": 0, "lon": 0, "wunderground_station_id": "x", "lake_urls": {"l": "http://x"}}, "categories": {"c": {"query": "q"}}, "prompts": {"summary": "A" * 30, "system_batch": "B" * 30}})
+        finally:
+            cv.check_required_keys = orig_fn
+        self.assertFalse(passed)
+        self.assertTrue(any("internal error" in i for i in issues))
+
+    def test_category_boosts_not_list(self):
+        cfg = _get_cfg()
+        boost_key = list(cfg.get("category_boosts", {}).keys())[0] if cfg.get("category_boosts") else list(cfg["categories"].keys())[0]
+        cfg["category_boosts"] = {boost_key: "not_list"}
+        issues = check_categories(cfg)
+        self.assertTrue(any("non-empty" in i.lower() for i in issues))
+
+    def test_tag_conflicts_pair_not_two_strings(self):
+        cfg = _get_cfg()
+        cfg["tag_conflicts"] = [["a", "b", "c"]]
+        issues = check_ranges(cfg)
+        self.assertTrue(any("pair" in i for i in issues))

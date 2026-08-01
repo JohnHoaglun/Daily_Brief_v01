@@ -819,3 +819,47 @@ class TestCheckOther(TestCase):
         cfg["tag_conflicts"] = [["a", "b", "c"]]
         issues = check_ranges(cfg)
         self.assertTrue(any("pair" in i for i in issues))
+
+
+class TestPreflightChecksEnabled(TestCase):
+    """B.7: runtime.preflight_checks_enabled validation."""
+
+    def test_preflight_checks_boolean_true(self):
+        cfg = _get_cfg()
+        if "runtime" not in cfg:
+            cfg["runtime"] = {}
+        cfg["runtime"]["preflight_checks_enabled"] = True
+        issues = check_types(cfg)
+        self.assertFalse(any("preflight_checks_enabled" in i for i in issues))
+
+    def test_preflight_checks_boolean_false(self):
+        cfg = _get_cfg()
+        if "runtime" not in cfg:
+            cfg["runtime"] = {}
+        cfg["runtime"]["preflight_checks_enabled"] = False
+        issues = check_types(cfg)
+        self.assertFalse(any("preflight_checks_enabled" in i for i in issues))
+
+    def test_preflight_checks_not_boolean_string(self):
+        cfg = _get_cfg()
+        if "runtime" not in cfg:
+            cfg["runtime"] = {}
+        cfg["runtime"]["preflight_checks_enabled"] = "true"
+        issues = check_types(cfg)
+        self.assertTrue(any("preflight_checks_enabled" in i for i in issues))
+
+    def test_preflight_checks_not_boolean_int(self):
+        cfg = _get_cfg()
+        if "runtime" not in cfg:
+            cfg["runtime"] = {}
+        cfg["runtime"]["preflight_checks_enabled"] = 1
+        issues = check_types(cfg)
+        self.assertTrue(any("preflight_checks_enabled" in i for i in issues))
+
+    def test_preflight_checks_omitted_passes(self):
+        """When the key is absent, validation should pass (defaults to disabled)."""
+        cfg = _get_cfg()
+        if "runtime" in cfg:
+            cfg["runtime"].pop("preflight_checks_enabled", None)
+        issues = check_types(cfg)
+        self.assertFalse(any("preflight_checks_enabled" in i for i in issues))

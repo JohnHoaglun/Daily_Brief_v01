@@ -101,12 +101,16 @@ async def main():
             print(f"CONFIG ERROR: {ci}", file=sys.stderr)
         sys.exit(1)
 
-    # --- Pre-flight connectivity checks (warning only, never abort) ---
-    from daily_brief.connectivity import run_all_checks, format_results
-    conn_results = await run_all_checks(timeout=5.0)
-    conn_output = format_results(conn_results)
-    sys.stderr.write(conn_output + "\n")
-    sys.stderr.flush()
+    # --- Pre-flight connectivity checks (opt-in, warning only, never abort) ---
+    if PREFLIGHT_CHECKS_ENABLED:
+        from daily_brief.connectivity import run_all_checks, format_results
+        conn_results = await run_all_checks(timeout=5.0)
+        conn_output = format_results(conn_results)
+        sys.stderr.write(conn_output + "\n")
+        sys.stderr.flush()
+    else:
+        sys.stderr.write("Connectivity preflight skipped (runtime.preflight_checks_enabled=false).\n")
+        sys.stderr.flush()
 
     global RUN_LOGFILE, OUTPUT_DIR, _llm_client
     _llm_client = create_llm_client(LLM_MODEL, OLLAMA_HOST + "/v1" if "/v1" not in OLLAMA_HOST else OLLAMA_HOST, timeout=180)

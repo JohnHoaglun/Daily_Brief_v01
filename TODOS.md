@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 - v1.0.86
+# TODO: Daily Brief v01 - v1.0.87
 
 ## Status Legend
 - `[ ]` TODO
@@ -27,7 +27,7 @@ Detailed findings, implementation constraints, and verification commands are in 
 - [x] B.4 `Perf-4`: pass configured coordinates to climate retrieval, eliminating per-run geocoding.
 - [x] B.5 `Perf-5`: reuse the outer HTTP session for article extraction.
 - [x] B.6 `Perf-6` / `Bug-10`: fetch adequate RSS candidate pools once; widen locally and concurrently.
-- [ ] B.7 `Perf-11`: make production preflight probes opt-in or short-TTL cached.
+- [x] B.7 `Perf-11`: make production preflight probes opt-in or short-TTL cached.
 - [ ] B.8 `Arch-1`: separate weather provider fetching from deterministic merge/fallback policy.
 
 ### Phase C - Async, LLM, and Reliability (1-3 days, medium-high risk)

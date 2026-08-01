@@ -50,6 +50,10 @@ def _is_non_empty_str(v: Any) -> bool:
     return _is_str(v) and len(v.strip()) > 0
 
 
+def _is_bool(v: Any) -> bool:
+    return isinstance(v, bool)
+
+
 def _looks_like_url(v: str) -> bool:
     return v.startswith("http://") or v.startswith("https://")
 
@@ -169,6 +173,9 @@ def check_types(config: dict):
     mlv = _get(runtime, "max_log_versions")
     if mlv is not None and not _is_int(mlv):
         issues.append("'runtime.max_log_versions' must be an integer")
+    pfc = _get(runtime, "preflight_checks_enabled")
+    if pfc is not None and not _is_bool(pfc):
+        issues.append("'runtime.preflight_checks_enabled' must be a boolean")
 
     # cleanup
     cleanup = _get(config, "cleanup", {})

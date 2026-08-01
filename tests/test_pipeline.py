@@ -161,6 +161,7 @@ def _pipeline_patches(
         patch("daily_brief.pipeline.os.listdir", return_value=[]),
         patch("daily_brief.pipeline.LOG_DIR", "/tmp"),
         patch("daily_brief.pipeline.NEWS_DIR", "/tmp"),
+        patch("daily_brief.pipeline.PREFLIGHT_CHECKS_ENABLED", False),
         patch("sys.stderr", new_callable=io.StringIO),
     ])
 
@@ -389,3 +390,63 @@ class TestPipelineMain(TestCase):
                 for call in mock_extract.call_args_list:
                     passed_session = call[0][1]
                     self.assertIs(passed_session, outer_session)
+
+
+class TestB7Preflights(TestCase):
+    """B.7: preflight checks are opt-in; default is disabled."""
+
+    def test_b7_default_skips_preflight(self):
+        """Default pipeline run does NOT call run_all_checks."""
+        with _pipeline_patches():
+            with patch("daily_brief.pipeline.PREFLIGHT_CHECKS_ENABLED", False):
+                # Ensure run_all_checks is NOT stubbed — we want to verify it's not called
+                mock_check = MagicMock(side_effect=RuntimeError("run_all_checks should not be called"))
+                with patch("daily_brief.connectivity.run_all_checks", mock_check):
+                    with patch("daily_brief.pipeline.write_report"):
+                        from daily_brief.pipeline import main as pm
+                        asyncio.get_event_loop().run_until_complete(pm())
+                # If we got here without RuntimeError, run_all_checks was never called
+
+    def test_b7_enabled_calls_preflight(self):
+        """When enabled, pipeline calls run_all_checks with timeout=5.0."""
+        mock_result = [{"ok": True, "message": "ok", "duration_ms": 10}]
+
+        with _pipeline_patches():
+            with patch("daily_brief.pipeline.PREFLIGHT_CHECKS_ENABLED", True):
+                mock_check = AsyncMock(return_value=mock_result)
+                mock_format = MagicMock(return_value="Checks OK")
+                with patch("daily_brief.connectivity.run_all_checks", mock_check):
+                    with patch("daily_brief.connectivity.format_results", mock_format):
+                        with patch("daily_brief.pipeline.write_report"):
+                            from daily_brief.pipeline import main as pm
+                            asyncio.get_event_loop().run_until_complete(pm())
+                mock_check.assert_called_once_with(timeout=5.0)
+                mock_format.assert_called_once()
+
+    def test_b7_enabled_stderr_output(self):
+        """When enabled, formatted check output is written to stderr."""
+        mock_result = [{"ok": True, "message": "ok", "duration_ms": 10}]
+
+        with _pipeline_patches():
+            with patch("daily_brief.pipeline.PREFLIGHT_CHECKS_ENABLED", True):
+                mock_check = AsyncMock(return_value=mock_result)
+                with patch("daily_brief.connectivity.format_results", return_value="Checks OK"):
+                    with patch("daily_brief.pipeline.write_report"):
+                        stderr_buf = io.StringIO()
+                        with patch("sys.stderr", stderr_buf):
+                            from daily_brief.pipeline import main as pm
+                            asyncio.get_event_loop().run_until_complete(pm())
+                        output = stderr_buf.getvalue()
+                        self.assertIn("Checks OK", output)
+
+    def test_b7_disabled_stderr_skip_message(self):
+        """When disabled, pipeline writes skip message to stderr."""
+        with _pipeline_patches():
+            with patch("daily_brief.pipeline.PREFLIGHT_CHECKS_ENABLED", False):
+                with patch("daily_brief.pipeline.write_report"):
+                    stderr_buf = io.StringIO()
+                    with patch("sys.stderr", stderr_buf):
+                        from daily_brief.pipeline import main as pm
+                        asyncio.get_event_loop().run_until_complete(pm())
+                    output = stderr_buf.getvalue()
+                    self.assertIn("preflight skipped", output)

@@ -9,7 +9,7 @@ from unittest import TestCase, mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from daily_brief.cli import build_parser, run, cmd_validate, cmd_show, cmd_list_categories, cmd_list_lakes, cmd_show_prompt
+from daily_brief.cli import build_parser, run, cmd_validate, cmd_show, cmd_list_categories, cmd_list_lakes, cmd_show_prompt, cmd_check_connectivity
 
 
 # ---------------------------------------------------------------------------
@@ -121,3 +121,32 @@ class TestCmdShowPrompt(TestCase):
         finally:
             sysmod.stderr = old_stderr
         self.assertEqual(rv, 1)
+
+
+# ---------------------------------------------------------------------------
+# cmd_check_connectivity
+# ---------------------------------------------------------------------------
+
+class TestCmdCheckConnectivity(TestCase):
+    """B.7: check-connectivity dispatch and exit semantics."""
+
+    def test_check_connectivity_all_pass(self):
+        """Returns 0 when all probes report ok."""
+        with mock.patch("asyncio.run", new=lambda *a, **k: 0):
+            with mock.patch("builtins.print"):
+                rv = cmd_check_connectivity()
+            self.assertEqual(rv, 0)
+
+    def test_check_connectivity_any_fail(self):
+        """Returns 1 when any probe fails."""
+        with mock.patch("asyncio.run", new=lambda *a, **k: 1):
+            with mock.patch("builtins.print"):
+                rv = cmd_check_connectivity()
+            self.assertEqual(rv, 1)
+
+    def test_run_dispatch_check_connectivity(self):
+        """run() dispatches config check-connectivity to cmd_check_connectivity."""
+        with mock.patch("daily_brief.cli.cmd_check_connectivity", return_value=0) as mock_cmd:
+            rv = run(["config", "check-connectivity"])
+            mock_cmd.assert_called_once()
+            self.assertEqual(rv, 0)

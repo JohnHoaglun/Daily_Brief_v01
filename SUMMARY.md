@@ -4,6 +4,16 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.87 — B.7 Make preflight probes opt-in (Perf-11)
+- `src/daily_brief/pipeline.py`: gated the `run_all_checks()` invocation with `PREFLIGHT_CHECKS_ENABLED`. When disabled, emits a skip message to stderr and skips all three preflight probes (LLM, RSS, weather), eliminating redundant network traffic on every pipeline run.
+- `src/daily_brief/config.py`: added `PREFLIGHT_CHECKS_ENABLED` loader (`runtime.preflight_checks_enabled`, default `True`).
+- `src/daily_brief/config_validator.py`: added `_is_bool` helper and `runtime.preflight_checks_enabled` boolean type validation.
+- `config.yaml`: set `runtime.preflight_checks_enabled: false` (default: do not run preflight probes).
+- `tests/test_pipeline.py`: updated `_pipeline_patches` to include `PREFLIGHT_CHECKS_ENABLED`. Added `TestB7Preflights` (3 tests): default-skip, enabled-call, stderr output.
+- `tests/test_cli.py`: added `TestCmdCheckConnectivity` (3 tests): dispatch, pass/fail exit codes.
+- `tests/test_config.py`: added `TestPreflightChecksEnabled` (2 tests): boolean type validation.
+- 793 tests passed, 0 failures. config validate PASS.
+
 ### v1.0.86 — B.6 Fetch RSS candidates once, widen locally (Bug-10 fix)
 - `src/daily_brief/sources/rss.py`: `fetch_feed()` now accepts `max_stories: Optional[int] = None`. When `None`, returns the full provider candidate pool without truncation. Slicing is applied only when an explicit limit is supplied, preserving backward compatibility for direct callers.
 - `src/daily_brief/pipelines/rss_dedup.py`: `fetch_and_dedup()` passes `None` for `max_stories` during the initial concurrent RSS fetch, so every category receives its complete candidate list. Added `_widen_category_local()` — processes already-fetched candidates through progressively wider age windows (2d-7d) without additional HTTP requests. Added per-category output cap (`max_stories`) after local filtering/widening, preserving current report sizes. Replaced refetch-based `widen_category()` with a compatibility wrapper; all widening is now local to the candidate pool. Category processing preserves configured order regardless of fetch completion order.

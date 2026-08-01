@@ -1,4 +1,4 @@
-# Project: Daily Brief v01 (v1.0.86)
+# Project: Daily Brief v01 (v1.0.87)
 
 ## Purpose
 Daily Brief aggregates RSS stories from configured categories, enriches them with weather and lake data, summarizes them through a vLLM OpenAI-compatible endpoint, and writes a Markdown report.
@@ -8,7 +8,8 @@ Daily Brief aggregates RSS stories from configured categories, enriches them wit
 - Test baseline: 761 tests with coverage targets met at v1.0.62.
 - Research review at v1.0.65 identified the active 4-phase optimization program in `PLAN.md`.
 - Performance baseline (v1.0.67): 105–114s internal, 137–147s wall-clock. Phase 3 (LLM) dominates at ~96–100s.
-- Phase A quick wins pending; Phase B target: 93–103s internal.
+- Phase A complete (v1.0.67). Phase B in progress: B.1–B.7 done, B.8 pending. Target: 93–103s internal.
+- Preflight probes are now opt-in via `runtime.preflight_checks_enabled`. Default: `false` (disabled), eliminating redundant preflight network traffic on every run.
 
 ## Architecture
 - `src/daily_brief/pipeline.py`: asynchronous pipeline orchestration.

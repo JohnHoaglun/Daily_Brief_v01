@@ -129,6 +129,8 @@ WEATHER_LAKE_URLS = _get_nested(CONFIG_YAML, 'weather.lake_urls') or {
     "travis": "https://waterdata.texas.gov/reservoirs/individual/travis"
 }
 
+PREFLIGHT_CHECKS_ENABLED = bool(_get_nested(CONFIG_YAML, 'runtime.preflight_checks_enabled') or False)
+
 DATE_OVERRIDE = None
 
 # Universe of constants for the pipeline

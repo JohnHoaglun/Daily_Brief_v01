@@ -55,6 +55,7 @@ network:
   weather_user_agent_suffix: /DailyBrief/1.0
 runtime:
   timezone: America/Chicago
+  preflight_checks_enabled: false
   date_override: null
   frontmatter_tag_segments:
   - daily-intelligently

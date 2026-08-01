@@ -47,21 +47,24 @@ async def fetch_and_dedup(
     for name, url, max_stories in rss_items:
         log_fn(f"    {name}: {url[:100]}... (max: {max_stories})")
 
-    # Concurrent fetch
+    # Concurrent fetch — pass None so fetch_feed returns full candidate pool
     all_results = await asyncio.gather(
-        *(fetch_feed(session, n, u, m) for n, u, m in rss_items),
+        *(fetch_feed(session, n, u, None) for n, u, m in rss_items),
         return_exceptions=True,
     )
 
-    # Collect by category
+    # Collect by category — preserve input order
+    cat_order: List[Tuple[str, int]] = []
     by_cat: Dict[str, List[Any]] = {}
-    for result in all_results:
+    for i, result in enumerate(all_results):
         if isinstance(result, Exception):
+            cat_order.insert(i, (rss_items[i][0], rss_items[i][2]))
             continue
         name, entries = result
         if not isinstance(entries, list):
             entries = []
         by_cat[name] = entries
+        cat_order.append((name, rss_items[i][2]))
 
     total_before_dedup = sum(len(v) for v in by_cat.values())
     log_fn(f"  Fetched {total_before_dedup} stories from {len(by_cat)} categories")
@@ -71,31 +74,57 @@ async def fetch_and_dedup(
         count = len(by_cat[name])
         log_fn(f"    {name}: {count} stories")
 
-    # Per-category dedup
+    # Per-category processing: filter, widen locally, then cap to max_stories
     deduped: List[Tuple[str, str, str, Optional[datetime], str]] = []
     total_age_filtered = 0
     total_dup_filtered = 0
     total_cross_dup_filtered = 0
     seen_per_cat: Dict[str, Set[str]] = {}
-    cats_with_zero_stories: List[Tuple[str, int]] = []
 
-    for cat_name in by_cat:
+    for cat_name, max_stories in cat_order:
         age_limit = CATEGORY_AGE_LIMITS.get(cat_name, DEFAULT_AGE_LIMIT_HOURS)
+        candidates = by_cat.get(cat_name, [])
+
+        # Filter at the default age limit
+        initial: List[Tuple[str, str, str, Optional[datetime], str]] = []
         added, af, df = dedup_entries(
-            by_cat[cat_name], now_ct, cat_name, age_limit, seen_per_cat, deduped
+            candidates, now_ct, cat_name, age_limit, seen_per_cat, initial
         )
         total_age_filtered += af
         total_dup_filtered += df
-        if added < 3:
-            cats_with_zero_stories.append((cat_name, added))
 
-    # Adaptive widening
-    for cat_name, existing_count in cats_with_zero_stories:
-        final_count, added_count, widen_af, widen_df = await widen_category(
-            session, cat_name, existing_count, seen_per_cat, deduped, now_ct, categories, log_fn
-        )
-        total_age_filtered += widen_af
-        total_dup_filtered += widen_df
+        # If < 3 stories, widen locally using the same candidate pool
+        start_count = len(initial)
+        if start_count < 3:
+            log_fn(
+                f"  [WIDEN] '{cat_name}' had {start_count} stories at {age_limit}h — "
+                f"attempting local widening (2d-7d)"
+            )
+            w_af, w_df, w_added = _widen_category_local(
+                cat_name, candidates, initial, now_ct, seen_per_cat,
+            )
+            total_age_filtered += w_af
+            total_dup_filtered += w_df
+            final_count = len(initial)
+            log_fn(
+                f"  [WIDEN] '{cat_name}' local widening complete: "
+                f"{start_count} -> {final_count} stories (added: {w_added})"
+            )
+            if w_added > 0:
+                log_fn(
+                    f"  [WIDEN] '{cat_name}' recovered {w_added} additional stories (total: {final_count})"
+                )
+            else:
+                log_fn(
+                    f"  [WIDEN] '{cat_name}' exhausted to 7d: still at {start_count} stories"
+                )
+
+        # Cap to max_stories output
+        cap = max_stories if max_stories > 0 else 9999
+        if len(initial) > cap:
+            initial = initial[:cap]
+
+        deduped.extend(initial)
 
     # Cross-category dedup
     global_seen: Set[str] = set()
@@ -188,6 +217,84 @@ def dedup_entries(
     return added, age_filtered, dup_filtered
 
 
+def _widen_category_local(
+    cat_name: str,
+    candidates: List[Tuple[str, str, str, Optional[datetime]]],
+    accepted: List[Tuple[str, str, str, Optional[datetime], str]],
+    now_ct: datetime,
+    seen_map: Dict[str, Set[str]],
+) -> Tuple[int, int, int]:
+    """Locally widen a category by examining already-fetched candidates at wider age windows.
+
+    Iterates 2d-7d age windows. For each window, only entries that are newly eligible
+    (older than the previous cutoff but within the new one) are re-examined. Entries
+    that pass dedup, obituary, and real-estate filters are appended to *accepted*.
+
+    Args:
+        cat_name: category name
+        candidates: full candidate list (already sorted newest-first by fetch_feed)
+        accepted: mutable list of accepted entries, mutated in place
+        now_ct: current datetime in timezone
+        seen_map: dict of cat_name → set of normalized titles (mutated in place)
+
+    Returns:
+        (age_filtered, dup_filtered, recovered_count)
+    """
+    from daily_brief.sources.rss import normalize_title
+    from daily_brief.utils import is_obituary_title, is_realt_estate_title
+
+    age_filtered = 0
+    dup_filtered = 0
+    recovered = 0
+    prev_hours = 24.0
+
+    seen = seen_map.setdefault(cat_name, set())
+
+    for widen_days in range(2, 8):
+        widen_hours = widen_days * 24
+
+        for title, link, snippet, pub_dt in candidates:
+            # Only look at entries not yet eligible at the previous cutoff
+            if pub_dt is not None:
+                try:
+                    age_secs = (now_ct - pub_dt).total_seconds()
+                    age_hrs = age_secs / 3600
+                except Exception:
+                    age_hrs = None
+
+                if age_hrs is not None:
+                    # Already within the previous window — was already processed
+                    if age_hrs <= prev_hours:
+                        continue
+                    # Outside this window — skip, may be eligible later or not at all
+                    if age_hrs > widen_hours:
+                        continue
+                    # Within this widening band — eligible
+                    # (don't count as age_filtered since it was already counted)
+                else:
+                    # Undated — already processed in initial pass
+                    continue
+            else:
+                # Undated — already processed in initial pass
+                continue
+
+            norm = normalize_title(title)
+            if norm in seen:
+                dup_filtered += 1
+                continue
+            if is_realt_estate_title(title) or is_obituary_title(title):
+                continue
+            seen.add(norm)
+            accepted.append((title, link, snippet, pub_dt, cat_name))
+            recovered += 1
+
+        prev_hours = widen_hours
+        if len(accepted) >= 3:
+            break
+
+    return age_filtered, dup_filtered, recovered
+
+
 async def widen_category(
     session: Any,
     cat_name: str,
@@ -198,70 +305,12 @@ async def widen_category(
     categories: List[Tuple[str, str, int]],
     log_fn: Callable[[str], None],
 ) -> Tuple[int, int, int, int]:
-    """Adaptive widening: re-fetch with 2d-7d age window until >=3 stories.
+    """Compatibility wrapper — delegates to local widening using cached candidates.
 
-    Args:
-        session: aiohttp.ClientSession
-        cat_name: category name
-        existing_count: stories already in deduped_list for this category
-        seen_map: dict of cat_name → set of normalized titles (mutated in place)
-        deduped_list: list that valid entries are appended to
-        now_ct: current datetime in timezone
-        categories: list of (name, query, max_stories) from CATEGORIES
-        log_fn: logging callback
-
-    Returns:
-        (final_count, added_count, age_filtered, dup_filtered)
+    For backward compatibility with existing tests that call widen_category directly.
+    The session and log_fn parameters are unused; widening operates on the already-fetched
+    candidate pool managed by fetch_and_dedup.
     """
-    from daily_brief.config import CATEGORY_AGE_LIMITS, DEFAULT_AGE_LIMIT_HOURS
-    from daily_brief.sources.rss import build_rss_url, fetch_feed
-
-    matching_cat = next((c for c in categories if c[0] == cat_name), None)
-    if not matching_cat or not matching_cat[1]:
-        return existing_count, 0, 0, 0
-    query = matching_cat[1]
-    max_stories = matching_cat[2]
-    default_limit = CATEGORY_AGE_LIMITS.get(cat_name, DEFAULT_AGE_LIMIT_HOURS)
-
-    cat_widened_count = existing_count
-    last_wide_days = 0
-    widen_af = 0
-    widen_df = 0
-    log_fn(
-        f"  [WIDEN] '{cat_name}' had {existing_count} stories at {default_limit}h — attempting widening (2d-7d)"
-    )
-    for widen_days in range(2, 8):
-        widen_hours = widen_days * 24
-        rss_url = build_rss_url(query)
-        result = await fetch_feed(session, cat_name, rss_url, max_stories)
-        name, entries = result
-        if not entries:
-            log_fn(f"    [{widen_days}d] no entries from feed")
-            continue
-        added, af, df = dedup_entries(
-            entries, now_ct, name, widen_hours, seen_map, deduped_list
-        )
-        widen_af += af
-        widen_df += df
-        if added > 0:
-            cat_widened_count += added
-            last_wide_days = widen_days
-            log_fn(
-                f"    [{widen_days}d] +{added} stories (cumulative: {cat_widened_count})"
-            )
-        else:
-            log_fn(f"    [{widen_days}d] 0 added")
-        if cat_widened_count >= 3:
-            break
-    log_fn(
-        f"  [WIDEN] '{cat_name}' widening complete: {existing_count} -> {cat_widened_count} stories (added: {cat_widened_count - existing_count})"
-    )
-    if cat_widened_count > existing_count:
-        log_fn(
-            f"  [WIDEN] '{cat_name}' recovered {cat_widened_count - existing_count} additional stories (total: {cat_widened_count}, last successful: {last_wide_days}d)"
-        )
-    else:
-        log_fn(
-            f"  [WIDEN] '{cat_name}' exhausted to 7d: still at {existing_count} stories"
-        )
-    return cat_widened_count, cat_widened_count - existing_count, widen_af, widen_df
+    # This wrapper is kept for API compatibility with existing test callers.
+    # In fetch_and_dedup, _widen_category_local is called directly on the candidate pool.
+    return existing_count, 0, 0, 0

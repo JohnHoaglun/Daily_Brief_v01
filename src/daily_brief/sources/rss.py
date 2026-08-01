@@ -111,7 +111,7 @@ async def fetch_feed(
     session: aiohttp.ClientSession,
     name: str,
     rss_url: str,
-    max_stories: int,
+    max_stories: Optional[int] = None,
 ) -> Tuple[str, List[Tuple[str, str, str, Optional[datetime]]]]:
     """Fetch and parse a single RSS feed.
 
@@ -151,7 +151,8 @@ async def fetch_feed(
                 entries.append((title, link, plain_snippet, pub_dt))
 
         entries.sort(key=cmp_to_key(_sort_entries))
-        entries = entries[:max_stories]
+        if max_stories is not None:
+            entries = entries[:max_stories]
 
         return (name, entries)
     except Exception as e:

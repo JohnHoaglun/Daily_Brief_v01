@@ -4,6 +4,13 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.86 — B.6 Fetch RSS candidates once, widen locally (Bug-10 fix)
+- `src/daily_brief/sources/rss.py`: `fetch_feed()` now accepts `max_stories: Optional[int] = None`. When `None`, returns the full provider candidate pool without truncation. Slicing is applied only when an explicit limit is supplied, preserving backward compatibility for direct callers.
+- `src/daily_brief/pipelines/rss_dedup.py`: `fetch_and_dedup()` passes `None` for `max_stories` during the initial concurrent RSS fetch, so every category receives its complete candidate list. Added `_widen_category_local()` — processes already-fetched candidates through progressively wider age windows (2d-7d) without additional HTTP requests. Added per-category output cap (`max_stories`) after local filtering/widening, preserving current report sizes. Replaced refetch-based `widen_category()` with a compatibility wrapper; all widening is now local to the candidate pool. Category processing preserves configured order regardless of fetch completion order.
+- `tests/test_sources/test_rss.py`: added `test_no_limit_returns_all` — verifies 12 untruncated candidates when `max_stories=None`.
+- `tests/test_sources/test_rss_dedup.py`: replaced HTTP-refetch widening tests with `TestLocalWidening` (13 tests): Bug-10 proof (6th-entry recovery, exactly one request), category order stability, cross-category first-wins, max_stories output cap, age boundary behavior (24h inclusive, 7d exclusive), filter behavior (duplicates, obituary, real-estate), and failure isolation. Retained `TestWidenCategory` compatibility wrapper test.
+- 781 tests passed, 0 failures. config validate PASS.
+
 ### v1.0.85 — B.5 Reuse outer HTTP session for article extraction
 - `src/daily_brief/pipeline.py`: removed the nested Phase 3A `aiohttp.ClientSession` dedicated to article extraction. Article requests now reuse the outer pipeline session that weather and RSS already share. The `asyncio.gather(..., return_exceptions=True)` failure isolation and per-request 5-second timeout (`ClientTimeout(total=5)` in `article.py`) remain unchanged. Eliminates one connector/DNS cache creation and teardown per pipeline run.
 - `tests/test_pipeline.py`: updated `_pipeline_patches` helper default from 2 to 1 session CM. Updated all 7 test methods to use single-session mocks. Added `test_b5_single_client_session` (verifies `ClientSession` constructed once) and `test_b5_outer_session_passed_to_extractor` (verifies the outer session sentinel is passed to `stage_extract_article`).

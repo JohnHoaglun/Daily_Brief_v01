@@ -369,6 +369,35 @@ class TestFetchFeedHappy(TestCase):
         result = asyncio.get_event_loop().run_until_complete(_limited())
         self.assertEqual(len(result[1]), 3)
 
+    def test_no_limit_returns_all(self):
+        """B.6: when max_stories is None, fetch_feed returns all provider candidates."""
+        async def _unlimited():
+            class FakeResp:
+                status = 200
+                async def text(self):
+                    items = ""
+                    for i in range(12):
+                        items += f"""<item>
+                          <title>Story {i}</title>
+                          <link>https://example.com/{i}</link>
+                          <summary>Summary {i}</summary>
+                          <pubDate>Thu, 30 Jul 2026 14:{i:02d}:00 +0000</pubDate>
+                        </item>"""
+                    return f"""<?xml version="1.0"?><rss version="2.0"><channel>{items}</channel></rss>"""
+            class FakeSession:
+                def get(self, *a, **kw):
+                    return _AsyncCM(FakeResp())
+            class _AsyncCM:
+                def __init__(self, r):
+                    self._r = r
+                async def __aenter__(self):
+                    return self._r
+                async def __aexit__(self, *a):
+                    pass
+            return await fetch_feed(FakeSession(), "test", "https://x.com", None)
+        result = asyncio.get_event_loop().run_until_complete(_unlimited())
+        self.assertEqual(len(result[1]), 12)
+
     def test_empty_feed(self):
         result = asyncio.get_event_loop().run_until_complete(_mock_fetch("<rss version='2.0'><channel></channel></rss>"))
         self.assertEqual(result[0], "test-feed")

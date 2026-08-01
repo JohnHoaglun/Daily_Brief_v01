@@ -131,6 +131,16 @@ class _AsyncCM:
         pass
 
 
+def _make_boundary_session(pub_date: str):
+    """Session that returns a boundary story at the given pubDate."""
+    class FakeSession:
+        def get(self, url, **kw):
+            return _AsyncCM(FakeResp(_rss_xml([
+                {"title": "Boundary Story", "pubDate": pub_date},
+            ])))
+    return FakeSession()
+
+
 def _rss_xml(items: List[dict]) -> str:
     body = ""
     for i, item in enumerate(items):
@@ -289,121 +299,276 @@ class TestFetchAndDedup(TestCase):
 
 
 class TestWidenCategory(TestCase):
-    """rss_dedup(widen_category)."""
+    """rss_dedup(widen_category) — compatibility wrapper, still callable."""
 
-    def _make_widen_session(self, entries_per_call: List[list]):
-        """Session that returns different entries each call."""
-        class FakeSession:
-            call_idx = 0
+    def test_compat_wrapper_no_crash(self):
+        """widen_category wrapper doesn't crash; returns unchanged count."""
+        cats: list = []
+        session = None
+        seen: dict = {}
+        deduped: list = []
+        logs: list = []
 
+        async def _run():
+            return await widen_category(
+                session, "CatW", 2, seen, deduped, NOW, cats, logs.append
+            )
+
+        final, added, waf, wdf = asyncio.get_event_loop().run_until_complete(_run())
+        self.assertEqual(final, 2)
+        self.assertEqual(added, 0)
+
+
+class TestLocalWidening(TestCase):
+    """B.6: local candidate-pool widening via fetch_and_dedup.
+
+    Tests the one-fetch, local-widening behavior: fetch_feed returns the full
+    provider candidate pool (no max_stories truncation), widen_category operates
+    locally on those candidates without additional HTTP requests.
+    """
+
+    def test_bug10_sixth_entry_recovered(self):
+        """Bug-10 proof: first 5 entries fail the 24h window; 6th is within 48h.
+
+        Under old behavior, max_stories=5 truncation would discard the 6th entry.
+        With full candidate pools, local widening recovers it.
+        """
+        fresh = NOW - timedelta(hours=36)  # within 48h, outside 24h
+        too_old = NOW - timedelta(hours=480)  # 20 days old
+        candidates = [
+            _entry(f"Story {i}", pub_dt=too_old)
+            for i in range(5)
+        ]
+        # 6th entry — within 48h
+        candidates.append(_entry("Recovered Story", pub_dt=fresh))
+
+        cats = [("CatA", "query a", 10)]
+        session = self._make_session({"query a": _rss_xml([
+            {"title": f"Story {i}", "pubDate": too_old.strftime("%a, %d %b %Y %H:%M:%S +0000")}
+            for i in range(5)
+        ] + [
+            {"title": "Recovered Story", "pubDate": fresh.strftime("%a, %d %b %Y %H:%M:%S +0000")}
+        ])})
+        logs = []
+
+        async def _run():
+            return await fetch_and_dedup(session, cats, logs.append)
+
+        deduped, stats = asyncio.get_event_loop().run_until_complete(_run())
+        titles = [d[0] for d in deduped]
+        self.assertIn("Recovered Story", titles)
+
+    def test_one_request_per_category(self):
+        """B.6: an underfilled category makes only one session.get() call."""
+        class CountingSession:
+            get_count = 0
             def get(self, url, **kw):
-                idx = FakeSession.call_idx
-                FakeSession.call_idx += 1
-                if idx < len(entries_per_call):
-                    body = _rss_xml(entries_per_call[idx])
-                else:
-                    body = _rss_xml([])
-                return _AsyncCM(FakeResp(body))
+                CountingSession.get_count += 1
+                return _AsyncCM(FakeResp(_rss_xml([
+                    {"title": f"Old {i}", "pubDate": (NOW - timedelta(hours=480 * i)).strftime("%a, %d %b %Y %H:%M:%S +0000")}
+                    for i in range(3)
+                ])))
 
+        cats = [("CatA", "query a", 5)]
+        logs = []
+
+        async def _run():
+            return await fetch_and_dedup(CountingSession(), cats, logs.append)
+
+        CountingSession.get_count = 0
+        asyncio.get_event_loop().run_until_complete(_run())
+        self.assertEqual(CountingSession.get_count, 1)
+
+    def test_exhausted_no_extra_requests(self):
+        """Empty candidate pool — no additional HTTP requests for widening."""
+        class CountingSession:
+            get_count = 0
+            def get(self, url, **kw):
+                CountingSession.get_count += 1
+                return _AsyncCM(FakeResp(_rss_xml([])))
+
+        cats = [("CatA", "query a", 5)]
+        logs = []
+
+        async def _run():
+            return await fetch_and_dedup(CountingSession(), cats, logs.append)
+
+        CountingSession.get_count = 0
+        asyncio.get_event_loop().run_until_complete(_run())
+        self.assertEqual(CountingSession.get_count, 1)
+
+    def test_stable_category_order(self):
+        """B.6: categories complete out of order, results are in configured order."""
+        fresh = "Thu, 30 Jul 2026 10:00:00 +0000"
+        cats = [
+            ("CatA", "query a", 10),
+            ("CatB", "query b", 10),
+            ("CatC", "query c", 10),
+        ]
+        session = self._make_session({
+            "query a": _rss_xml([{"title": "A1", "pubDate": fresh}]),
+            "query b": _rss_xml([{"title": "B1", "pubDate": fresh}]),
+            "query c": _rss_xml([{"title": "C1", "pubDate": fresh}]),
+        })
+        logs = []
+
+        async def _run():
+            return await fetch_and_dedup(session, cats, logs.append)
+
+        deduped, stats = asyncio.get_event_loop().run_until_complete(_run())
+        categories = [d[4] for d in deduped]
+        self.assertEqual(categories, ["CatA", "CatB", "CatC"])
+
+    def test_cross_cat_first_wins(self):
+        """B.6: duplicate title in two categories retains earlier configured category."""
+        fresh = "Thu, 30 Jul 2026 10:00:00 +0000"
+        xml = _rss_xml([{"title": "Dup Story", "pubDate": fresh}])
+        cats = [
+            ("CatFirst", "query first", 10),
+            ("CatSecond", "query second", 10),
+        ]
+        session = self._make_session({
+            "query first": xml,
+            "query second": xml,
+        })
+        logs = []
+
+        async def _run():
+            return await fetch_and_dedup(session, cats, logs.append)
+
+        deduped, stats = asyncio.get_event_loop().run_until_complete(_run())
+        dup_entries = [d for d in deduped if d[0] == "Dup Story"]
+        self.assertEqual(len(dup_entries), 1)
+        self.assertEqual(dup_entries[0][4], "CatFirst")
+
+    def test_max_stories_output_cap(self):
+        """B.6: max_stories is enforced as the final per-category output ceiling."""
+        fresh = "Thu, 30 Jul 2026 10:00:00 +0000"
+        items = [{"title": f"Story {i}", "pubDate": fresh} for i in range(20)]
+        cats = [("CatA", "query a", 3)]
+        session = self._make_session({"query a": _rss_xml(items)})
+        logs = []
+
+        async def _run():
+            return await fetch_and_dedup(session, cats, logs.append)
+
+        deduped, stats = asyncio.get_event_loop().run_until_complete(_run())
+        cat_entries = [d for d in deduped if d[4] == "CatA"]
+        self.assertEqual(len(cat_entries), 3)
+
+    def test_widening_boundary_24h(self):
+        """Entry at exactly 24h remains eligible in the initial window (predicate is >)."""
+        exactly = NOW - timedelta(hours=24)
+        cats = [("CatA", "query a", 10)]
+        session = _make_boundary_session(exactly.strftime("%a, %d %b %Y %H:%M:%S +0000"))
+        logs = []
+
+        async def _run():
+            return await fetch_and_dedup(session, cats, logs.append)
+
+        deduped, stats = asyncio.get_event_loop().run_until_complete(_run())
+        titles = [d[0] for d in deduped]
+        self.assertIn("Boundary Story", titles)
+
+    def test_widening_boundary_older_excluded(self):
+        """Entries older than 7d are never included."""
+        too_old = NOW - timedelta(days=10)
+        fresh = "Thu, 30 Jul 2026 10:00:00 +0000"
+        cats = [("CatA", "query a", 10)]
+        session = self._make_session({"query a": _rss_xml([
+            {"title": "Boundary Story", "pubDate": fresh},
+            {"title": "Too Old", "pubDate": too_old.strftime("%a, %d %b %Y %H:%M:%S +0000")},
+        ])})
+        logs = []
+
+        async def _run():
+            return await fetch_and_dedup(session, cats, logs.append)
+
+        deduped, stats = asyncio.get_event_loop().run_until_complete(_run())
+        titles = [d[0] for d in deduped]
+        self.assertNotIn("Too Old", titles)
+
+    def test_widening_filters_duplicates(self):
+        """B.6: duplicate candidates during widening do not count as recovered."""
+        cats = [("CatA", "query a", 10)]
+        fresh = NOW - timedelta(hours=2)
+        old = NOW - timedelta(hours=48)
+        session = self._make_session({"query a": _rss_xml([
+            {"title": "Fresh Story", "pubDate": fresh.strftime("%a, %d %b %Y %H:%M:%S +0000")},
+            {"title": "Dup Title", "pubDate": old.strftime("%a, %d %b %Y %H:%M:%S +0000")},
+            {"title": "Dup Title", "pubDate": old.strftime("%a, %d %b %Y %H:%M:%S +0000")},
+        ])})
+        logs = []
+
+        async def _run():
+            return await fetch_and_dedup(session, cats, logs.append)
+
+        deduped, stats = asyncio.get_event_loop().run_until_complete(_run())
+        dup_titles = [d[0] for d in deduped if d[0] == "Dup Title"]
+        self.assertEqual(len(dup_titles), 1)
+
+    def test_widening_filters_obituary(self):
+        """B.6: obituary candidates are not counted as recovered."""
+        cats = [("CatA", "query a", 10)]
+        old = NOW - timedelta(hours=48)
+        session = self._make_session({"query a": _rss_xml([
+            {"title": "John Obituary", "pubDate": old.strftime("%a, %d %b %Y %H:%M:%S +0000")},
+        ])})
+        logs = []
+
+        async def _run():
+            return await fetch_and_dedup(session, cats, logs.append)
+
+        deduped, stats = asyncio.get_event_loop().run_until_complete(_run())
+        titles = [d[0] for d in deduped]
+        self.assertNotIn("John Obituary", titles)
+
+    def test_widening_filters_realestate(self):
+        """B.6: real-estate candidates are not counted as recovered."""
+        cats = [("CatA", "query a", 10)]
+        old = NOW - timedelta(hours=48)
+        session = self._make_session({"query a": _rss_xml([
+            {"title": "House for sale $200k", "pubDate": old.strftime("%a, %d %b %Y %H:%M:%S +0000")},
+        ])})
+        logs = []
+
+        async def _run():
+            return await fetch_and_dedup(session, cats, logs.append)
+
+        deduped, stats = asyncio.get_event_loop().run_until_complete(_run())
+        titles = [d[0] for d in deduped]
+        self.assertNotIn("House for sale $200k", titles)
+
+    def test_failure_isolation(self):
+        """B.6: one failed feed does not prevent successful categories."""
+        class FailingSession:
+            get_count = 0
+            def get(self, url, **kw):
+                FailingSession.get_count += 1
+                if "query fail" in url:
+                    raise ConnectionError("network fail")
+                return _AsyncCM(FakeResp(_rss_xml([
+                    {"title": "OK Story", "pubDate": "Thu, 30 Jul 2026 10:00:00 +0000"},
+                ])))
+
+        cats = [
+            ("CatFail", "query fail", 10),
+            ("CatOK", "query ok", 10),
+        ]
+        logs = []
+
+        async def _run():
+            return await fetch_and_dedup(FailingSession(), cats, logs.append)
+
+        deduped, stats = asyncio.get_event_loop().run_until_complete(_run())
+        titles = [d[0] for d in deduped]
+        self.assertIn("OK Story", titles)
+
+    def _make_session(self, body_map: dict):
+        class FakeSession:
+            def get(self, url, **kw):
+                for k, v in body_map.items():
+                    if k in url:
+                        return _AsyncCM(FakeResp(v))
+                return _AsyncCM(FakeResp(_rss_xml([])))
         return FakeSession()
-
-    def test_widening_expands_age(self):
-        """Category with < 3 stories triggers widening loop."""
-        fresh = "Thu, 30 Jul 2026 10:00:00 +0000"
-        widen_entries = [
-            [{"title": "Widen1", "pubDate": fresh}],
-            [{"title": "Widen2", "pubDate": fresh}],
-            [{"title": "Widen3", "pubDate": fresh}],
-        ]
-
-        cats = [("CatW", "query w", 10)]
-        session = self._make_widen_session(widen_entries)
-        seen: dict = {}
-        deduped: list = []
-        logs = []
-
-        async def _run():
-            return await widen_category(
-                session, "CatW", 0, seen, deduped, NOW, cats, logs.append
-            )
-
-        session.call_idx = 0
-        final, added, waf, wdf = asyncio.get_event_loop().run_until_complete(_run())
-        self.assertGreater(added, 0)
-
-    def test_widening_stops_at_3(self):
-        """Widening stops when >= 3 stories collected."""
-        fresh = "Thu, 30 Jul 2026 10:00:00 +0000"
-        widen_entries = [
-            [{"title": "W1", "pubDate": fresh}, {"title": "W2", "pubDate": fresh}],
-            [{"title": "W3", "pubDate": fresh}],
-            [{"title": "W4", "pubDate": fresh}],
-        ]
-
-        cats = [("CatW", "query w", 10)]
-        session = self._make_widen_session(widen_entries)
-        seen: dict = {}
-        deduped: list = []
-        logs = []
-
-        async def _run():
-            return await widen_category(
-                session, "CatW", 0, seen, deduped, NOW, cats, logs.append
-            )
-
-        session.call_idx = 0
-        final, added, waf, wdf = asyncio.get_event_loop().run_until_complete(_run())
-        self.assertGreaterEqual(final, 3)
-
-    def test_widening_exhausts_to_7d(self):
-        """When feed returns no more entries, widening stops after all widening rounds."""
-        cats = [("CatE", "query e", 10)]
-        session = self._make_widen_session([[], [], [], [], []])
-        seen: dict = {}
-        deduped: list = []
-        logs = []
-
-        async def _run():
-            return await widen_category(
-                session, "CatE", 0, seen, deduped, NOW, cats, logs.append
-            )
-
-        session.call_idx = 0
-        final, added, waf, wdf = asyncio.get_event_loop().run_until_complete(_run())
-        self.assertEqual(final, 0)
-        self.assertEqual(added, 0)
-
-    def test_no_match_returns_early(self):
-        """Category not in categories list returns early unchanged."""
-        cats = [("Other", "query o", 10)]
-        session = self._make_widen_session([])
-        seen: dict = {}
-        deduped: list = []
-        logs = []
-
-        async def _run():
-            return await widen_category(
-                session, "NoSuchCat", 5, seen, deduped, NOW, cats, logs.append
-            )
-
-        final, added, waf, wdf = asyncio.get_event_loop().run_until_complete(_run())
-        self.assertEqual(final, 5)
-        self.assertEqual(added, 0)
-
-    def test_empty_feed_no_add(self):
-        """Widened fetch returns empty feed — no stories added."""
-        cats = [("CatE", "query e", 10)]
-        session = self._make_widen_session([[]])
-        seen: dict = {}
-        deduped: list = []
-        logs = []
-
-        async def _run():
-            return await widen_category(
-                session, "CatE", 1, seen, deduped, NOW, cats, logs.append
-            )
-
-        session.call_idx = 0
-        final, added, waf, wdf = asyncio.get_event_loop().run_until_complete(_run())
-        self.assertEqual(added, 0)
-        self.assertEqual(final, 1)

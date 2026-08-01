@@ -4,6 +4,12 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.85 — B.5 Reuse outer HTTP session for article extraction
+- `src/daily_brief/pipeline.py`: removed the nested Phase 3A `aiohttp.ClientSession` dedicated to article extraction. Article requests now reuse the outer pipeline session that weather and RSS already share. The `asyncio.gather(..., return_exceptions=True)` failure isolation and per-request 5-second timeout (`ClientTimeout(total=5)` in `article.py`) remain unchanged. Eliminates one connector/DNS cache creation and teardown per pipeline run.
+- `tests/test_pipeline.py`: updated `_pipeline_patches` helper default from 2 to 1 session CM. Updated all 7 test methods to use single-session mocks. Added `test_b5_single_client_session` (verifies `ClientSession` constructed once) and `test_b5_outer_session_passed_to_extractor` (verifies the outer session sentinel is passed to `stage_extract_article`).
+- `tests/test_startup.py`: updated `test_pipeline_creates_log_and_news_dirs` to use single-session mock.
+- 772 tests passed, 0 failures. config validate PASS.
+
 ### v1.0.84 — B.4 Eliminate per-run Open-Meteo ZIP geocoding
 - `src/daily_brief/sources/climate.py`: `_fetch_climate_normal_high()` now accepts `lat` and `lon` parameters from the caller instead of hardcoding ZIP `77316` and hitting the Open-Meteo geocoding API every run. Geocoding request removed entirely; ERA5 request built directly with supplied coordinates. Preserves existing timeout, exception handling, empty-response behavior, temperature rounding, and debug logging.
 - `src/daily_brief/sources/weather.py`: `fetch_weather()` forwards its existing `lat` and `lon` parameters to `_fetch_climate_normal_high()` in the concurrent gather. Weather orchestration, concurrency, and deterministic fallback merge semantics unchanged.

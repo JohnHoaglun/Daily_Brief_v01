@@ -81,7 +81,7 @@ class TestPipelineCreatesDirs(TestCase):
             ]
 
             with patch("daily_brief.pipeline.aiohttp.ClientSession") as mock_session_cls:
-                mock_session_cls.side_effect = [self._make_async_cm(), self._make_async_cm()]
+                mock_session_cls.side_effect = [self._make_async_cm()]
                 with patch("daily_brief.pipeline.write_report"):
                     with patch("daily_brief.pipeline.sys.exit", side_effect=SystemExit(1)):
                         with _AggregateCM(patches):

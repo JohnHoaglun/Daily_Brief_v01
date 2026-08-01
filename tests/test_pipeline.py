@@ -111,7 +111,7 @@ def _pipeline_patches(
         )
 
     if session_cms is None:
-        session_cms = [_make_async_cm(), _make_async_cm()]
+        session_cms = [_make_async_cm()]
 
     story_ctor = lambda *a, **kw: story_obj
 
@@ -217,7 +217,7 @@ class TestPipelineMain(TestCase):
         # Also patch the aiohttp session and write_report
         with _pipeline_patches():
             with patch("daily_brief.pipeline.aiohttp.ClientSession") as mock_session:
-                mock_session.side_effect = [_make_async_cm(), _make_async_cm()]
+                mock_session.side_effect = [_make_async_cm()]
                 with patch("daily_brief.pipeline.write_report") as mock_write:
                     from daily_brief.pipeline import main as pm
                     asyncio.get_event_loop().run_until_complete(pm())
@@ -226,7 +226,7 @@ class TestPipelineMain(TestCase):
     def test_main_validation_failure(self):
         with _pipeline_patches(validation_result=(False, ["bad"])):
             with patch("daily_brief.pipeline.aiohttp.ClientSession") as mock_session:
-                mock_session.side_effect = [_make_async_cm(), _make_async_cm()]
+                mock_session.side_effect = [_make_async_cm()]
                 with patch("daily_brief.pipeline.write_report"):
                     from daily_brief.pipeline import main as pm
                     asyncio.get_event_loop().run_until_complete(pm())
@@ -241,7 +241,7 @@ class TestPipelineMain(TestCase):
         }
         with _pipeline_patches(weather_data=partial_weather):
             with patch("daily_brief.pipeline.aiohttp.ClientSession") as mock_session:
-                mock_session.side_effect = [_make_async_cm(), _make_async_cm()]
+                mock_session.side_effect = [_make_async_cm()]
                 with patch("daily_brief.pipeline.write_report") as mock_write:
                     from daily_brief.pipeline import main as pm
                     asyncio.get_event_loop().run_until_complete(pm())
@@ -257,7 +257,7 @@ class TestPipelineMain(TestCase):
 
         with _pipeline_patches(story_obj=story, summary_fn=mock_summarize):
             with patch("daily_brief.pipeline.aiohttp.ClientSession") as mock_session:
-                mock_session.side_effect = [_make_async_cm(), _make_async_cm()]
+                mock_session.side_effect = [_make_async_cm()]
                 with patch("daily_brief.pipeline.write_report"):
                     from daily_brief.pipeline import main as pm
                     asyncio.get_event_loop().run_until_complete(pm())
@@ -280,7 +280,7 @@ class TestPipelineMain(TestCase):
             is_boilerplate_fn=mock_is_boilerplate,
         ):
             with patch("daily_brief.pipeline.aiohttp.ClientSession") as mock_session:
-                mock_session.side_effect = [_make_async_cm(), _make_async_cm()]
+                mock_session.side_effect = [_make_async_cm()]
                 with patch("daily_brief.pipeline.write_report") as mock_write:
                     from daily_brief.pipeline import main as pm
                     asyncio.get_event_loop().run_until_complete(pm())
@@ -297,7 +297,7 @@ class TestPipelineMain(TestCase):
 
         with _pipeline_patches():
             with patch("daily_brief.pipeline.aiohttp.ClientSession") as mock_session:
-                mock_session.side_effect = [_make_async_cm(), _make_async_cm()]
+                mock_session.side_effect = [_make_async_cm()]
                 with patch("daily_brief.pipeline.write_report"):
                     with patch("daily_brief.pipeline.time") as mock_time:
                         mock_time.monotonic = fake_monotonic
@@ -323,7 +323,7 @@ class TestPipelineMain(TestCase):
         """A.9: validation-failure path logs total pipeline time."""
         with _pipeline_patches(validation_result=(False, ["issue"])):
             with patch("daily_brief.pipeline.aiohttp.ClientSession") as mock_session:
-                mock_session.side_effect = [_make_async_cm(), _make_async_cm()]
+                mock_session.side_effect = [_make_async_cm()]
                 with patch("daily_brief.pipeline.write_report"):
                     stderr_capture = io.StringIO()
 
@@ -358,3 +358,34 @@ class TestPipelineMain(TestCase):
         t3_pos = source.find("t3 = time.monotonic()")
         p3a_log_pos = source.find("[3A]")
         self.assertLess(t3_pos, p3a_log_pos, "Phase 3 timer must start before 3A article extraction")
+
+    def test_b5_single_client_session(self):
+        """B.5: pipeline opens only one ClientSession (reused for article extraction)."""
+        with _pipeline_patches():
+            with patch("daily_brief.pipeline.aiohttp.ClientSession") as mock_session_cls:
+                outer_cm = _make_async_cm()
+                mock_session_cls.side_effect = [outer_cm]
+                with patch("daily_brief.pipeline.write_report"):
+                    from daily_brief.pipeline import main as pm
+                    asyncio.get_event_loop().run_until_complete(pm())
+                mock_session_cls.assert_called_once()
+
+    def test_b5_outer_session_passed_to_extractor(self):
+        """B.5: stage_extract_article receives the outer pipeline session, not a separate session."""
+        outer_session = MagicMock()
+        session_cm = MagicMock()
+        session_cm.__aenter__ = AsyncMock(return_value=outer_session)
+        session_cm.__aexit__ = AsyncMock(return_value=False)
+
+        with _pipeline_patches():
+            with patch("daily_brief.pipeline.aiohttp.ClientSession", return_value=session_cm):
+                with patch("daily_brief.pipeline.stage_extract_article", new_callable=AsyncMock) as mock_extract:
+                    with patch("daily_brief.pipeline.write_report"):
+                        from daily_brief.pipeline import main as pm
+                        asyncio.get_event_loop().run_until_complete(pm())
+
+                mock_extract.assert_called()
+                # Verify the session argument is the outer session, not a different session
+                for call in mock_extract.call_args_list:
+                    passed_session = call[0][1]
+                    self.assertIs(passed_session, outer_session)

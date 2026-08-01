@@ -190,15 +190,10 @@ async def main():
 
         # ---------- Phase 3A: Async article fetching for non-Google links ----------
         log("  [3A] Fetching full articles from external sources...")
-        async with aiohttp.ClientSession(
-            connector=aiohttp.TCPConnector(limit=20, limit_per_host=10, ttl_dns_cache=300),
-            headers={"User-Agent": USER_AGENT},
-            timeout=aiohttp.ClientTimeout(total=5)
-        ) as extract_session:
-            await asyncio.gather(
-                *[stage_extract_article(s, extract_session) for s in stories],
-                return_exceptions=True
-            )
+        await asyncio.gather(
+            *[stage_extract_article(s, session) for s in stories],
+            return_exceptions=True
+        )
 
         # ---------- Phase 3B/3C: Batch summary ----------
         log(f"  [3BC] Running BATCH summaries via {LLM_MODEL}...")

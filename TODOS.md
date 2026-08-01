@@ -25,7 +25,7 @@ Detailed findings, implementation constraints, and verification commands are in 
 - [x] B.2 `Perf-2`: concurrently collect independent weather sources, then merge deterministically.
 - [x] B.3 `Perf-3`: eliminate the redundant Wunderground dashboard request.
 - [x] B.4 `Perf-4`: pass configured coordinates to climate retrieval, eliminating per-run geocoding.
-- [ ] B.5 `Perf-5`: reuse the outer HTTP session for article extraction.
+- [x] B.5 `Perf-5`: reuse the outer HTTP session for article extraction.
 - [ ] B.6 `Perf-6` / `Bug-10`: fetch adequate RSS candidate pools once; widen locally and concurrently.
 - [ ] B.7 `Perf-11`: make production preflight probes opt-in or short-TTL cached.
 - [ ] B.8 `Arch-1`: separate weather provider fetching from deterministic merge/fallback policy.

@@ -429,6 +429,68 @@ class TestConfigUncoveredBranches(TestCase):
             importlib.reload(cfg_mod)
             self.assertIn("world", cfg_mod.CATEGORY_AGE_LIMITS)
 
+    def test_dedupe_window_hours_custom_value(self):
+        """A.10 Bug-5: DEDUPE_WINDOW_HOURS reads rss.dedupe_window_hours from YAML."""
+        mock_data = copy.deepcopy(self._base_cfg())
+        mock_data["rss"]["dedupe_window_hours"] = 72
+        with mock.patch("daily_brief.config.yaml.safe_load", return_value=mock_data):
+            from daily_brief import config as cfg_mod
+            import importlib
+            saved = cfg_mod.DEDUPE_WINDOW_HOURS
+            importlib.reload(cfg_mod)
+            try:
+                self.assertEqual(cfg_mod.DEDUPE_WINDOW_HOURS, 72)
+            finally:
+                importlib.reload(cfg_mod)
+                cfg_mod.DEDUPE_WINDOW_HOURS = saved
+
+    def test_dedupe_window_hours_fallback(self):
+        """A.10 Bug-5: DEDUPE_WINDOW_HOURS defaults to 24 when key absent."""
+        mock_data = self._base_cfg()
+        if "dedupe_window_hours" in mock_data.get("rss", {}):
+            del mock_data["rss"]["dedupe_window_hours"]
+        with mock.patch("daily_brief.config.yaml.safe_load", return_value=mock_data):
+            from daily_brief import config as cfg_mod
+            import importlib
+            saved = cfg_mod.DEDUPE_WINDOW_HOURS
+            importlib.reload(cfg_mod)
+            try:
+                self.assertEqual(cfg_mod.DEDUPE_WINDOW_HOURS, 24)
+            finally:
+                importlib.reload(cfg_mod)
+                cfg_mod.DEDUPE_WINDOW_HOURS = saved
+
+    def test_rss_settings_reads_rss_not_rss_settings(self):
+        """A.10 Bug-5: config reads from 'rss' parent, not 'rss_settings'."""
+        mock_data = self._base_cfg()
+        mock_data["rss"]["dedupe_window_hours"] = 48
+        mock_data["rss_settings"] = {"dedupe_window_hours": 999}
+        with mock.patch("daily_brief.config.yaml.safe_load", return_value=mock_data):
+            from daily_brief import config as cfg_mod
+            import importlib
+            saved = cfg_mod.DEDUPE_WINDOW_HOURS
+            importlib.reload(cfg_mod)
+            try:
+                # Should be 48 (from 'rss'), not 999 (from 'rss_settings')
+                self.assertEqual(cfg_mod.DEDUPE_WINDOW_HOURS, 48)
+            finally:
+                importlib.reload(cfg_mod)
+                cfg_mod.DEDUPE_WINDOW_HOURS = saved
+
+    def _base_cfg(self):
+        """Return a minimal valid config dict for mocking."""
+        return {
+            "version": "1.0.0",
+            "llm": {"model": "x", "host": "http://x", "summary_options": {"temperature": 0.3, "top_p": 0.8}, "alert_options": {"temperature": 0.1, "top_p": 0.3}, "context_preview_chars": 600, "summary_context_chars": 6000, "summary_trim_min_chars": 100},
+            "rss": {"base_url": "http://x", "params": "x", "default_age_limit_hours": 24},
+            "runtime": {"timezone": "UTC", "thread_pool_size": 1, "max_log_versions": 5},
+            "cleanup": {"max_log_versions": 5},
+            "directories": {"log_dir": "/tmp/logs", "news_dir": "/tmp/news"},
+            "weather": {"lat": 30.0, "lon": -95.0, "wunderground_station_id": "X", "lake_urls": {"l": "http://x"}},
+            "categories": {"world": {"query": "news", "max_stories": 10}},
+            "prompts": {"summary": "A" * 30, "system_batch": "B" * 30},
+        }
+
 
 # ---------------------------------------------------------------------------
 # 9.  Helper — get a deep-copied valid config

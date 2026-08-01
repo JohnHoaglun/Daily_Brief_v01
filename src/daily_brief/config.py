@@ -98,9 +98,9 @@ for cat_name, cat_info in CATEGORIES_RAW.items():
 CATEGORY_AGE_LIMITS_EFFECTIVE = CATEGORY_AGE_LIMITS
 
 # RSS and Filtering configuration from yaml
-RSS_SETTINGS = _get_nested(CONFIG_YAML, 'rss_settings') or {}
-DEFAULT_AGE_WINDOW_HOURS = RSS_SETTINGS.get('default_age_window_hours', 24)
-DEDUPE_WINDOW_HOURS = RSS_SETTINGS.get('dedupi_window_hours', 24)
+RSS_SETTINGS = _get_nested(CONFIG_YAML, 'rss') or {}
+DEFAULT_AGE_WINDOW_HOURS = RSS_SETTINGS.get('default_age_limit_hours', 24)
+DEDUPE_WINDOW_HOURS = RSS_SETTINGS.get('dedupe_window_hours', 24)
 DEFAULT_AGE_LIMIT_HOURS = RSS_SETTINGS.get('default_age_limit_hours', 24)
 
 FILTERING_KEYWORDS = _get_nested(CONFIG_YAML, 'filtering_keywords') or {}

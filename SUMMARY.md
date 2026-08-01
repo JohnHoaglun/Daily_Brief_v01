@@ -4,6 +4,12 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.80 — A.10 Correct RSS config key and parent path
+- `src/daily_brief/config.py`: corrected RSS configuration parent from `rss_settings` to `rss`; fixed typo `dedupi_window_hours` to `dedupe_window_hours`; also corrected `DEFAULT_AGE_WINDOW_HOURS` from non-existent `default_age_window_hours` to `default_age_limit_hours`. Both `config.yaml` and `config_validator.py` already use the correct paths, so the runtime loader now matches the schema and reads the actual configured value instead of silently falling back to 24.
+- `config.py` (legacy root): applied identical corrections for consistency.
+- `tests/test_config.py`: added 3 regression tests — `test_dedupe_window_hours_custom_value` (72-hour value loads correctly), `test_dedupe_window_hours_fallback` (defaults to 24 when absent), `test_rss_settings_reads_rss_not_rss_settings` (reads `rss`, not `rss_settings`); added `_base_cfg()` helper for mock config dicts.
+- 775 tests passed, 0 failures.
+
 ### v1.0.79 — A.9 Monotonic total and per-phase timing measurements
 - `src/daily_brief/pipeline.py`: replaced all `time.time()` duration measurements with `time.monotonic()`. Phase 1–4 timings migrated. Added Phase 5 (validation) and Phase 6 (harness) timing, stored in `PHASE_TIMINGS`. Moved Phase 3 start mark before article extraction (3A) so it measures the full enrichment cycle. Added `TOTAL PIPELINE TIME` log line on both success and validation-failure paths. Existing `PROCESSING COMPLETE` metric now labeled `(Phases 1-3)` to clarify scope.
 - `tests/test_pipeline.py`: added 5 regression tests — `test_main_monotonic_phase_timings` (all 6 phases populated, positive durations), `test_main_validation_failure_has_total` (total logged on failure path), `test_main_monotonic_not_wall_clock` (source-level check: no `time.time()` calls), `test_main_phase3_includes_article_extraction` (source positions verify Phase 3 timer starts before 3A).

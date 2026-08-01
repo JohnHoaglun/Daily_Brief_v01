@@ -419,3 +419,110 @@ class TestFetchFeedHappy(TestCase):
         )
         self.assertEqual(result[0], "fail-feed")
         self.assertEqual(len(result[1]), 0)
+
+    def test_http_404_returns_empty_no_parse(self):
+        """A.8: non-success status returns empty, never parses body."""
+        parse_called = {}
+        original_parse = feedparser.parse
+
+        def capture_parse(*a, **kw):
+            parse_called["called"] = True
+            return original_parse(*a, **kw)
+
+        class FakeResp:
+            status = 404
+            async def text(self):
+                return _SAMPLE_RSS
+
+        class FakeSession:
+            def get(self, *a, **kw):
+                return _AsyncCM(FakeResp())
+
+        class _AsyncCM:
+            def __init__(self, r):
+                self._r = r
+            async def __aenter__(self):
+                return self._r
+            async def __aexit__(self, *a):
+                pass
+
+        async def run():
+            with mock.patch("daily_brief.sources.rss.feedparser", wraps=original_parse) as mp:
+                original_parse2 = feedparser.parse
+                def cap(*a, **kw):
+                    parse_called["called"] = True
+                    return original_parse2(*a, **kw)
+                mp.parse = cap
+                result = await fetch_feed(FakeSession(), "fail-feed", "https://example.com/rss", 5)
+            return result
+
+        result = asyncio.get_event_loop().run_until_complete(run())
+        self.assertEqual(result[0], "fail-feed")
+        self.assertEqual(len(result[1]), 0)
+        self.assertFalse(parse_called.get("called", False))
+
+    def test_http_503_returns_empty_no_parse(self):
+        """A.8: server-error status returns empty, never parses body."""
+        parse_called = {}
+
+        class FakeResp:
+            status = 503
+            async def text(self):
+                return _SAMPLE_RSS
+
+        class FakeSession:
+            def get(self, *a, **kw):
+                return _AsyncCM(FakeResp())
+
+        class _AsyncCM:
+            def __init__(self, r):
+                self._r = r
+            async def __aenter__(self):
+                return self._r
+            async def __aexit__(self, *a):
+                pass
+
+        async def run():
+            with mock.patch("daily_brief.sources.rss.feedparser.parse") as mp:
+                result = await fetch_feed(FakeSession(), "fail-feed", "https://example.com/rss", 5)
+                return result, mp.called
+            return (result, mp.called)
+
+        result, was_called = asyncio.get_event_loop().run_until_complete(run())
+        self.assertEqual(result[0], "fail-feed")
+        self.assertEqual(len(result[1]), 0)
+        self.assertFalse(was_called)
+
+    def test_http_error_logs_status_and_name(self):
+        """A.8: logs feed name and HTTP status in warning."""
+        import logging
+
+        class FakeResp:
+            status = 502
+            async def text(self):
+                return "error"
+
+        class FakeSession:
+            def get(self, *a, **kw):
+                return _AsyncCM(FakeResp())
+
+        class _AsyncCM:
+            def __init__(self, r):
+                self._r = r
+            async def __aenter__(self):
+                return self._r
+            async def __aexit__(self, *a):
+                pass
+
+        async def run():
+            with self.assertLogs("daily_brief.sources.rss", level=logging.WARNING) as cm:
+                result = await fetch_feed(FakeSession(), "fail-feed", "https://example.com/rss", 5)
+            return result, list(cm.records)
+
+        result, records = asyncio.get_event_loop().run_until_complete(run())
+        self.assertEqual(result[0], "fail-feed")
+        self.assertEqual(len(result[1]), 0)
+        self.assertTrue(len(records) >= 1)
+        combined = " ".join(r.getMessage() for r in records)
+        self.assertIn("fail-feed", combined)
+        self.assertIn("502", combined)

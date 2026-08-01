@@ -122,6 +122,14 @@ async def fetch_feed(
         async with session.get(
             rss_url, headers={"User-Agent": USER_AGENT}, timeout=10
         ) as resp:
+            if not 200 <= resp.status < 300:
+                logger.warning(
+                    "feed fetch failed (%s): HTTP %s (%s)",
+                    name,
+                    resp.status,
+                    rss_url,
+                )
+                return (name, [])
             text = await resp.text()
         feed = feedparser.parse(text)
         entries: List[Tuple[str, str, str, Optional[datetime]]] = []

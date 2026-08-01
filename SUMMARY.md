@@ -4,6 +4,11 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.78 — A.8 Reject and diagnose unsuccessful RSS HTTP responses
+- `src/daily_brief/sources/rss.py`: added HTTP status gate in `fetch_feed()`, rejecting non-2xx responses before `await resp.text()` and `feedparser.parse()`. Logs a warning with feed name, HTTP status, and URL; returns existing graceful-failure `(name, [])`.
+- `tests/test_sources/test_rss.py`: added 3 regression tests — `test_http_404_returns_empty_no_parse`, `test_http_503_returns_empty_no_parse`, `test_http_error_logs_status_and_name`.
+- 768 tests passed, 0 failures.
+
 ### v1.0.77 — A.7 Restore TLS verification in RSS connectivity probes
 - `src/daily_brief/connectivity.py`: removed `ssl=False` from `check_rss()` HTTP request, restoring `aiohttp`'s default TLS certificate and hostname verification for the RSS feed probe.
 - `tests/test_connectivity_extended.py`: added `test_check_rss_tls_verification_enabled` regression test under `TestCheckRSS` asserting no `ssl` keyword in `check_rss` source.

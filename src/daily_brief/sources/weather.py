@@ -1,5 +1,5 @@
 """
-Daily Brief v1.0.83 — Weather Source
+Daily Brief v1.0.84 — Weather Source
 =====================================
 NWS forecast fetch, parse, and orchestration of all weather data sources.
 """
@@ -177,7 +177,7 @@ async def fetch_weather(session: aiohttp.ClientSession, lat: float, lon: float) 
 
         # Climate normal and monthly rainfall (concurrent)
         results = await asyncio.gather(
-            _fetch_climate_normal_high(session),
+            _fetch_climate_normal_high(session, lat, lon),
             _fetch_station_monthly_rainfall(session, now_ref),
             return_exceptions=True,
         )

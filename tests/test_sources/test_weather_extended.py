@@ -284,33 +284,26 @@ class TestWeatherSourceConcurrency(TestCase):
 # ---------------------------------------------------------------------------
 
 class TestClimateEra5NoData(TestCase):
-    """climate.py lines 58-59: climate dict exists but no temperature_2m_max list → None."""
+    """climate.py: ERA5 response has no temperature_2m_max data → None (no geocoding)."""
 
     def test_era5_no_data_returns_none(self):
         """Climate response has daily key but temperature_2m_max is empty list → returns None."""
-        geo_resp = {"results": [{"latitude": 30.1, "longitude": -95.3}]}
-        # daily exists but temperature_2m_max is empty
         era5_resp = {"daily": {"temperature_2m_max": []}}
 
         async def runner():
-            mock_fn = asyncio.coroutine(mock.MagicMock(side_effect=[geo_resp, era5_resp]))
+            mock_fn = asyncio.coroutine(mock.MagicMock(return_value=era5_resp))
             with mock.patch("daily_brief.sources.climate._fetch_json", mock_fn):
-                return await _fetch_climate_normal_high(mock.MagicMock())
+                return await _fetch_climate_normal_high(mock.MagicMock(), 30.286, -95.566)
         result = asyncio.get_event_loop().run_until_complete(runner())
         self.assertIsNone(result)
 
     def test_era5_empty_climate_dict(self):
-        """climate.py lines 58-59: ERA5 returns empty dict (not None) → if not climate → None."""
-        geo_resp = {"results": [{"latitude": 30.1, "longitude": -95.3}]}
+        """ERA5 returns empty dict (not None) → if not climate → None."""
 
         async def runner():
-            async def mock_fetch_json(session, url, **k):
-                if "geocoding" in url:
-                    return geo_resp
-                return {}  # Empty dict → triggers line 58-59
-            mock_fn = asyncio.coroutine(mock.MagicMock(side_effect=mock_fetch_json))
+            mock_fn = asyncio.coroutine(mock.MagicMock(return_value={}))
             with mock.patch("daily_brief.sources.climate._fetch_json", mock_fn):
-                return await _fetch_climate_normal_high(mock.MagicMock())
+                return await _fetch_climate_normal_high(mock.MagicMock(), 30.286, -95.566)
         result = asyncio.get_event_loop().run_until_complete(runner())
         self.assertIsNone(result)
 

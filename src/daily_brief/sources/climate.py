@@ -1,5 +1,5 @@
 """
-Daily Brief v1.0.13 — Climate Sources
+Daily Brief v1.0.84 — Climate Sources
 ======================================
 Climate data fetching and parsing functions extracted from the monolith.
 """
@@ -22,24 +22,16 @@ logger = logging.getLogger(__name__)
 
 async def _fetch_climate_normal_high(
     session: aiohttp.ClientSession,
+    lat: float,
+    lon: float,
 ) -> Optional[int]:
     """Fetch the historical average high temperature for today's date from Open-Meteo ERA5.
 
     Returns the climate normal (long-term average) for this calendar date — NOT today's forecast.
+    Coordinates are provided by the caller to avoid a per-run geocoding request.
     """
     today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     try:
-        geo_url = "https://geocoding-api.open-meteo.com/v1/search"
-        geo = await _fetch_json(
-            session,
-            geo_url,
-            **{"params": {"name": "77316", "count": 1, "language": "en", "format": "json"}, "timeout": 10},
-        )
-        if not geo or not geo.get("results"):
-            return None
-        lat = geo["results"][0]["latitude"]
-        lon = geo["results"][0]["longitude"]
-
         archive_url = "https://archive-api.open-meteo.com/v1/era5"
         params: Dict[str, Any] = {
             "latitude": lat,

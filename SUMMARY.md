@@ -4,6 +4,13 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.84 — B.4 Eliminate per-run Open-Meteo ZIP geocoding
+- `src/daily_brief/sources/climate.py`: `_fetch_climate_normal_high()` now accepts `lat` and `lon` parameters from the caller instead of hardcoding ZIP `77316` and hitting the Open-Meteo geocoding API every run. Geocoding request removed entirely; ERA5 request built directly with supplied coordinates. Preserves existing timeout, exception handling, empty-response behavior, temperature rounding, and debug logging.
+- `src/daily_brief/sources/weather.py`: `fetch_weather()` forwards its existing `lat` and `lon` parameters to `_fetch_climate_normal_high()` in the concurrent gather. Weather orchestration, concurrency, and deterministic fallback merge semantics unchanged.
+- `tests/test_sources/test_climate.py`: simplified to single-response mocks (no geocoding). Removed geocoding-specific fixtures. Added `test_single_era5_request` (confirms one request, no geocoding URL) and `test_coordinates_passed_to_request` (confirms archive API URL used with supplied coordinates). 19 climate tests total.
+- `tests/test_sources/test_weather_extended.py`: adapted `TestClimateEra5NoData` to pass coordinates. Tests now expect single ERA5 response.
+- 770 tests passed, 0 failures. config validate PASS.
+
 ### v1.0.83 — B.3 Eliminate redundant Wunderground dashboard request
 - `src/daily_brief/sources/weather.py`: removed `_fetch_station_metrics` from imports and `asyncio.gather()` in `fetch_weather()`. The weather gather now fetches only 2 independent sources: `_fetch_climate_normal_high()` and `_fetch_station_monthly_rainfall()`. Station data is initialized with the standard empty payload shape (`avg_temp_today: None`, `avg_monthly_rainfall: None`, `current_monthly_rainfall: None`), then populated from the remaining sources. Eliminates one Wunderground dashboard HTTP request per weather run. Bumped module header to v1.0.83.
 - `src/daily_brief/sources/wunderground.py`: `_fetch_station_metrics()` is now a no-op returning the established empty station payload; it no longer calls `_fetch_text` or `BeautifulSoup`. The function is retained for API stability and regression testing.

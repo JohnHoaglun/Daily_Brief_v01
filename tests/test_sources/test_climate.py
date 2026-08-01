@@ -21,10 +21,7 @@ from daily_brief.sources.climate import (
 # ---------------------------------------------------------------------------
 
 class TestFetchClimateNormalHigh(TestCase):
-    """Open-Meteo ERA5 climate normal high temperature fetch."""
-
-    def _geo_resp(self, lat=30.1, lon=-95.3):
-        return {"results": [{"latitude": lat, "longitude": lon}]}
+    """Open-Meteo ERA5 climate normal high temperature fetch (no geocoding)."""
 
     def _era5_resp(self, temp=91.4):
         return {"daily": {"temperature_2m_max": [temp]}}
@@ -35,61 +32,46 @@ class TestFetchClimateNormalHigh(TestCase):
     def _era5_no_daily(self):
         return {"other": True}
 
-    async def _run(self, geo_result, era5_result=None):
-        responses = [geo_result]
-        if era5_result is not None:
-            responses.append(era5_result)
+    async def _run(self, era5_result, lat=30.1, lon=-95.3):
         mock_fn = asyncio.coroutine(
-            mock.MagicMock(side_effect=responses)
+            mock.MagicMock(return_value=era5_result)
         )
         with mock.patch("daily_brief.sources.climate._fetch_json", mock_fn):
-            return await _fetch_climate_normal_high(mock.MagicMock())
+            return await _fetch_climate_normal_high(mock.MagicMock(), lat, lon)
 
     def test_happy_path_rounds_temp(self):
         async def run():
-            return await self._run(self._geo_resp(), self._era5_resp(91.4))
+            return await self._run(self._era5_resp(91.4))
         result = asyncio.get_event_loop().run_until_complete(run())
         self.assertEqual(result, 91)
 
     def test_rounds_down(self):
         async def run():
-            return await self._run(self._geo_resp(), self._era5_resp(88.2))
+            return await self._run(self._era5_resp(88.2))
         result = asyncio.get_event_loop().run_until_complete(run())
         self.assertEqual(result, 88)
 
     def test_rounds_up(self):
         async def run():
-            return await self._run(self._geo_resp(), self._era5_resp(95.6))
+            return await self._run(self._era5_resp(95.6))
         result = asyncio.get_event_loop().run_until_complete(run())
         self.assertEqual(result, 96)
 
-    def test_no_geo_results(self):
-        async def run():
-            return await self._run({"results": []})
-        result = asyncio.get_event_loop().run_until_complete(run())
-        self.assertIsNone(result)
-
-    def test_geo_none_response(self):
+    def test_era5_none_response(self):
         async def run():
             return await self._run(None)
         result = asyncio.get_event_loop().run_until_complete(run())
         self.assertIsNone(result)
 
-    def test_era5_none_response(self):
-        async def run():
-            return await self._run(self._geo_resp(), None)
-        result = asyncio.get_event_loop().run_until_complete(run())
-        self.assertIsNone(result)
-
     def test_era5_empty_temps_list(self):
         async def run():
-            return await self._run(self._geo_resp(), self._era5_resp_empty())
+            return await self._run(self._era5_resp_empty())
         result = asyncio.get_event_loop().run_until_complete(run())
         self.assertIsNone(result)
 
     def test_era5_no_daily_key(self):
         async def run():
-            return await self._run(self._geo_resp(), self._era5_no_daily())
+            return await self._run(self._era5_no_daily())
         result = asyncio.get_event_loop().run_until_complete(run())
         self.assertIsNone(result)
 
@@ -99,39 +81,38 @@ class TestFetchClimateNormalHigh(TestCase):
         mock_fn = asyncio.coroutine(mock.MagicMock(side_effect=failing))
         with mock.patch("daily_brief.sources.climate._fetch_json", mock_fn):
             result = asyncio.get_event_loop().run_until_complete(
-                _fetch_climate_normal_high(mock.MagicMock())
+                _fetch_climate_normal_high(mock.MagicMock(), 30.286, -95.566)
             )
         self.assertIsNone(result)
 
-    def test_geo_url_used(self):
+    def test_single_era5_request(self):
         urls = []
         async def capture(session, url, **k):
             urls.append(url)
-            return {"results": []}
-        mock_fn = asyncio.coroutine(mock.MagicMock(side_effect=capture))
-        with mock.patch("daily_brief.sources.climate._fetch_json", mock_fn):
-            asyncio.get_event_loop().run_until_complete(
-                _fetch_climate_normal_high(mock.MagicMock())
-            )
-        # No geo results, so only one call (the geocoding request)
-        self.assertEqual(len(urls), 1)
-        self.assertIn("geocoding-api.open-meteo.com", urls[0])
-
-    def test_archive_url_used_after_geo(self):
-        urls = []
-        async def capture(session, url, **k):
-            urls.append(url)
-            if "geocoding" in url:
-                return self._geo_resp()
             return self._era5_resp(85.0)
         mock_fn = asyncio.coroutine(mock.MagicMock(side_effect=capture))
         with mock.patch("daily_brief.sources.climate._fetch_json", mock_fn):
             result = asyncio.get_event_loop().run_until_complete(
-                _fetch_climate_normal_high(mock.MagicMock())
+                _fetch_climate_normal_high(mock.MagicMock(), 30.286, -95.566)
             )
-        self.assertEqual(len(urls), 2)
-        self.assertIn("archive-api.open-meteo.com", urls[1])
+        self.assertEqual(len(urls), 1)
+        self.assertIn("archive-api.open-meteo.com", urls[0])
+        self.assertNotIn("geocoding", urls[0])
         self.assertEqual(result, 85)
+
+    def test_coordinates_passed_to_request(self):
+        urls = []
+        async def capture(session, url, **k):
+            urls.append(url)
+            return self._era5_resp(90.0)
+        mock_fn = asyncio.coroutine(mock.MagicMock(side_effect=capture))
+        with mock.patch("daily_brief.sources.climate._fetch_json", mock_fn):
+            asyncio.get_event_loop().run_until_complete(
+                _fetch_climate_normal_high(mock.MagicMock(), 30.286, -95.566)
+            )
+        # Verify the URL contains the archive API
+        self.assertEqual(len(urls), 1)
+        self.assertIn("archive-api.open-meteo.com", urls[0])
 
 
 # ---------------------------------------------------------------------------

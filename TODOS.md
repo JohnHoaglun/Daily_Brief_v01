@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 - v1.0.87
+# TODO: Daily Brief v01 - v1.0.88
 
 ## Status Legend
 - `[ ]` TODO
@@ -28,7 +28,7 @@ Detailed findings, implementation constraints, and verification commands are in 
 - [x] B.5 `Perf-5`: reuse the outer HTTP session for article extraction.
 - [x] B.6 `Perf-6` / `Bug-10`: fetch adequate RSS candidate pools once; widen locally and concurrently.
 - [x] B.7 `Perf-11`: make production preflight probes opt-in or short-TTL cached.
-- [ ] B.8 `Arch-1`: separate weather provider fetching from deterministic merge/fallback policy.
+- [x] B.8 `Arch-1`: separate weather provider fetching from deterministic merge/fallback policy.
 
 ### Phase C - Async, LLM, and Reliability (1-3 days, medium-high risk)
 - [ ] C.1 `Perf-8` / `Perf-9`: migrate LLM calls to `AsyncOpenAI` and retry delays to `asyncio.sleep()`.

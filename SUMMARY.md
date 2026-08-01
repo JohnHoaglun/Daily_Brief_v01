@@ -4,6 +4,12 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.88 — B.8 Separate weather provider fetching from merge/fallback policy (Arch-1)
+- `src/daily_brief/sources/weather.py`: extracted `fetch_nws_forecast()` for NWS request and forecast parsing; extracted `fetch_lakes()` for bounded concurrent lake retrieval; added pure `merge_weather_data()` for deterministic station formatting, fallback, unavailable defaults, rainfall suppression, and error/lake order preservation; reduced `fetch_weather()` to async collector that independently runs NWS, ERA5/rainfall (concurrent), and lakes, then calls the merger once. NWS failure no longer prevents ERA5, rainfall, or lake collection. Bumped module header to v1.0.88.
+- `tests/test_sources/test_weather.py`: updated `test_exception_during_fetch` to reflect new independent collection behavior — NWS failure produces empty forecast without polluting errors.
+- `tests/test_sources/test_weather_provider_isolation.py`: new file with 20 tests covering NWS failure with independent collection (3), individual climate/rainfall failures (3), pure merge policy (11: full data, ERA5 high/low fallback, Unavailable, rainfall formatting, equal-suppression, invalid payload normalization, lake/error ordering), lake concurrency/order/isolation (3), and NWS URL construction (1).
+- 813 tests passed, 0 failures. config validate PASS.
+
 ### v1.0.87 — B.7 Make preflight probes opt-in (Perf-11)
 - `src/daily_brief/pipeline.py`: gated the `run_all_checks()` invocation with `PREFLIGHT_CHECKS_ENABLED`. When disabled, emits a skip message to stderr and skips all three preflight probes (LLM, RSS, weather), eliminating redundant network traffic on every pipeline run.
 - `src/daily_brief/config.py`: added `PREFLIGHT_CHECKS_ENABLED` loader (`runtime.preflight_checks_enabled`, default `True`).

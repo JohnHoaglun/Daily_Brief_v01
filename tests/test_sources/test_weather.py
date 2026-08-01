@@ -376,7 +376,7 @@ class TestFetchWeatherEdgeCases(TestCase):
                 with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
                     result = asyncio.get_event_loop().run_until_complete(fetch_weather(None, 30.286, -95.566))
         self.assertEqual(len(result["forecast"]), 0)
-        self.assertIn("DNS failure", result["errors"][0])
+        self.assertEqual(len(result["errors"]), 0)
 
     def test_point_url_constructed_from_lat_lon(self):
         calls = []

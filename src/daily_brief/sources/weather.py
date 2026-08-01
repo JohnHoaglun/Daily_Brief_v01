@@ -1,5 +1,5 @@
 """
-Daily Brief v1.0.84 — Weather Source
+Daily Brief v1.0.88 — Weather Source
 =====================================
 NWS forecast fetch, parse, and orchestration of all weather data sources.
 """
@@ -10,7 +10,7 @@ import asyncio
 import logging
 import re
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
 import aiohttp
@@ -88,30 +88,28 @@ def _parse_date_for_weather(raw_value: Optional[str]) -> Optional[datetime]:
             return None
 
 
-async def fetch_weather(session: aiohttp.ClientSession, lat: float, lon: float) -> Dict[str, Any]:
-    """Fetch all required weather data blocks used by the Weather section."""
-    now_ref = get_reference_datetime()
-    logger.debug("[fetch_weather] Entering weather fetch")
-    weather_data: Dict[str, Any] = {
-        "forecast": [],
-        "station": {"avg_temp_today": None, "avg_monthly_rainfall": None, "current_monthly_rainfall": None},
-        "lakes": {},
-        "errors": [],
-    }
+async def fetch_nws_forecast(
+    session: aiohttp.ClientSession, lat: float, lon: float, reference: datetime
+) -> List[Dict[str, Any]]:
+    """Fetch and parse NWS forecast data from point lookup.
+    
+    Returns parsed forecast rows or empty list on any parsing failure.
+    Does NOT construct full weather_data output.
+    """
+    weather_point_url = WEATHER_POINT_URL.format(lat=lat, lon=lon)
+    logger.debug(f"[fetch_nws_forecast] Point URL: {weather_point_url}")
     try:
-        weather_point_url = WEATHER_POINT_URL.format(lat=lat, lon=lon)
-        logger.debug(f"[fetch_weather] Point URL: {weather_point_url}")
         point = await _fetch_json(session, weather_point_url, user_agent=USER_AGENT)
         if not isinstance(point, dict) or "properties" not in point:
-            logger.warning("[fetch_weather] Point response invalid or missing properties")
-            return weather_data
+            logger.warning("[fetch_nws_forecast] Point response invalid or missing properties")
+            return []
 
         fc_url = point["properties"].get("forecast")
         if not fc_url:
             fc_url = WEATHER_POINT_URL.split("?")[0] + WEATHER_POINT_FORECAST_SUFFIX
         if WEATHER_POINT_FORECAST_SUFFIX and not fc_url.rstrip("/").endswith(WEATHER_POINT_FORECAST_SUFFIX):
             fc_url = fc_url.rstrip("/") + f"/{WEATHER_POINT_FORECAST_SUFFIX}"
-        logger.debug(f"[fetch_weather] Forecast URL: {fc_url}")
+        logger.debug(f"[fetch_nws_forecast] Forecast URL: {fc_url}")
         forecast_payload = await _fetch_json(session, fc_url, user_agent=USER_AGENT)
         if isinstance(forecast_payload, dict):
             periods = forecast_payload.get("properties", {}).get("periods", []) or []
@@ -139,15 +137,16 @@ async def fetch_weather(session: aiohttp.ClientSession, lat: float, lon: float) 
                     return None
                 return min(slots, key=lambda it: abs((it[0].date() - day_dt.date()).days))[1]
 
+            forecast_rows: List[Dict[str, Any]] = []
             for offset in range(3):
-                row_date = now_ref.date() + timedelta(days=offset)
+                row_date = reference.date() + timedelta(days=offset)
                 day_slot = by_date.get(row_date, {})
                 day = day_slot.get("day", {})
                 night = day_slot.get("night", {})
                 if not day:
-                    day = _nearest_for_day(datetime.combine(row_date, datetime.min.time(), tzinfo=_ACTIVE_TIMEZONE), day_periods) or {}
+                    day = _nearest_for_day(datetime.combine(row_date, datetime.min.time(), tzinfo=_ACTIVE_TIMEZONE), day_periods) or {}  # type: ignore[arg-type]
                 if not night:
-                    night = _nearest_for_day(datetime.combine(row_date, datetime.min.time(), tzinfo=_ACTIVE_TIMEZONE), night_periods) or {}
+                    night = _nearest_for_day(datetime.combine(row_date, datetime.min.time(), tzinfo=_ACTIVE_TIMEZONE), night_periods) or {}  # type: ignore[arg-type]
 
                 wind_speed = None
                 wind_dir = None
@@ -158,7 +157,7 @@ async def fetch_weather(session: aiohttp.ClientSession, lat: float, lon: float) 
                 if wind and wind_dir:
                     wind = f"{wind} {wind_dir}"
                 row = {
-                    "date": get_weather_label_for_offset(now_ref, offset),
+                    "date": get_weather_label_for_offset(reference, offset),
                     "day": _safe_text((day or {}).get("shortForecast"), "Dynamic"),
                     "night": _safe_text((night or {}).get("shortForecast"), _safe_text((day or {}).get("shortForecast"), "Dynamic")),
                     "high": _safe_text((day or {}).get("temperature"), "Dynamic"),
@@ -170,12 +169,188 @@ async def fetch_weather(session: aiohttp.ClientSession, lat: float, lon: float) 
                 row["low"] = f"{row['low']}°{night.get('temperatureUnit', day.get('temperatureUnit', 'F'))}" if row["low"] != "Dynamic" else "Dynamic"
                 if row["precip"] and row["precip"] != "Dynamic":
                     row["precip"] = f"{row['precip']}%"
-                weather_data["forecast"].append(row)
-            logger.debug(f"Weather forecast rows: {len(weather_data['forecast'])}")
+                forecast_rows.append(row)
+            logger.debug(f"Weather forecast rows: {len(forecast_rows)}")
+            return forecast_rows
         else:
-            logger.warning("[fetch_weather] Forecast payload was not a dict; skipping period parse")
+            logger.warning("[fetch_nws_forecast] Forecast payload was not a dict; skipping period parse")
+            return []
+    except Exception as e:
+        logger.warning(f"[fetch_nws_forecast] NWS fetch failed: {e}")
+        return []
 
-        # Climate normal and monthly rainfall (concurrent)
+
+async def _fetch_lake(
+    session: aiohttp.ClientSession, key: str, url: str, now_ref: datetime, sem: asyncio.Semaphore
+) -> Tuple[str, Optional[Dict[str, Any]], Optional[Exception]]:
+    """Fetch a single lake value with semaphore bound.
+    
+    Returns (key, result_dict_or_none, exception_or_none).
+    """
+    try:
+        async with sem:
+            result = await _extract_lake_value(session, key, url, now_ref)
+        return (key, result, None)
+    except Exception as e:
+        logger.warning(f"[fetch_weather] Lake fetch failed ({key}): {e}")
+        return (key, None, e)
+
+
+async def fetch_lakes(
+    session: aiohttp.ClientSession, now_ref: datetime
+) -> Tuple[Dict[str, Dict[str, Any]], List[str]]:
+    """Fetch all lake values concurrently with bounded concurrency.
+    
+    Returns (lakes_dict, errors_list).
+    Preserves configured lake ordering in output dict.
+    """
+    _MAX_CONCURRENT_LAKE_FETCHES = 3
+    _LAKE_UNAVAILABLE = {"today": None, "one_week_ago": None, "thirty_days_ago": None}
+    lake_items = list((WEATHER_LAKE_URLS or {}).items())
+
+    semaphore = asyncio.Semaphore(_MAX_CONCURRENT_LAKE_FETCHES)
+    results = await asyncio.gather(
+        *(_fetch_lake(session, k, u, now_ref, semaphore) for k, u in lake_items),
+        return_exceptions=True,
+    )
+    
+    lakes: Dict[str, Dict[str, Any]] = {}
+    errors: List[str] = []
+    
+    for i, item_result in enumerate(results):
+        key = lake_items[i][0]
+        if isinstance(item_result, Exception):
+            # The entire gather result was an exception
+            errors.append(f"lake:{key}:{item_result}")
+            lakes[key] = dict(_LAKE_UNAVAILABLE)
+        else:
+            # Tuple result
+            try:
+                k, result, exc = item_result
+                if exc:
+                    errors.append(f"lake:{key}:{exc}")
+                    lakes[key] = dict(_LAKE_UNAVAILABLE)
+                else:
+                    lakes[key] = result or dict(_LAKE_UNAVAILABLE)
+            except (TypeError, ValueError):
+                # Malformed result
+                errors.append(f"lake:{key}:unexpected result")
+                lakes[key] = dict(_LAKE_UNAVAILABLE)
+        logger.debug(f"[fetch_weather] Completed lake fetch: {key}")
+        logger.debug(
+            f"Lake {key}: "
+            f"today={lakes[key].get('today')} "
+            f"one_week_ago={lakes[key].get('one_week_ago')} "
+            f"thirty_days_ago={lakes[key].get('thirty_days_ago')}"
+        )
+
+    return lakes, errors
+
+
+def merge_weather_data(
+    forecast: List[Dict[str, Any]],
+    climate_high: Optional[int],
+    station_monthly: Dict[str, Any],
+    lakes: Dict[str, Dict[str, Any]],
+    errors: List[str],
+) -> Dict[str, Any]:
+    """Pure deterministic merge of weather provider outputs.
+    
+    Owns:
+    - Station data formatting (ERA5 normal high, rainfall values)
+    - Forecast fallback when ERA5 is unavailable
+    - Equal rainfall suppression
+    - "Unavailable" defaults
+    """
+    weather_data: Dict[str, Any] = {
+        "forecast": list(forecast),  # type: ignore[attr-defined]
+        "station": {
+            "avg_temp_today": None,
+            "avg_monthly_rainfall": None,
+            "current_monthly_rainfall": None,
+        },
+        "lakes": dict(lakes),
+        "errors": list(errors),
+    }
+    
+    # Normalize station_monthly
+    if not isinstance(station_monthly, dict):
+        station_monthly = {"avg_monthly_rainfall": None, "current_monthly_rainfall": None}
+    
+    # Populate station data deterministically
+    if climate_high is not None:
+        weather_data["station"]["avg_temp_today"] = f"{climate_high}°F"
+    logger.debug(
+        "Weather station data: "
+        f"avg_temp_today={weather_data['station'].get('avg_temp_today', 'Dynamic')} "
+        f"avg_monthly_rainfall={weather_data['station'].get('avg_monthly_rainfall', 'Dynamic')} "
+        f"current_monthly_rainfall={weather_data['station'].get('current_monthly_rainfall', 'Dynamic')}"
+    )
+    logger.debug(
+        "Station monthly rainfall: "
+        f"avg={station_monthly.get('avg_monthly_rainfall', 'Dynamic')} "
+        f"current={station_monthly.get('current_monthly_rainfall', 'Dynamic')}"
+    )
+    if station_monthly.get("avg_monthly_rainfall") and not weather_data["station"].get("avg_monthly_rainfall"):
+        weather_data["station"]["avg_monthly_rainfall"] = f"{station_monthly['avg_monthly_rainfall']} Inches"
+    if station_monthly.get("current_monthly_rainfall") and not weather_data["station"].get("current_monthly_rainfall"):
+        weather_data["station"]["current_monthly_rainfall"] = f"{station_monthly['current_monthly_rainfall']} Inches"
+
+    # Fallback: use forecast high if climate normal failed
+    station = weather_data["station"]
+    if not station.get("avg_temp_today") and forecast:
+        logger.debug("[fetch_weather] Climate normal unavailable, falling back to forecast high")
+        first_row = forecast[0]
+        temp_candidates = [first_row.get("high"), first_row.get("low")]
+        for val in temp_candidates:
+            m = re.search(r"(-?\d+(?:\.\d+)?)", _safe_text(val, ""))
+            if m:
+                station["avg_temp_today"] = f"{m.group(0)}°F (forecast fallback)"
+                break
+    if station.get("avg_monthly_rainfall") == station.get("current_monthly_rainfall"):
+        station["current_monthly_rainfall"] = None
+    for key in ("avg_temp_today", "avg_monthly_rainfall", "current_monthly_rainfall"):
+        if not station.get(key):
+            station[key] = "Unavailable"
+
+    has_fallback = any("(forecast fallback)" in str(station.get(k, "")) for k in ("avg_temp_today",))
+    has_missing = any(station.get(k) == "Unavailable" for k in ("avg_temp_today", "avg_monthly_rainfall", "current_monthly_rainfall"))
+
+    if has_fallback or has_missing:
+        logger.debug(
+            "[fetch_weather] Station data (partial/missing): "
+            f"avg_temp_today={station.get('avg_temp_today')} "
+            f"avg_monthly_rainfall={station.get('avg_monthly_rainfall')} "
+            f"current_monthly_rainfall={station.get('current_monthly_rainfall')}"
+        )
+    else:
+        logger.debug(
+            "[fetch_weather] Station data complete: "
+            f"avg_temp_today={station.get('avg_temp_today')} "
+            f"avg_monthly_rainfall={station.get('avg_monthly_rainfall')} "
+            f"current_monthly_rainfall={station.get('current_monthly_rainfall')}"
+        )
+
+    return weather_data
+
+
+async def fetch_weather(session: aiohttp.ClientSession, lat: float, lon: float) -> Dict[str, Any]:
+    """Fetch all required weather data blocks used by the Weather section.
+    
+    Collector: concurrently fetches NWS, climate normal, monthly rainfall, and lakes.
+    Orchestrates: calls merge_weather_data once with collected provider outputs.
+    """
+    now_ref = get_reference_datetime()
+    logger.debug("[fetch_weather] Entering weather fetch")
+    weather_data: Dict[str, Any] = {
+        "forecast": [],
+        "station": {"avg_temp_today": None, "avg_monthly_rainfall": None, "current_monthly_rainfall": None},
+        "lakes": {},
+        "errors": [],
+    }
+    try:
+        # Concurrent collection of all providers
+        nws_result = await fetch_nws_forecast(session, lat, lon, now_ref)
         results = await asyncio.gather(
             _fetch_climate_normal_high(session, lat, lon),
             _fetch_station_monthly_rainfall(session, now_ref),
@@ -183,100 +358,17 @@ async def fetch_weather(session: aiohttp.ClientSession, lat: float, lon: float) 
         )
         climate_high = results[0] if not isinstance(results[0], Exception) else None
         station_monthly = results[1] if not isinstance(results[1], Exception) else {"avg_monthly_rainfall": None, "current_monthly_rainfall": None}
-        weather_data["station"] = {
-            "avg_temp_today": None,
-            "avg_monthly_rainfall": None,
-            "current_monthly_rainfall": None,
-        }
+        lakes, lake_errors = await fetch_lakes(session, now_ref)
         logger.debug("[fetch_weather] Completed climate/monthly fetch")
 
-        # Populate station data deterministically
-        if climate_high is not None:
-            weather_data["station"]["avg_temp_today"] = f"{climate_high}°F"
-        logger.debug(
-            "Weather station data: "
-            f"avg_temp_today={weather_data['station'].get('avg_temp_today', 'Dynamic')} "
-            f"avg_monthly_rainfall={weather_data['station'].get('avg_monthly_rainfall', 'Dynamic')} "
-            f"current_monthly_rainfall={weather_data['station'].get('current_monthly_rainfall', 'Dynamic')}"
-        )
-        logger.debug(
-            "Station monthly rainfall: "
-            f"avg={station_monthly.get('avg_monthly_rainfall', 'Dynamic')} "
-            f"current={station_monthly.get('current_monthly_rainfall', 'Dynamic')}"
-        )
-        if station_monthly.get("avg_monthly_rainfall") and not weather_data["station"].get("avg_monthly_rainfall"):
-            weather_data["station"]["avg_monthly_rainfall"] = f"{station_monthly['avg_monthly_rainfall']} Inches"
-        if station_monthly.get("current_monthly_rainfall") and not weather_data["station"].get("current_monthly_rainfall"):
-            weather_data["station"]["current_monthly_rainfall"] = f"{station_monthly['current_monthly_rainfall']} Inches"
-
-        # Fallback: use forecast high if climate normal failed
-        if weather_data["station"]:
-            station = weather_data["station"]
-            if not station.get("avg_temp_today") and weather_data["forecast"]:
-                logger.debug("[fetch_weather] Climate normal unavailable, falling back to forecast high")
-                first_row = weather_data["forecast"][0]
-                temp_candidates = [first_row.get("high"), first_row.get("low")]
-                for val in temp_candidates:
-                    m = re.search(r"(-?\d+(?:\.\d+)?)", _safe_text(val, ""))
-                    if m:
-                        station["avg_temp_today"] = f"{m.group(0)}°F (forecast fallback)"
-                        break
-            if station.get("avg_monthly_rainfall") == station.get("current_monthly_rainfall"):
-                station["current_monthly_rainfall"] = None
-            for key in ("avg_temp_today", "avg_monthly_rainfall", "current_monthly_rainfall"):
-                if not station.get(key):
-                    station[key] = "Unavailable"
-
-            has_fallback = any("(forecast fallback)" in str(station.get(k, "")) for k in ("avg_temp_today",))
-            has_missing = any(station.get(k) == "Unavailable" for k in ("avg_temp_today", "avg_monthly_rainfall", "current_monthly_rainfall"))
-
-            if has_fallback or has_missing:
-                logger.debug(
-                    "[fetch_weather] Station data (partial/missing): "
-                    f"avg_temp_today={station.get('avg_temp_today')} "
-                    f"avg_monthly_rainfall={station.get('avg_monthly_rainfall')} "
-                    f"current_monthly_rainfall={station.get('current_monthly_rainfall')}"
-                )
-            else:
-                logger.debug(
-                    "[fetch_weather] Station data complete: "
-                    f"avg_temp_today={station.get('avg_temp_today')} "
-                    f"avg_monthly_rainfall={station.get('avg_monthly_rainfall')} "
-                    f"current_monthly_rainfall={station.get('current_monthly_rainfall')}"
-                )
-
-        # Lake levels (concurrent, bounded)
-        _MAX_CONCURRENT_LAKE_FETCHES = 3
-        _LAKE_UNAVAILABLE = {"today": None, "one_week_ago": None, "thirty_days_ago": None}
-        lake_items = list((WEATHER_LAKE_URLS or {}).items())
-
-        async def _fetch_lake(key: str, url: str, sem: asyncio.Semaphore) -> str:
-            async with sem:
-                return await _extract_lake_value(session, key, url, now_ref)
-
-        semaphore = asyncio.Semaphore(_MAX_CONCURRENT_LAKE_FETCHES)
-        results = await asyncio.gather(
-            *(_fetch_lake(k, u, semaphore) for k, u in lake_items),
-            return_exceptions=True,
-        )
-        for i, item_result in enumerate(results):
-            key = lake_items[i][0]
-            if isinstance(item_result, Exception):
-                logger.warning(f"[fetch_weather] Lake fetch failed ({key}): {item_result}")
-                weather_data["errors"].append(f"lake:{key}:{item_result}")
-                weather_data["lakes"][key] = dict(_LAKE_UNAVAILABLE)
-            else:
-                weather_data["lakes"][key] = item_result
-            logger.debug(f"[fetch_weather] Completed lake fetch: {key}")
-            logger.debug(
-                f"Lake {key}: "
-                f"today={weather_data['lakes'][key].get('today')} "
-                f"one_week_ago={weather_data['lakes'][key].get('one_week_ago')} "
-                f"thirty_days_ago={weather_data['lakes'][key].get('thirty_days_ago')}"
-            )
+        # Merge all data deterministically
+        weather_data = merge_weather_data(nws_result, climate_high, station_monthly, lakes, lake_errors)
 
     except Exception as e:
         logger.warning(f"Weather fetch failed ({e})")
         weather_data["errors"].append(str(e))
 
     return weather_data
+
+
+

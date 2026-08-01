@@ -4,6 +4,24 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.83 — B.3 Eliminate redundant Wunderground dashboard request
+- `src/daily_brief/sources/weather.py`: removed `_fetch_station_metrics` from imports and `asyncio.gather()` in `fetch_weather()`. The weather gather now fetches only 2 independent sources: `_fetch_climate_normal_high()` and `_fetch_station_monthly_rainfall()`. Station data is initialized with the standard empty payload shape (`avg_temp_today: None`, `avg_monthly_rainfall: None`, `current_monthly_rainfall: None`), then populated from the remaining sources. Eliminates one Wunderground dashboard HTTP request per weather run. Bumped module header to v1.0.83.
+- `src/daily_brief/sources/wunderground.py`: `_fetch_station_metrics()` is now a no-op returning the established empty station payload; it no longer calls `_fetch_text` or `BeautifulSoup`. The function is retained for API stability and regression testing.
+- `tests/test_sources/test_wunderground.py`: replaced `TestFetchStationMetrics` (10 tests for old dashboard scraping behavior) with `TestFetchStationMetricsNoOp` (2 tests: verifies empty payload shape, verifies no `_fetch_text` call).
+- `tests/test_sources/test_weather.py`: removed all 6 `_fetch_station_metrics` mock patches from 6 test methods. Tests now mock only `_fetch_climate_normal_high` and `_fetch_station_monthly_rainfall`.
+- `tests/test_sources/test_weather_extended.py`: removed all 5 `_fetch_station_metrics` mock patches. Updated `TestWeatherSourceConcurrency` docstring and assertion — verifies 2 concurrent fetches (climate + monthly rainfall) instead of 3.
+- 772 tests passed, 0 failures. config validate PASS.
+
+### v1.0.82 — B.2 Concurrent weather source fetching with `asyncio.gather()`
+- `src/daily_brief/sources/weather.py`: replaced the serial weather source fetches (`_fetch_station_metrics`, `_fetch_climate_normal_high`, `_fetch_station_monthly_rainfall`) with `asyncio.gather(return_exceptions=True)` for concurrent execution. Added per-source exception isolation — failed individual sources receive default unavailable values without crashing the full weather fetch. Station data merge logic (forecast fallback for avg_temp_today, station_monthly rain fallback) preserved post-gather. Retains existing fallback merge behavior between station metrics, climate normals, and monthly rainfall.
+- `tests/test_sources/test_weather_extended.py`: added `TestWeatherSourceConcurrency` class with `test_sources_fetch_concurrently` — uses timing tracker to verify that station metrics, climate normal, and monthly rainfall coroutines are active concurrently (at least 2 simultaneous).
+- 779 tests passed, 0 failures. config validate PASS.
+
+### v1.0.81 — B.1 Concurrent lake fetching with bounded semaphore
+- `src/daily_brief/sources/weather.py`: replaced the serial lake-fetch loop with `asyncio.gather()` + `asyncio.Semaphore(3)` for bounded concurrency. Snapshot `WEATHER_LAKE_URLS.items()` into a list to fix submission order before scheduling tasks. Merge results in configuration order, not completion order. Added per-lake failure isolation: individual exceptions do not crash the lake loop; the failed lake receives the unavailable-shaped result `(today: None, one_week_ago: None, thirty_days_ago: None)` and the error is recorded in `weather_data["errors"]`. Added `import asyncio`.
+- `tests/test_sources/test_weather_extended.py`: added `TestWeatherLakeConcurrency` class with 3 regression tests — `test_sequential_limit_bounded` (peak concurrent lake fetches never exceed the semaphore bound of 3), `test_output_order_stable` (lakes finishing out of order still appear in configuration order), `test_one_lake_failure_isolated` (one raising lake does not drop other results and records an error).
+- 778 tests passed, 0 failures. config validate PASS.
+
 ### v1.0.80 — A.10 Correct RSS config key and parent path
 - `src/daily_brief/config.py`: corrected RSS configuration parent from `rss_settings` to `rss`; fixed typo `dedupi_window_hours` to `dedupe_window_hours`; also corrected `DEFAULT_AGE_WINDOW_HOURS` from non-existent `default_age_window_hours` to `default_age_limit_hours`. Both `config.yaml` and `config_validator.py` already use the correct paths, so the runtime loader now matches the schema and reads the actual configured value instead of silently falling back to 24.
 - `config.py` (legacy root): applied identical corrections for consistency.

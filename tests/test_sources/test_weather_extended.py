@@ -77,11 +77,10 @@ class TestWeatherForecastUrlSuffix(TestCase):
         mock_fn = asyncio.coroutine(mock.MagicMock(side_effect=capture_fetch))
         with mock.patch("daily_brief.sources.weather._fetch_json", mock_fn):
             with mock.patch("daily_brief.sources.weather.get_reference_datetime", return_value=self.today):
-                with mock.patch("daily_brief.sources.weather._fetch_station_metrics", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_temp_today": None, "avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
-                    with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value=None))):
-                        with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
-                            with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
-                                asyncio.get_event_loop().run_until_complete(fetch_weather(None, 30.286, -95.566))
+                with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value=None))):
+                    with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
+                        with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
+                            asyncio.get_event_loop().run_until_complete(fetch_weather(None, 30.286, -95.566))
 
         # The second call URL should have the forecast suffix appended
         self.assertEqual(len(calls), 2)
@@ -108,11 +107,10 @@ class TestWeatherForecastPayloadNotDict(TestCase):
         mock_fn = asyncio.coroutine(mock.MagicMock(side_effect=side_effect))
         with mock.patch("daily_brief.sources.weather._fetch_json", mock_fn):
             with mock.patch("daily_brief.sources.weather.get_reference_datetime", return_value=today):
-                with mock.patch("daily_brief.sources.weather._fetch_station_metrics", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_temp_today": None, "avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
-                    with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value=None))):
-                        with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
-                            with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
-                                with mock.patch("daily_brief.sources.weather.logger") as mock_logger:
+                with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value=None))):
+                    with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
+                        with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
+                            with mock.patch("daily_brief.sources.weather.logger") as mock_logger:
                                     result = asyncio.get_event_loop().run_until_complete(fetch_weather(None, 30.286, -95.566))
                                     # Line 179 warning should be called
                                     mock_logger.warning.assert_called()
@@ -144,14 +142,141 @@ class TestWeatherLakeFetchLoop(TestCase):
         mock_json = asyncio.coroutine(mock.MagicMock(side_effect=fetch_json_side))
         with mock.patch("daily_brief.sources.weather._fetch_json", mock_json):
             with mock.patch("daily_brief.sources.weather.get_reference_datetime", return_value=today):
-                with mock.patch("daily_brief.sources.weather._fetch_station_metrics", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_temp_today": None, "avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
-                    with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value=None))):
-                        with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
-                            with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", lake_urls):
-                                with mock.patch("daily_brief.sources.weather._extract_lake_value", mock_extract_lake):
+                with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value=None))):
+                    with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
+                        with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", lake_urls):
+                            with mock.patch("daily_brief.sources.weather._extract_lake_value", mock_extract_lake):
                                     result = asyncio.get_event_loop().run_until_complete(fetch_weather(None, 30.286, -95.566))
                                     self.assertIn("lake_crawford", mock_extract_lake.called_keys)
                                     self.assertIn("lake_crawford", result["lakes"])
+
+
+class TestWeatherLakeConcurrency(TestCase):
+    """B.1: Lake fetching is concurrent with bounded semaphore and stable output order."""
+
+    def _mocked_weather(self, lake_urls, extract_cb):
+        """Run fetch_weather with the given lake_urls and a mock _extract_lake_value callback."""
+        today = datetime(2026, 7, 18, tzinfo=CHICTZ)
+
+        async def fetch_json_side(*a, **k):
+            if not hasattr(fetch_json_side, "cc"):
+                fetch_json_side.cc = 0
+            fetch_json_side.cc += 1
+            return {"properties": {"forecast": "https://example.com/forecast"}} if fetch_json_side.cc == 1 else {"properties": {"periods": []}}
+
+        mock_json = asyncio.coroutine(mock.MagicMock(side_effect=fetch_json_side))
+        with mock.patch("daily_brief.sources.weather._fetch_json", mock_json):
+            with mock.patch("daily_brief.sources.weather.get_reference_datetime", return_value=today):
+                with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value=None))):
+                    with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
+                        with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", lake_urls):
+                            with mock.patch("daily_brief.sources.weather._extract_lake_value", extract_cb):
+                                    return asyncio.get_event_loop().run_until_complete(fetch_weather(None, 30.286, -95.566))
+
+    def test_sequential_limit_bounded(self):
+        """Active lake fetches never exceed 3 concurrently."""
+        lake_urls = {
+            "lake_a": "http://a",
+            "lake_b": "http://b",
+            "lake_c": "http://c",
+            "lake_d": "http://d",
+        }
+        active_lock = asyncio.Lock()
+        active_count = [0]
+        max_active = [0]
+
+        async def track_limit(session, key, url, ref):
+            async with active_lock:
+                active_count[0] += 1
+                if active_count[0] > max_active[0]:
+                    max_active[0] = active_count[0]
+            await asyncio.sleep(0.02)
+            async with active_lock:
+                active_count[0] -= 1
+            return {"today": key, "one_week_ago": None, "thirty_days_ago": None}
+
+        result = self._mocked_weather(lake_urls, track_limit)
+        self.assertLessEqual(max_active[0], 3, f"Peak concurrent fetches {max_active[0]} exceeds bound of 3")
+        self.assertEqual(len(result["lakes"]), 4)
+
+    def test_output_order_stable(self):
+        """Output order matches configuration order, not completion order."""
+        lake_urls = {"first": "http://1", "second": "http://2", "third": "http://3"}
+
+        async def out_of_order(session, key, url, ref):
+            if key == "third":
+                await asyncio.sleep(0)
+            return {"today": key, "one_week_ago": None, "thirty_days_ago": None}
+
+        result = self._mocked_weather(lake_urls, out_of_order)
+        self.assertEqual(list(result["lakes"].keys()), ["first", "second", "third"])
+        self.assertEqual(result["lakes"]["first"]["today"], "first")
+        self.assertEqual(result["lakes"]["second"]["today"], "second")
+        self.assertEqual(result["lakes"]["third"]["today"], "third")
+
+    def test_one_lake_failure_isolated(self):
+        """A single lake extraction failure does not crash weather data for other lakes."""
+        lake_urls = {"lake_a": "http://a", "lake_b": "http://b", "lake_c": "http://c"}
+
+        async def failing_once(session, key, url, ref):
+            if key == "lake_b":
+                raise RuntimeError("lake fetch failed")
+            await asyncio.sleep(0.01)
+            return {"today": f"{key}_today", "one_week_ago": f"{key}_week", "thirty_days_ago": f"{key}_month"}
+
+        result = self._mocked_weather(lake_urls, failing_once)
+        self.assertEqual(result["lakes"]["lake_a"]["today"], "lake_a_today")
+        self.assertEqual(result["lakes"]["lake_c"]["today"], "lake_c_today")
+        self.assertIsNone(result["lakes"]["lake_b"]["today"])
+        self.assertTrue(any("lake_b" in err for err in result["errors"]))
+
+
+class TestWeatherSourceConcurrency(TestCase):
+    """B.2: Climate normal and monthly rainfall fetch concurrently."""
+
+    def test_sources_fetch_concurrently(self):
+        """Climate normal and monthly rainfall run concurrently via asyncio.gather."""
+        today = datetime(2026, 7, 18, tzinfo=CHICTZ)
+        active_count = [0]
+        max_concurrent = [0]
+        lock = asyncio.Lock()
+
+        async def track_fetch(*a, **k):
+            async with lock:
+                active_count[0] += 1
+                if active_count[0] > max_concurrent[0]:
+                    max_concurrent[0] = active_count[0]
+            await asyncio.sleep(0.02)
+            async with lock:
+                active_count[0] -= 1
+            return None
+
+        async def track_climate(*a, **k):
+            await track_fetch(*a, **k)
+            return 75
+
+        async def track_monthly(*a, **k):
+            await track_fetch(*a, **k)
+            return {"avg_monthly_rainfall": None, "current_monthly_rainfall": None}
+
+        async def fetch_json_side(*a, **k):
+            if not hasattr(fetch_json_side, "cc"):
+                fetch_json_side.cc = 0
+            fetch_json_side.cc += 1
+            return {"properties": {"forecast": "https://example.com/forecast"}} if fetch_json_side.cc == 1 else {"properties": {"periods": []}}
+
+        mock_json = asyncio.coroutine(mock.MagicMock(side_effect=fetch_json_side))
+        with mock.patch("daily_brief.sources.weather._fetch_json", mock_json):
+            with mock.patch("daily_brief.sources.weather.get_reference_datetime", return_value=today):
+                with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", track_climate):
+                    with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall", track_monthly):
+                        with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
+                            with mock.patch("daily_brief.sources.weather._extract_lake_value") as mock_lake:
+                                result = asyncio.get_event_loop().run_until_complete(fetch_weather(None, 30.286, -95.566))
+                                self.assertGreaterEqual(max_concurrent[0], 2,
+                                    f"Expected concurrent fetches but max was {max_concurrent[0]}")
+                                self.assertIn("station", result)
+                                self.assertIn("avg_temp_today", result["station"])
 
 
 # ---------------------------------------------------------------------------

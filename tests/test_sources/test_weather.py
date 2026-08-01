@@ -231,11 +231,10 @@ class TestFetchWeatherHappyPath(TestCase):
         )
         with mock.patch("daily_brief.sources.weather._fetch_json", mock_fetch_json):
             with mock.patch("daily_brief.sources.weather.get_reference_datetime", return_value=self.today):
-                with mock.patch("daily_brief.sources.weather._fetch_station_metrics", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_temp_today": "90\u00b0F", "avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
-                    with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value=91))):
-                        with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_monthly_rainfall": 3.2, "current_monthly_rainfall": 2.1}))):
-                            with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
-                                return await fetch_weather(None, 30.286, -95.566)
+                with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value=91))):
+                    with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_monthly_rainfall": 3.2, "current_monthly_rainfall": 2.1}))):
+                        with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
+                            return await fetch_weather(None, 30.286, -95.566)
 
     def test_full_happy_path(self):
         point = {"properties": {"forecast": self.forecast_url}}
@@ -305,11 +304,10 @@ class TestFetchWeatherEdgeCases(TestCase):
         )
         with mock.patch("daily_brief.sources.weather._fetch_json", mock_fetch_json):
             with mock.patch("daily_brief.sources.weather.get_reference_datetime", return_value=self.today):
-                with mock.patch("daily_brief.sources.weather._fetch_station_metrics", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_temp_today": None, "avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
-                    with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value=None))):
-                        with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
-                            with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
-                                return await fetch_weather(None, 30.286, -95.566)
+                with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value=None))):
+                    with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
+                        with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
+                            return await fetch_weather(None, 30.286, -95.566)
 
     def test_point_missing_properties(self):
         point = {"not_properties": True}
@@ -363,11 +361,10 @@ class TestFetchWeatherEdgeCases(TestCase):
         mock_fn = asyncio.coroutine(mock.MagicMock(side_effect=side_effect))
         with mock.patch("daily_brief.sources.weather._fetch_json", mock_fn):
             with mock.patch("daily_brief.sources.weather.get_reference_datetime", return_value=self.today):
-                with mock.patch("daily_brief.sources.weather._fetch_station_metrics", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_temp_today": None, "avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
-                    with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value=None))):
-                        with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
-                            with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
-                                result = asyncio.get_event_loop().run_until_complete(fetch_weather(None, 30.286, -95.566))
+                with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value=None))):
+                    with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
+                        with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
+                            result = asyncio.get_event_loop().run_until_complete(fetch_weather(None, 30.286, -95.566))
         self.assertEqual(len(result["forecast"]), 0)
 
     def test_exception_during_fetch(self):
@@ -390,10 +387,9 @@ class TestFetchWeatherEdgeCases(TestCase):
         mock_fn = asyncio.coroutine(mock.MagicMock(side_effect=capture))
         with mock.patch(original, mock_fn):
             with mock.patch("daily_brief.sources.weather.get_reference_datetime", return_value=self.today):
-                with mock.patch("daily_brief.sources.weather._fetch_station_metrics", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_temp_today": None, "avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
-                    with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value=None))):
-                        with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
-                            with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
+                with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value=None))):
+                    with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
+                        with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
                                 asyncio.get_event_loop().run_until_complete(fetch_weather(None, 30.286, -95.566))
         self.assertEqual(len(calls), 2)
         self.assertEqual(calls[0], "https://api.weather.gov/points/30.286,-95.566")
@@ -414,11 +410,10 @@ class TestFetchWeatherEdgeCases(TestCase):
         mock_fn = asyncio.coroutine(mock.MagicMock(side_effect=side_effect))
         with mock.patch("daily_brief.sources.weather._fetch_json", mock_fn):
             with mock.patch("daily_brief.sources.weather.get_reference_datetime", return_value=today):
-                with mock.patch("daily_brief.sources.weather._fetch_station_metrics", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_temp_today": None, "avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
-                    with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value=None))):
-                        with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
-                            with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
-                                result = asyncio.get_event_loop().run_until_complete(fetch_weather(None, 30.286, -95.566))
+                with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value=None))):
+                    with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
+                        with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
+                            result = asyncio.get_event_loop().run_until_complete(fetch_weather(None, 30.286, -95.566))
         self.assertEqual(len(result["forecast"]), 3)
 
 
@@ -443,10 +438,9 @@ class TestFetchWeatherPeriodExtraction(TestCase):
         mock_fn = asyncio.coroutine(mock.MagicMock(side_effect=side_effect))
         with mock.patch("daily_brief.sources.weather._fetch_json", mock_fn):
             with mock.patch("daily_brief.sources.weather.get_reference_datetime", return_value=today):
-                with mock.patch("daily_brief.sources.weather._fetch_station_metrics", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_temp_today": None, "avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
-                    with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value=None))):
-                        with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
-                            with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
+                with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value=None))):
+                    with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
+                        with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
                                 return await fetch_weather(None, 30.286, -95.566)
 
     def test_day_slot_used_for_high(self):

@@ -230,195 +230,28 @@ class TestFetchStationMonthlyRainfall(TestCase):
 
 
 # ---------------------------------------------------------------------------
-# 4. _fetch_station_metrics — async tests
+# 4. _fetch_station_metrics — B.3 no-op regression
 # ---------------------------------------------------------------------------
 
-class TestFetchStationMetrics(TestCase):
-    """Async station metrics fetching from WU dashboard tables."""
+class TestFetchStationMetricsNoOp(TestCase):
+    """B.3: _fetch_station_metrics is a no-op that returns the established empty payload shape."""
 
-    def test_happy_path_precipitation_row(self):
-        async def runner():
-            ref = datetime(2026, 7, 15, 12, 0, 0)
-            html = """
-            <html><body>
-            <table>
-                <tr><td>Precipitation</td><td>3.45</td><td>in</td><td>normal</td></tr>
-                <tr><td>Temperature</td><td>90</td><td>F</td><td>max</td></tr>
-            </table>
-            </body></html>
-            """
-
-            async def mock_fetch_text(session, url, **kwargs):
-                return html
-
-            with mock.patch("daily_brief.sources.wunderground._fetch_text", new_callable=lambda: asyncio.coroutine(mock.MagicMock(side_effect=mock_fetch_text))):
-                result = await _fetch_station_metrics(None, "KTXMONTG645", ref)
-
-            self.assertEqual(result["current_monthly_rainfall"], "3.45 Inches")
-            self.assertIsNone(result["avg_temp_today"])
-
-        asyncio.get_event_loop().run_until_complete(runner())
-
-    def test_rain_keyword_match(self):
+    def test_returns_empty_payload_shape(self):
         async def runner():
             ref = datetime(2026, 7, 15)
-            html = """
-            <html><body>
-            <table>
-                <tr><td>Rain</td><td>1.2</td><td>in</td><td>x</td></tr>
-            </table>
-            </body></html>
-            """
-
-            async def mock_fetch_text(session, url, **kwargs):
-                return html
-
-            with mock.patch("daily_brief.sources.wunderground._fetch_text", new_callable=lambda: asyncio.coroutine(mock.MagicMock(side_effect=mock_fetch_text))):
-                result = await _fetch_station_metrics(None, "TEST123", ref)
-
-            self.assertEqual(result["current_monthly_rainfall"], "1.2 Inches")
+            result = await _fetch_station_metrics(None, "KTXMONTG645", ref)
+            self.assertEqual(result["avg_temp_today"], None)
+            self.assertEqual(result["avg_monthly_rainfall"], None)
+            self.assertEqual(result["current_monthly_rainfall"], None)
 
         asyncio.get_event_loop().run_until_complete(runner())
 
-    def test_no_html_returns_empty_payload(self):
+    def test_does_not_fetch_text(self):
+        """_fetch_text is not called — no dashboard HTTP request is made."""
         async def runner():
             ref = datetime(2026, 7, 15)
-
-            async def mock_fetch_text(session, url, **kwargs):
-                return None
-
-            with mock.patch("daily_brief.sources.wunderground._fetch_text", new_callable=lambda: asyncio.coroutine(mock.MagicMock(side_effect=mock_fetch_text))):
-                result = await _fetch_station_metrics(None, "KTXMONTG645", ref)
-
-            self.assertIsNone(result["avg_temp_today"])
-            self.assertIsNone(result["avg_monthly_rainfall"])
-            self.assertIsNone(result["current_monthly_rainfall"])
-
-        asyncio.get_event_loop().run_until_complete(runner())
-
-    def test_no_precipitation_row(self):
-        async def runner():
-            ref = datetime(2026, 7, 15)
-            html = """
-            <html><body>
-            <table>
-                <tr><td>Temperature</td><td>90</td><td>F</td><td>max</td></tr>
-                <tr><td>Humidity</td><td>65</td><td>%</td><td>avg</td></tr>
-            </table>
-            </body></html>
-            """
-
-            async def mock_fetch_text(session, url, **kwargs):
-                return html
-
-            with mock.patch("daily_brief.sources.wunderground._fetch_text", new_callable=lambda: asyncio.coroutine(mock.MagicMock(side_effect=mock_fetch_text))):
-                result = await _fetch_station_metrics(None, "KTXMONTG645", ref)
-
-            self.assertIsNone(result["current_monthly_rainfall"])
-
-        asyncio.get_event_loop().run_until_complete(runner())
-
-    def test_precipitation_value_exceeds_60(self):
-        async def runner():
-            ref = datetime(2026, 7, 15)
-            html = """
-            <html><body>
-            <table>
-                <tr><td>Precipitation</td><td>75.0</td><td>in</td><td>x</td></tr>
-            </table>
-            </body></html>
-            """
-
-            async def mock_fetch_text(session, url, **kwargs):
-                return html
-
-            with mock.patch("daily_brief.sources.wunderground._fetch_text", new_callable=lambda: asyncio.coroutine(mock.MagicMock(side_effect=mock_fetch_text))):
-                result = await _fetch_station_metrics(None, "KTXMONTG645", ref)
-
-            self.assertIsNone(result["current_monthly_rainfall"])
-
-        asyncio.get_event_loop().run_until_complete(runner())
-
-    def test_row_fewer_than_4_cols_skipped(self):
-        async def runner():
-            ref = datetime(2026, 7, 15)
-            html = """
-            <html><body>
-            <table>
-                <tr><td>Precipitation</td><td>2.0</td></tr>
-            </table>
-            </body></html>
-            """
-
-            async def mock_fetch_text(session, url, **kwargs):
-                return html
-
-            with mock.patch("daily_brief.sources.wunderground._fetch_text", new_callable=lambda: asyncio.coroutine(mock.MagicMock(side_effect=mock_fetch_text))):
-                result = await _fetch_station_metrics(None, "KTXMONTG645", ref)
-
-            self.assertIsNone(result["current_monthly_rainfall"])
-
-        asyncio.get_event_loop().run_until_complete(runner())
-
-    def test_no_number_in_value_cell(self):
-        async def runner():
-            ref = datetime(2026, 7, 15)
-            html = """
-            <html><body>
-            <table>
-                <tr><td>Precipitation</td><td>N/A</td><td>in</td><td>x</td></tr>
-            </table>
-            </body></html>
-            """
-
-            async def mock_fetch_text(session, url, **kwargs):
-                return html
-
-            with mock.patch("daily_brief.sources.wunderground._fetch_text", new_callable=lambda: asyncio.coroutine(mock.MagicMock(side_effect=mock_fetch_text))):
-                result = await _fetch_station_metrics(None, "KTXMONTG645", ref)
-
-            self.assertIsNone(result["current_monthly_rainfall"])
-
-        asyncio.get_event_loop().run_until_complete(runner())
-
-    def test_multiple_tables_stops_at_first_match(self):
-        async def runner():
-            ref = datetime(2026, 7, 15)
-            html = """
-            <html><body>
-            <table>
-                <tr><td>Precipitation</td><td>1.5</td><td>in</td><td>x</td></tr>
-            </table>
-            <table>
-                <tr><td>Precipitation</td><td>99.9</td><td>in</td><td>x</td></tr>
-            </table>
-            </body></html>
-            """
-
-            async def mock_fetch_text(session, url, **kwargs):
-                return html
-
-            with mock.patch("daily_brief.sources.wunderground._fetch_text", new_callable=lambda: asyncio.coroutine(mock.MagicMock(side_effect=mock_fetch_text))):
-                result = await _fetch_station_metrics(None, "KTXMONTG645", ref)
-
-            self.assertEqual(result["current_monthly_rainfall"], "1.5 Inches")
-
-        asyncio.get_event_loop().run_until_complete(runner())
-
-    def test_url_constructed_from_station_id_and_date(self):
-        async def runner():
-            ref = datetime(2026, 7, 20)
-            captured_urls = []
-
-            async def mock_fetch_text(session, url, **kwargs):
-                captured_urls.append(url)
-                return "<html><body><table><tr><td>Precipitation</td><td>1.0</td><td>in</td><td>x</td></tr></table></body></html>"
-
-            with mock.patch("daily_brief.sources.wunderground._fetch_text", new_callable=lambda: asyncio.coroutine(mock.MagicMock(side_effect=mock_fetch_text))):
-                await _fetch_station_metrics(None, "KTEST", ref)
-
-            self.assertEqual(len(captured_urls), 1)
-            self.assertIn("KTEST", captured_urls[0])
-            self.assertIn("2026-07-20", captured_urls[0])
+            with mock.patch("daily_brief.sources.wunderground._fetch_text", mock.MagicMock()) as mock_fetch:
+                await _fetch_station_metrics(None, "KTXMONTG645", ref)
+                mock_fetch.assert_not_called()
 
         asyncio.get_event_loop().run_until_complete(runner())

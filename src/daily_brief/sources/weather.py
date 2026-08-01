@@ -1,11 +1,12 @@
 """
-Daily Brief v1.0.12 — Weather Source
+Daily Brief v1.0.83 — Weather Source
 =====================================
 NWS forecast fetch, parse, and orchestration of all weather data sources.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from datetime import datetime, timedelta, timezone
@@ -33,10 +34,7 @@ except Exception:
 from daily_brief.http_client import _fetch_json, _fetch_text
 from daily_brief.sources.climate import _fetch_climate_normal_high
 from daily_brief.sources.lakes import _extract_lake_value
-from daily_brief.sources.wunderground import (
-    _fetch_station_metrics,
-    _fetch_station_monthly_rainfall,
-)
+from daily_brief.sources.wunderground import _fetch_station_monthly_rainfall
 from daily_brief.utils import _safe_text
 
 logger = logging.getLogger(__name__)
@@ -177,12 +175,22 @@ async def fetch_weather(session: aiohttp.ClientSession, lat: float, lon: float) 
         else:
             logger.warning("[fetch_weather] Forecast payload was not a dict; skipping period parse")
 
-        # Station metrics
-        weather_data["station"] = await _fetch_station_metrics(session, WEATHER_WUNDERGROUND_STATION_ID, now_ref)
-        logger.debug("[fetch_weather] Completed station fetch")
+        # Climate normal and monthly rainfall (concurrent)
+        results = await asyncio.gather(
+            _fetch_climate_normal_high(session),
+            _fetch_station_monthly_rainfall(session, now_ref),
+            return_exceptions=True,
+        )
+        climate_high = results[0] if not isinstance(results[0], Exception) else None
+        station_monthly = results[1] if not isinstance(results[1], Exception) else {"avg_monthly_rainfall": None, "current_monthly_rainfall": None}
+        weather_data["station"] = {
+            "avg_temp_today": None,
+            "avg_monthly_rainfall": None,
+            "current_monthly_rainfall": None,
+        }
+        logger.debug("[fetch_weather] Completed climate/monthly fetch")
 
-        # Climate normal (historical average high for this date)
-        climate_high = await _fetch_climate_normal_high(session)
+        # Populate station data deterministically
         if climate_high is not None:
             weather_data["station"]["avg_temp_today"] = f"{climate_high}°F"
         logger.debug(
@@ -191,9 +199,6 @@ async def fetch_weather(session: aiohttp.ClientSession, lat: float, lon: float) 
             f"avg_monthly_rainfall={weather_data['station'].get('avg_monthly_rainfall', 'Dynamic')} "
             f"current_monthly_rainfall={weather_data['station'].get('current_monthly_rainfall', 'Dynamic')}"
         )
-
-        # Merge with climate normals source for monthly rain values
-        station_monthly = await _fetch_station_monthly_rainfall(session, now_ref)
         logger.debug(
             "Station monthly rainfall: "
             f"avg={station_monthly.get('avg_monthly_rainfall', 'Dynamic')} "
@@ -240,9 +245,28 @@ async def fetch_weather(session: aiohttp.ClientSession, lat: float, lon: float) 
                     f"current_monthly_rainfall={station.get('current_monthly_rainfall')}"
                 )
 
-        # Lake levels
-        for key, lake_url in (WEATHER_LAKE_URLS or {}).items():
-            weather_data["lakes"][key] = await _extract_lake_value(session, key, lake_url, now_ref)
+        # Lake levels (concurrent, bounded)
+        _MAX_CONCURRENT_LAKE_FETCHES = 3
+        _LAKE_UNAVAILABLE = {"today": None, "one_week_ago": None, "thirty_days_ago": None}
+        lake_items = list((WEATHER_LAKE_URLS or {}).items())
+
+        async def _fetch_lake(key: str, url: str, sem: asyncio.Semaphore) -> str:
+            async with sem:
+                return await _extract_lake_value(session, key, url, now_ref)
+
+        semaphore = asyncio.Semaphore(_MAX_CONCURRENT_LAKE_FETCHES)
+        results = await asyncio.gather(
+            *(_fetch_lake(k, u, semaphore) for k, u in lake_items),
+            return_exceptions=True,
+        )
+        for i, item_result in enumerate(results):
+            key = lake_items[i][0]
+            if isinstance(item_result, Exception):
+                logger.warning(f"[fetch_weather] Lake fetch failed ({key}): {item_result}")
+                weather_data["errors"].append(f"lake:{key}:{item_result}")
+                weather_data["lakes"][key] = dict(_LAKE_UNAVAILABLE)
+            else:
+                weather_data["lakes"][key] = item_result
             logger.debug(f"[fetch_weather] Completed lake fetch: {key}")
             logger.debug(
                 f"Lake {key}: "

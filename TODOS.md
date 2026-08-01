@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 - v1.0.80
+# TODO: Daily Brief v01 - v1.0.83
 
 ## Status Legend
 - `[ ]` TODO
@@ -21,9 +21,9 @@ Detailed findings, implementation constraints, and verification commands are in 
 - [x] A.10 `Bug-5`: correct `dedupi_window_hours` to `dedupe_window_hours`.
 
 ### Phase B - High-Impact Performance (4-6 hours, low-medium risk)
-- [ ] B.1 `Perf-1`: fetch lake levels with bounded concurrency and stable output ordering.
-- [ ] B.2 `Perf-2`: concurrently collect independent weather sources, then merge deterministically.
-- [ ] B.3 `Perf-3`: eliminate the redundant Wunderground dashboard request.
+- [x] B.1 `Perf-1`: fetch lake levels with bounded concurrency and stable output ordering.
+- [x] B.2 `Perf-2`: concurrently collect independent weather sources, then merge deterministically.
+- [x] B.3 `Perf-3`: eliminate the redundant Wunderground dashboard request.
 - [ ] B.4 `Perf-4`: pass configured coordinates to climate retrieval or cache fixed-ZIP geocoding.
 - [ ] B.5 `Perf-5`: reuse the outer HTTP session for article extraction.
 - [ ] B.6 `Perf-6` / `Bug-10`: fetch adequate RSS candidate pools once; widen locally and concurrently.

@@ -1,5 +1,5 @@
 """
-Daily Brief v1.0.12 — Wunderground Sources
+Daily Brief v1.0.82 — Wunderground Sources
 ============================================
 Wunderground station scraping and precipitation parsing.
 """
@@ -142,44 +142,15 @@ async def _fetch_station_metrics(
     station_id: str,
     reference: datetime,
 ) -> Dict[str, Optional[str]]:
-    """Fetch station metrics from Wunderground monthly dashboard table.
+    """Return the station metrics shape.
 
-    Returns current_monthly_rainfall (from the Precipitation row).
     avg_temp_today is NOT fetched here — it comes from _fetch_climate_normal_high (Open-Meteo).
-    avg_monthly_rainfall comes from _fetch_station_monthly_rainfall (climate.gov).
+    avg_monthly_rainfall and current_monthly_rainfall come from _fetch_station_monthly_rainfall
+    (climate.gov + Wunderground range URL). The old dashboard URL is no longer fetched separately;
+    _fetch_station_monthly_rainfall covers the data with a single range-page request.
     """
-    payload: Dict[str, Optional[str]] = {
+    return {
         "avg_temp_today": None,
         "avg_monthly_rainfall": None,
         "current_monthly_rainfall": None,
     }
-    template_date = reference.strftime("%Y-%m-%d")
-    url = WUNDERGROUND_MONTHLY_TEMPLATE.format(station_id=station_id, date=template_date)
-    html = await _fetch_text(session, url)
-    if not html:
-        logger.warning("  WARNING Weather station monthly data unavailable (no content).")
-        return payload
-
-    soup = BeautifulSoup(html, "html.parser")
-    current_precip: Optional[float] = None
-
-    for table in soup.find_all("table"):
-        rows = [
-            [c.get_text(strip=True) for c in tr.find_all(["td", "th"])]
-            for tr in table.find_all("tr")
-        ]
-        for r in rows:
-            if len(r) >= 4 and ("precipitation" in r[0].lower() or "rain" in r[0].lower()):
-                m = re.search(r"(\d+\.?\d*)", r[1])
-                if m:
-                    current_precip = float(m.group(1))
-                    break
-        if current_precip is not None:
-            break
-
-    if current_precip is not None:
-        val = float(current_precip)
-        if 0.0 <= val <= 60.0:
-            payload["current_monthly_rainfall"] = f"{val} Inches"
-
-    return payload

@@ -4,6 +4,18 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.89 — C.1 Migrate LLM calls to AsyncOpenAI and asyncio.sleep (Perf-8/Perf-9)
+- `src/daily_brief/llm/client.py`: switched from `OpenAI` to `AsyncOpenAI`; `chat_completions_create()` is now `async`; removed `_executor` and `_run_blocking` (no longer needed).
+- `src/daily_brief/llm/summarizer.py`: `_summarize()` and `batch_summarize_all()` are now `async`; replaced `time.sleep()` with `asyncio.sleep()` for non-blocking retry backoff.
+- `src/daily_brief/llm/alerter.py`: `batch_evaluate_alerts()` is now `async`; replaced `time.sleep()` with `asyncio.sleep()`.
+- `src/daily_brief/llm/__init__.py`: removed `_executor` and `_run_blocking` exports.
+- `src/daily_brief/pipeline.py`: added `await` to `llm_batch_summarize_all()`, `llm_summarize()` in retry and boilerplate paths.
+- `tests/test_llm_client.py`: migrated to `AsyncOpenAI` and `AsyncMock`; added async coroutine verification test; removed `_run_blocking` tests.
+- `tests/test_summarizer.py`: migrated `_summarize` and `batch_summarize_all` tests to run coroutines in event loop; replaced `time.sleep` mocks with `asyncio.sleep` `AsyncMock`.
+- `tests/test_alerter.py`: migrated `batch_evaluate_alerts` tests to run coroutines; replaced `time.sleep` with `asyncio.sleep`, sync `MagicMock` with `AsyncMock`.
+- `tests/test_pipeline.py`: updated `_pipeline_patches` summarizer mocks to async wrappers.
+- 813 tests passed, 0 failures. config validate PASS.
+
 ### v1.0.88 — B.8 Separate weather provider fetching from merge/fallback policy (Arch-1)
 - `src/daily_brief/sources/weather.py`: extracted `fetch_nws_forecast()` for NWS request and forecast parsing; extracted `fetch_lakes()` for bounded concurrent lake retrieval; added pure `merge_weather_data()` for deterministic station formatting, fallback, unavailable defaults, rainfall suppression, and error/lake order preservation; reduced `fetch_weather()` to async collector that independently runs NWS, ERA5/rainfall (concurrent), and lakes, then calls the merger once. NWS failure no longer prevents ERA5, rainfall, or lake collection. Bumped module header to v1.0.88.
 - `tests/test_sources/test_weather.py`: updated `test_exception_during_fetch` to reflect new independent collection behavior — NWS failure produces empty forecast without polluting errors.

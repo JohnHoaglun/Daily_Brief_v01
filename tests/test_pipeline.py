@@ -128,13 +128,17 @@ def _pipeline_patches(
     ]
 
     if summary_fn is not None:
-        patches.append(patch("daily_brief.pipeline.llm_summarize", summary_fn))
+        # Wrap sync summary_fn in an async wrapper for Perf-8 compat
+        async def _async_summary(*a, **kw):
+            return summary_fn(*a, **kw)
+        patches.append(patch("daily_brief.pipeline.llm_summarize", _async_summary))
         # Also mock batch summarizer to simulate batch failure → forces retry
-        patches.append(patch("daily_brief.pipeline.llm_batch_summarize_all", return_value=None))
+        patches.append(patch("daily_brief.pipeline.llm_batch_summarize_all", new_callable=AsyncMock, return_value=None))
     else:
-        patches.append(patch("daily_brief.pipeline.llm_batch_summarize_all", return_value=None))
-        # Mock individual summarizer too so it doesn't hit real LLM
-        patches.append(patch("daily_brief.pipeline.llm_summarize", return_value=None))
+        patches.append(patch("daily_brief.pipeline.llm_batch_summarize_all", new_callable=AsyncMock, return_value=None))
+        async def _async_none(*a, **kw):
+            return None
+        patches.append(patch("daily_brief.pipeline.llm_summarize", _async_none))
 
     patches.append(patch("daily_brief.pipeline._is_refusal", return_value=is_refusal_fn if is_refusal_fn is not None else False))
 

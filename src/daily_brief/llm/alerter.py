@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 from daily_brief.config import (
@@ -32,8 +33,8 @@ def parse_alert_batch_response(response):
     return results
 
 
-def batch_evaluate_alerts(client, stories):
-    """Single Ollama call to evaluate ALL stories for alert priority.
+async def batch_evaluate_alerts(client, stories):
+    """Async call to evaluate ALL stories for alert priority.
     Returns dict mapping index -> True/False."""
     if not stories:
         return {}
@@ -71,7 +72,7 @@ def batch_evaluate_alerts(client, stories):
         for attempt in range(2):
             try:
                 t0 = time.time()
-                r = client.chat_completions_create(
+                r = await client.chat_completions_create(
                     model=LLM_MODEL,
                     messages=[
                         {"role": "system", "content": SYSTEM_ALERT_BATCH},
@@ -98,7 +99,7 @@ def batch_evaluate_alerts(client, stories):
             except Exception as e:
                 if attempt == 0:
                     logger.warning(f"BATCH ALERT EVAL ({cat_name}) attempt 1 failed ({e}), retrying...")
-                    time.sleep(3)
+                    await asyncio.sleep(3)
                 else:
                     logger.warning(f"BATCH ALERT ERROR ({cat_name}, final): {e}")
                     # Even if we fail, continue to next category - don't crash the whole pipeline

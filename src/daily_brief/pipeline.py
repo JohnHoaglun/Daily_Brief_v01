@@ -201,7 +201,7 @@ async def main():
 
         # ---------- Phase 3B/3C: Batch summary ----------
         log(f"  [3BC] Running BATCH summaries via {LLM_MODEL}...")
-        llm_batch_summarize_all(_llm_client, stories, session=session)
+        await llm_batch_summarize_all(_llm_client, stories, session=session)
         sum_ok = sum(1 for s in stories if s.summary and s.summary.strip() and not s.summary.strip().startswith("[Summary") and not _is_refusal(s.summary))
         sum_fail = total - sum_ok
         log(f"  Batch summaries: {sum_ok} OK / {sum_fail} failed")
@@ -213,7 +213,7 @@ async def main():
             for s in stories:
                 if not s.summary or not s.summary.strip() or s.summary.strip().startswith("[Summary") or _is_refusal(s.summary):
                     context = build_context(s)
-                    retry_summary = llm_summarize(_llm_client, context, title=s.title)
+                    retry_summary = await llm_summarize(_llm_client, context, title=s.title)
                     if retry_summary and not _is_refusal(retry_summary):
                         s.summary = retry_summary
                         retry_count += 1
@@ -237,7 +237,7 @@ async def main():
             for s in stories:
                 if s.summary and _is_boilerplate(s.summary):
                     context = build_context(s)
-                    strict_summary = llm_summarize(_llm_client, context, title=s.title, strict=True)
+                    strict_summary = await llm_summarize(_llm_client, context, title=s.title, strict=True)
                     if strict_summary and not _is_boilerplate(strict_summary) and not _is_refusal(strict_summary):
                         if strict_summary != "[Summary Unavailable]":
                             s.summary = strict_summary

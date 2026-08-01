@@ -1,9 +1,11 @@
 """
 Unit tests for src/daily_brief/llm/alerter.py.
 """
+import asyncio
 import os
 import sys
 from unittest import TestCase, mock
+from unittest.mock import AsyncMock, MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
@@ -149,11 +151,11 @@ class TestParseAlertBatchResponseEdgeCases(TestCase):
 
 
 # ---------------------------------------------------------------------------
-# 2.  batch_evaluate_alerts (mocked client)
+# 2.  batch_evaluate_alerts (mocked async client, Perf-8)
 # ---------------------------------------------------------------------------
 
 class TestBatchEvaluateAlerts(TestCase):
-    """batch_evaluate_alerts with mocked LLM client."""
+    """batch_evaluate_alerts with mocked async LLM client (Perf-8)."""
 
     class _Story:
         def __init__(self, title, summary, category, is_alert=None):
@@ -169,24 +171,27 @@ class TestBatchEvaluateAlerts(TestCase):
         msg.content = response_text
         choice = mock.MagicMock()
         choice.message = msg
-        client.chat_completions_create.return_value = mock.MagicMock(choices=[choice])
+        client.chat_completions_create = AsyncMock(return_value=mock.MagicMock(choices=[choice]))
         return client
 
+    def _run(self, coro):
+        return asyncio.get_event_loop().run_until_complete(coro)
+
     def test_empty_stories_returns_empty(self):
-        result = batch_evaluate_alerts(mock.MagicMock(), [])
+        result = self._run(batch_evaluate_alerts(mock.MagicMock(), []))
         self.assertEqual(result, {})
 
     def test_single_story_alert_true(self):
         stories = [self._Story("Title 1", "Valid summary text here.", "Tech")]
         client = self._make_client("STORY_0: TRUE")
-        result = batch_evaluate_alerts(client, stories)
+        result = self._run(batch_evaluate_alerts(client, stories))
         self.assertEqual(result, {0: True})
         self.assertTrue(stories[0].is_alert)
 
     def test_single_story_alert_false(self):
         stories = [self._Story("Title 1", "Valid summary text here.", "Tech")]
         client = self._make_client("STORY_0: FALSE")
-        result = batch_evaluate_alerts(client, stories)
+        result = self._run(batch_evaluate_alerts(client, stories))
         self.assertEqual(result, {0: False})
         self.assertFalse(stories[0].is_alert)
 
@@ -196,7 +201,7 @@ class TestBatchEvaluateAlerts(TestCase):
             self._Story("Title 2", "Valid summary text.", "Tech"),
         ]
         client = self._make_client("STORY_0: TRUE")
-        result = batch_evaluate_alerts(client, stories)
+        result = self._run(batch_evaluate_alerts(client, stories))
         # Story 0 excluded, Story 1 gets index 0 → TRUE
         self.assertEqual(result[0], False)  # unavailable story stays False
         self.assertEqual(result[1], True)
@@ -206,7 +211,7 @@ class TestBatchEvaluateAlerts(TestCase):
             self._Story("Title 1", "[Auto] Some auto text", "Tech"),
         ]
         client = self._make_client("")
-        result = batch_evaluate_alerts(client, stories)
+        result = self._run(batch_evaluate_alerts(client, stories))
         # Bracket-starting summary excluded, no LLM call should be made for empty list
         self.assertEqual(result, {0: False})
 
@@ -216,7 +221,7 @@ class TestBatchEvaluateAlerts(TestCase):
             self._Story("Title 2", "Summary two.", "News"),
         ]
         call_count = [0]
-        def side_effect(*args, **kwargs):
+        async def side_effect(*args, **kwargs):
             call_count[0] += 1
             msgs = kwargs.get("messages", args[1] if len(args) > 1 else [])
             user_content = msgs[1]["content"] if len(msgs) > 1 else ""
@@ -225,8 +230,8 @@ class TestBatchEvaluateAlerts(TestCase):
             r.choices = [mock.MagicMock(message=mock.MagicMock(content="STORY_0: TRUE"))]
             return r
         client = mock.MagicMock()
-        client.chat_completions_create.side_effect = side_effect
-        result = batch_evaluate_alerts(client, stories)
+        client.chat_completions_create = AsyncMock(side_effect=side_effect)
+        result = self._run(batch_evaluate_alerts(client, stories))
         self.assertEqual(call_count[0], 2)  # Two categories = two calls
         self.assertEqual(result[0], True)  # Tech story
         self.assertEqual(result[1], True)  # News story
@@ -238,9 +243,11 @@ class TestBatchEvaluateAlerts(TestCase):
             self._Story("Title 2", "Also valid summary.", "Tech"),
         ]
         client = mock.MagicMock()
-        client.chat_completions_create.side_effect = Exception("Connection refused")
-        with mock.patch("time.sleep", return_value=None):
-            result = batch_evaluate_alerts(client, stories)
+        client.chat_completions_create = AsyncMock(side_effect=Exception("Connection refused"))
+        async def _run():
+            with mock.patch("asyncio.sleep", new_callable=AsyncMock, return_value=None):
+                return await batch_evaluate_alerts(client, stories)
+        result = self._run(_run())
         self.assertEqual(result, {0: False, 1: False})
         self.assertFalse(stories[0].is_alert)
         self.assertFalse(stories[1].is_alert)
@@ -248,7 +255,7 @@ class TestBatchEvaluateAlerts(TestCase):
     def test_stories_without_alert_idx_get_false(self):
         stories = [self._Story("Title 1", "Valid summary text.", "Tech")]
         client = self._make_client("STORY_5: TRUE")
-        result = batch_evaluate_alerts(client, stories)
+        result = self._run(batch_evaluate_alerts(client, stories))
         # STORY_5 doesn't match _alert_idx=0, so story gets False
         self.assertEqual(result, {0: False})
 
@@ -259,6 +266,6 @@ class TestBatchEvaluateAlerts(TestCase):
             self._Story("C", "Summary C.", "News"),
         ]
         client = self._make_client("STORY_0: TRUE\nSTORY_1: FALSE")
-        result = batch_evaluate_alerts(client, stories)
+        result = self._run(batch_evaluate_alerts(client, stories))
         self.assertEqual(len(result), 3)
         self.assertEqual(set(result.keys()), {0, 1, 2})

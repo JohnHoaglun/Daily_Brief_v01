@@ -1,21 +1,22 @@
-# Project: Daily Brief v01 (v1.0.88)
+# Project: Daily Brief v01 (v1.0.89)
 
 ## Purpose
 Daily Brief aggregates RSS stories from configured categories, enriches them with weather and lake data, summarizes them through a vLLM OpenAI-compatible endpoint, and writes a Markdown report.
 
 ## Current Status
 - Modular refactoring P0-P6 is complete.
-- Test baseline: 793 tests (v1.0.87), 813 with B.8 (v1.0.88), all passing.
+- Test baseline: 793 tests (v1.0.87), 813 with B.8 (v1.0.88), 813 with C.1 (v1.0.89), all passing.
 - Research review at v1.0.65 identified the active 4-phase optimization program in `PLAN.md`.
 - Performance baseline (v1.0.67): 105–114s internal, 137–147s wall-clock. Phase 3 (LLM) dominates at ~96–100s.
-- Phase A complete (v1.0.67). Phase B complete (v1.0.88). Target: 93–103s internal.
-- Preflight probes are now opt-in via `runtime.preflight_checks_enabled`. Default: `false` (disabled), eliminating redundant preflight network traffic on every run.
-- Weather provider architecture separated: NWS failure no longer prevents ERA5, rainfall, or lake collection. Deterministic merge via `merge_weather_data()`.
+- Phase A complete (v1.0.67). Phase B complete (v1.0.88). Phase C in progress (C.1: v1.0.89).
+- Preflight probes are now opt-in via `runtime.preflight_checks_enabled`. Default: `false` (disabled).
+- Weather provider architecture separated: NWS failure no longer prevents ERA5, rainfall, or lake collection.
+- LLM client migrated to `AsyncOpenAI`; all LLM calls and retry backoffs are non-blocking (async/await).
 
 ## Architecture
 - `src/daily_brief/pipeline.py`: asynchronous pipeline orchestration.
 - `src/daily_brief/sources/`: NWS, Wunderground, Open-Meteo/climate.gov, reservoir, RSS, and article extraction integrations.
-- `src/daily_brief/llm/`: OpenAI-compatible client, batch summarization, and alert evaluation.
+- `src/daily_brief/llm/`: Async `AsyncOpenAI` client, async batch summarization, and async alert evaluation.
 - `src/daily_brief/pipelines/rss_dedup.py`: RSS filtering, deduplication, and widening.
 - `src/daily_brief/rendering/`: weather table generation, report assembly, and output cleanup.
 - `src/daily_brief/config.py` and `config.yaml`: runtime configuration and defaults.

@@ -1,10 +1,12 @@
 """
 Unit tests for src/daily_brief/llm/summarizer.py.
 """
+import asyncio
 import os
 import sys
 import time
 from unittest import TestCase, mock
+from unittest.mock import AsyncMock, MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
@@ -439,7 +441,7 @@ class TestBuildContext(TestCase):
 # ---------------------------------------------------------------------------
 
 class TestSummarize(TestCase):
-    """_summarize with mocked LLM client."""
+    """_summarize with mocked async LLM client (Perf-8)."""
 
     def _make_client(self, response_text):
         client = mock.MagicMock()
@@ -449,69 +451,79 @@ class TestSummarize(TestCase):
         choice = mock.MagicMock()
         choice.message = msg
         choice.choices = [choice]
-        client.chat_completions_create.return_value = choice
+        client.chat_completions_create = AsyncMock(return_value=choice)
         return client
 
     def test_successful_single_call(self):
         client = self._make_client("The Fed raised rates by 0.25 percent Wednesday.")
-        result = _summarize(client, "Some context text that is long enough to be meaningful for the LLM to process and summarize properly.", title="Test", min_chars=0)
+        async def _run():
+            return await _summarize(client, "Some context text that is long enough to be meaningful for the LLM to process and summarize properly.", title="Test", min_chars=0)
+        result = asyncio.get_event_loop().run_until_complete(_run())
         self.assertEqual(result, "The Fed raised rates by 0.25 percent Wednesday.")
 
     def test_empty_response_returns_empty(self):
         client = self._make_client("")
-        with mock.patch("daily_brief.config.LLM_SUMMARY_RETRY_ATTEMPTS", 1):
-            with mock.patch("daily_brief.config.LLM_SUMMARY_RETRY_BACKOFF", []):
-                with mock.patch("time.sleep", return_value=None):
-                    result = _summarize(client, "Context text that is long enough to be meaningful.", title="Test Title", min_chars=0)
+        async def _run():
+            with mock.patch("daily_brief.config.LLM_SUMMARY_RETRY_ATTEMPTS", 1):
+                with mock.patch("daily_brief.config.LLM_SUMMARY_RETRY_BACKOFF", []):
+                    with mock.patch("asyncio.sleep", new_callable=AsyncMock, return_value=None):
+                        return await _summarize(client, "Context text that is long enough to be meaningful.", title="Test Title", min_chars=0)
+        result = asyncio.get_event_loop().run_until_complete(_run())
         self.assertEqual(result, "")
 
     def test_empty_response_triggers_retry_then_fallback(self):
         call_count = [0]
-        def side_effect(*args, **kwargs):
+        async def side_effect(*args, **kwargs):
             call_count[0] += 1
             if call_count[0] == 1:
-                # First call returns empty
                 r = mock.MagicMock()
                 r.choices = [mock.MagicMock(message=mock.MagicMock(content=""))]
                 return r
             else:
-                # Second call returns valid text
                 r = mock.MagicMock()
                 r.choices = [mock.MagicMock(message=mock.MagicMock(content="Valid summary text."))]
                 return r
         client = mock.MagicMock()
-        client.chat_completions_create.side_effect = side_effect
-        with mock.patch("daily_brief.config.LLM_SUMMARY_RETRY_ATTEMPTS", 2):
-            with mock.patch("daily_brief.config.LLM_SUMMARY_RETRY_BACKOFF", [0.01, 0.02]):
-                with mock.patch("time.sleep", return_value=None):
-                    result = _summarize(client, "Context text long enough for processing.", title="Test Title", min_chars=0)
+        client.chat_completions_create = AsyncMock(side_effect=side_effect)
+        async def _run():
+            with mock.patch("daily_brief.config.LLM_SUMMARY_RETRY_ATTEMPTS", 2):
+                with mock.patch("daily_brief.config.LLM_SUMMARY_RETRY_BACKOFF", [0.01, 0.02]):
+                    with mock.patch("asyncio.sleep", new_callable=AsyncMock, return_value=None):
+                        return await _summarize(client, "Context text long enough for processing.", title="Test Title", min_chars=0)
+        result = asyncio.get_event_loop().run_until_complete(_run())
         self.assertEqual(result, "Valid summary text.")
 
     def test_llm_exception_triggers_fallback(self):
         client = mock.MagicMock()
-        client.chat_completions_create.side_effect = Exception("Connection refused")
-        with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_ATTEMPTS", 1):
-            with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_BACKOFF", []):
-                with mock.patch("time.sleep", return_value=None):
-                    result = _summarize(client, "Context text that is long enough to be meaningful.", title="Error Title", min_chars=0)
+        client.chat_completions_create = AsyncMock(side_effect=Exception("Connection refused"))
+        async def _run():
+            with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_ATTEMPTS", 1):
+                with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_BACKOFF", []):
+                    with mock.patch("asyncio.sleep", new_callable=AsyncMock, return_value=None):
+                        return await _summarize(client, "Context text that is long enough to be meaningful.", title="Error Title", min_chars=0)
+        result = asyncio.get_event_loop().run_until_complete(_run())
         self.assertIn("[Auto]", result)
 
     def test_title_based_fallback_when_exhausted(self):
         client = mock.MagicMock()
-        client.chat_completions_create.side_effect = Exception("Down")
-        with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_ATTEMPTS", 2):
-            with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_BACKOFF", [0.01, 0.02]):
-                with mock.patch("time.sleep", return_value=None):
-                    result = _summarize(client, "Enough context here to process.", title="My Headline", min_chars=0)
+        client.chat_completions_create = AsyncMock(side_effect=Exception("Down"))
+        async def _run():
+            with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_ATTEMPTS", 2):
+                with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_BACKOFF", [0.01, 0.02]):
+                    with mock.patch("asyncio.sleep", new_callable=AsyncMock, return_value=None):
+                        return await _summarize(client, "Enough context here to process.", title="My Headline", min_chars=0)
+        result = asyncio.get_event_loop().run_until_complete(_run())
         self.assertEqual(result, "[Auto] My Headline")
 
     def test_none_title_fallback_unavailable(self):
         client = mock.MagicMock()
-        client.chat_completions_create.side_effect = Exception("Down")
-        with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_ATTEMPTS", 1):
-            with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_BACKOFF", []):
-                with mock.patch("time.sleep", return_value=None):
-                    result = _summarize(client, "Enough context here.", title=None, min_chars=0)
+        client.chat_completions_create = AsyncMock(side_effect=Exception("Down"))
+        async def _run():
+            with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_ATTEMPTS", 1):
+                with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_BACKOFF", []):
+                    with mock.patch("asyncio.sleep", new_callable=AsyncMock, return_value=None):
+                        return await _summarize(client, "Enough context here.", title=None, min_chars=0)
+        result = asyncio.get_event_loop().run_until_complete(_run())
         self.assertEqual(result, "[Summary Unavailable]")
 
 
@@ -728,7 +740,9 @@ class TestSummarizeContextTooShort(TestCase):
     def test_summarize_context_too_short(self):
         from daily_brief.llm.summarizer import _summarize
         client = mock.MagicMock()
-        result = _summarize(client, "hi", title="Title", min_chars=100)
+        async def _run():
+            return await _summarize(client, "hi", title="Title", min_chars=100)
+        result = asyncio.get_event_loop().run_until_complete(_run())
         self.assertIsNone(result)
 
 
@@ -738,7 +752,7 @@ class TestSummarizeBoilerplateRetry(TestCase):
     def test_summarize_boilerplate_retry(self):
         from daily_brief.llm.summarizer import _summarize
         call_count = [0]
-        def side_effect(**kwargs):
+        async def side_effect(**kwargs):
             call_count[0] += 1
             if call_count[0] == 1:
                 r = mock.MagicMock()
@@ -753,11 +767,13 @@ class TestSummarizeBoilerplateRetry(TestCase):
                 ))]
                 return r
         client = mock.MagicMock()
-        client.chat_completions_create.side_effect = side_effect
-        with mock.patch("daily_brief.config.LLM_SUMMARY_RETRY_ATTEMPTS", 2):
-            with mock.patch("daily_brief.config.LLM_SUMMARY_RETRY_BACKOFF", [0.01, 0.02]):
-                with mock.patch("time.sleep", return_value=None):
-                    result = _summarize(client, "Some context text that is long enough to be meaningful for the LLM to process.", title="Test", min_chars=0)
+        client.chat_completions_create = AsyncMock(side_effect=side_effect)
+        async def _run():
+            with mock.patch("daily_brief.config.LLM_SUMMARY_RETRY_ATTEMPTS", 2):
+                with mock.patch("daily_brief.config.LLM_SUMMARY_RETRY_BACKOFF", [0.01, 0.02]):
+                    with mock.patch("asyncio.sleep", new_callable=AsyncMock, return_value=None):
+                        return await _summarize(client, "Some context text that is long enough to be meaningful for the LLM to process.", title="Test", min_chars=0)
+        result = asyncio.get_event_loop().run_until_complete(_run())
         self.assertIn("Fed", result)
         self.assertEqual(call_count[0], 2)
 
@@ -767,7 +783,7 @@ class TestSummarizeBoilerplateRetry(TestCase):
 # ---------------------------------------------------------------------------
 
 class TestBatchSummarizeAll(TestCase):
-    """batch_summarize_all integration with mocked client."""
+    """batch_summarize_all integration with mocked async client (Perf-8)."""
 
     def _make_story(self, title, category, context=None, snippet=None):
         from daily_brief.llm.summarizer import StoryPipelineState
@@ -779,7 +795,9 @@ class TestBatchSummarizeAll(TestCase):
     def test_batch_summarize_all_empty(self):
         from daily_brief.llm.summarizer import batch_summarize_all
         client = mock.MagicMock()
-        result = batch_summarize_all(client, [])
+        async def _run():
+            return await batch_summarize_all(client, [])
+        result = asyncio.get_event_loop().run_until_complete(_run())
         self.assertEqual(result, {})
 
     def test_batch_summarize_all_with_retries(self):
@@ -794,7 +812,7 @@ class TestBatchSummarizeAll(TestCase):
         batch_call_count = [0]
         single_call_count = [0]
 
-        def side_effect(**kwargs):
+        async def side_effect(**kwargs):
             batch_call_count[0] += 1
             msgs = kwargs.get("messages", [])
             system = msgs[0]["content"] if msgs else ""
@@ -813,13 +831,15 @@ class TestBatchSummarizeAll(TestCase):
                 return r
 
         client = mock.MagicMock()
-        client.chat_completions_create.side_effect = side_effect
+        client.chat_completions_create = AsyncMock(side_effect=side_effect)
 
-        with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_ATTEMPTS", 2):
-            with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_BACKOFF", [0.01]):
-                with mock.patch("time.sleep", return_value=None):
-                    result = batch_summarize_all(client, stories)
+        async def _run():
+            with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_ATTEMPTS", 2):
+                with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_BACKOFF", [0.01]):
+                    with mock.patch("asyncio.sleep", new_callable=AsyncMock, return_value=None):
+                        return await batch_summarize_all(client, stories)
 
+        result = asyncio.get_event_loop().run_until_complete(_run())
         self.assertTrue(batch_call_count[0] > 0 or single_call_count[0] > 0)
 
     def test_batch_summarize_all_sub_batches_and_error(self):
@@ -833,11 +853,13 @@ class TestBatchSummarizeAll(TestCase):
         ]
 
         client = mock.MagicMock()
-        client.chat_completions_create.side_effect = Exception("API error")
+        client.chat_completions_create = AsyncMock(side_effect=Exception("API error"))
 
-        with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_ATTEMPTS", 1):
-            with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_BACKOFF", []):
-                with mock.patch("time.sleep", return_value=None):
-                    result = batch_summarize_all(client, stories)
+        async def _run():
+            with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_ATTEMPTS", 1):
+                with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_BACKOFF", []):
+                    with mock.patch("asyncio.sleep", new_callable=AsyncMock, return_value=None):
+                        return await batch_summarize_all(client, stories)
 
+        result = asyncio.get_event_loop().run_until_complete(_run())
         self.assertEqual(len(result), 0)

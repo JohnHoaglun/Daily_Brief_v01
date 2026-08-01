@@ -1,8 +1,8 @@
+import asyncio
 import difflib
 import logging
 import re
 import time
-import warnings
 from daily_brief.utils import _safe_text
 from daily_brief.config import (
     LLM_MODEL,
@@ -486,8 +486,8 @@ def _generate_auto_fallback(title):
     return f"[Auto] {cleaned}"
 
 
-def _summarize(client, context, title=None, min_chars=LLM_SUMMARY_TRIM_MIN_CHARS, strict=False):
-    """Blocking summary call with configurable retry and boilerplate detection.
+async def _summarize(client, context, title=None, min_chars=LLM_SUMMARY_TRIM_MIN_CHARS, strict=False):
+    """Async summary call with configurable retry and boilerplate detection.
 
     On retry: switches to strict prompt, applies exponential backoff.
     If all attempts exhausted: returns [Auto] {title} fallback (deterministic
@@ -508,7 +508,7 @@ def _summarize(client, context, title=None, min_chars=LLM_SUMMARY_TRIM_MIN_CHARS
     for attempt in range(max_attempts):
         try:
             t0 = time.time()
-            r = client.chat_completions_create(
+            r = await client.chat_completions_create(
                 model=LLM_MODEL,
                 messages=[
                     {"role": "system", "content": prompt},
@@ -525,7 +525,7 @@ def _summarize(client, context, title=None, min_chars=LLM_SUMMARY_TRIM_MIN_CHARS
                 if not is_last:
                     delay = backoff_delays[attempt] if attempt < len(backoff_delays) else backoff_delays[-1]
                     logger.warning(f"[RETRY] attempt {attempt+1}/{max_attempts} empty response, retrying in {delay}s")
-                    time.sleep(delay)
+                    await asyncio.sleep(delay)
                     prompt = SUMMARY_STRICT_PROMPT
                     strict = True
                     continue
@@ -540,7 +540,7 @@ def _summarize(client, context, title=None, min_chars=LLM_SUMMARY_TRIM_MIN_CHARS
             delay = backoff_delays[attempt] if attempt < len(backoff_delays) else backoff_delays[-1]
             if not is_last:
                 logger.warning(f"[RETRY] attempt {attempt+1}/{max_attempts} failed ({e}), retrying in {delay}s")
-                time.sleep(delay)
+                await asyncio.sleep(delay)
                 prompt = SUMMARY_STRICT_PROMPT
                 strict = True
             else:
@@ -563,8 +563,8 @@ def build_context(story):
     return inner[:LLM_CONTEXT_PREVIEW_CHARS]
 
 
-def batch_summarize_all(client, stories, session=None):
-    """Batch summarization with sub-batches of max 3 stories for reliability. Returns dict mapping story object -> summary text."""
+async def batch_summarize_all(client, stories, session=None):
+    """Async batch summarization with sub-batches of max 3 stories for reliability. Returns dict mapping story object -> summary text."""
     if not stories:
         return {}
 
@@ -604,7 +604,7 @@ def batch_summarize_all(client, stories, session=None):
             # Make ONE batch call for this sub-batch
             try:
                 t0 = time.time()
-                r = client.chat_completions_create(
+                r = await client.chat_completions_create(
                     model=LLM_MODEL,
                     messages=[
                         {"role": "system", "content": SYSTEM_BATCH},
@@ -664,7 +664,7 @@ def batch_summarize_all(client, stories, session=None):
     if needs_fallback:
         for s in needs_fallback:
             context = build_context(s)
-            retry = _summarize(client, context, title=s.title)
+            retry = await _summarize(client, context, title=s.title)
             if retry and not _is_boilerplate(retry) and not _is_refusal(retry) and retry != "[Summary Unavailable]":
                 s.summary = retry
             elif not s.summary or not s.summary.strip():

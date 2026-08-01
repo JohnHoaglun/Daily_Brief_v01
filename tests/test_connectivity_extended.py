@@ -105,6 +105,13 @@ class TestCheckRSS(TestCase):
         self.assertFalse(result["ok"])
         self.assertIn("HTTP 404", result["message"])
 
+    def test_check_rss_tls_verification_enabled(self):
+        """Regression test: ssl=False was removed from check_rss session.get()."""
+        import inspect
+        source = inspect.getsource(check_rss)
+        self.assertNotIn("ssl=False", source)
+        self.assertNotIn("ssl=", source)
+
 
 class TestCheckWeather(TestCase):
     """check_weather HTTP success path."""

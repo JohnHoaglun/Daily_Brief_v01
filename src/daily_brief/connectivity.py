@@ -53,7 +53,7 @@ async def check_rss(session: aiohttp.ClientSession, timeout: float = 5.0) -> dic
     t0 = time.time()
     try:
         async with session.get(
-            url, timeout=aiohttp.ClientTimeout(total=timeout), ssl=False
+            url, timeout=aiohttp.ClientTimeout(total=timeout)
         ) as resp:
             elapsed_ms = int((time.time() - t0) * 1000)
             if resp.status in (200, 206):

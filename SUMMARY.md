@@ -4,6 +4,11 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.77 — A.7 Restore TLS verification in RSS connectivity probes
+- `src/daily_brief/connectivity.py`: removed `ssl=False` from `check_rss()` HTTP request, restoring `aiohttp`'s default TLS certificate and hostname verification for the RSS feed probe.
+- `tests/test_connectivity_extended.py`: added `test_check_rss_tls_verification_enabled` regression test under `TestCheckRSS` asserting no `ssl` keyword in `check_rss` source.
+- 765 tests passed, 0 failures.
+
 ### v1.0.76 — A.6 Create output/log directories before use
 - `src/daily_brief/__main__.py`: added `os.makedirs(log_dir, exist_ok=True)` at start of `setup_logging()` to protect startup logging.
 - `src/daily_brief/pipeline.py`: added `os.makedirs(LOG_DIR, exist_ok=True)` and `os.makedirs(NEWS_DIR, exist_ok=True)` in `main()` before directory listing; fixed `log()` to create the actual parent directory of `RUN_LOGFILE` instead of only `LOG_DIR`.

@@ -285,3 +285,76 @@ class TestPipelineMain(TestCase):
                     from daily_brief.pipeline import main as pm
                     asyncio.get_event_loop().run_until_complete(pm())
             mock_write.assert_called()
+
+    def test_main_monotonic_phase_timings(self):
+        """A.9: all 6 phases use time.monotonic and PHASE_TIMINGS is populated."""
+        import daily_brief.pipeline as mod
+        monotonic_counter = [0.0]
+
+        def fake_monotonic():
+            monotonic_counter[0] += 1.0
+            return monotonic_counter[0]
+
+        with _pipeline_patches():
+            with patch("daily_brief.pipeline.aiohttp.ClientSession") as mock_session:
+                mock_session.side_effect = [_make_async_cm(), _make_async_cm()]
+                with patch("daily_brief.pipeline.write_report"):
+                    with patch("daily_brief.pipeline.time") as mock_time:
+                        mock_time.monotonic = fake_monotonic
+                        from daily_brief.pipeline import main as pm
+                        import copy
+                        saved_call_count = monotonic_counter[0]
+                        asyncio.get_event_loop().run_until_complete(pm())
+                        call_count = monotonic_counter[0] - saved_call_count
+                        # At least: run_started, 6 phase starts, 6 phase ends, PROCESSING, TOTAL
+                        self.assertGreaterEqual(call_count, 14)
+
+            # Verify PHASE_TIMINGS is populated with all 6 phases, all positive
+            self.assertIn("Phase 1", mod.PHASE_TIMINGS)
+            self.assertIn("Phase 2", mod.PHASE_TIMINGS)
+            self.assertIn("Phase 3", mod.PHASE_TIMINGS)
+            self.assertIn("Phase 4", mod.PHASE_TIMINGS)
+            self.assertIn("Phase 5", mod.PHASE_TIMINGS)
+            self.assertIn("Phase 6", mod.PHASE_TIMINGS)
+            for phase, duration in mod.PHASE_TIMINGS.items():
+                self.assertGreater(duration, 0, f"{phase} duration should be positive")
+
+    def test_main_validation_failure_has_total(self):
+        """A.9: validation-failure path logs total pipeline time."""
+        with _pipeline_patches(validation_result=(False, ["issue"])):
+            with patch("daily_brief.pipeline.aiohttp.ClientSession") as mock_session:
+                mock_session.side_effect = [_make_async_cm(), _make_async_cm()]
+                with patch("daily_brief.pipeline.write_report"):
+                    stderr_capture = io.StringIO()
+
+                    def fake_log(msg):
+                        stderr_capture.write(msg + "\n")
+                    with patch("daily_brief.pipeline.log", fake_log):
+                        with patch("daily_brief.pipeline.time") as mock_time:
+                            mock_time.monotonic = lambda: 0.0
+                            from daily_brief.pipeline import main as pm
+                            asyncio.get_event_loop().run_until_complete(pm())
+                    output = stderr_capture.getvalue()
+                    self.assertIn("TOTAL PIPELINE TIME", output)
+
+    def test_main_monotonic_not_wall_clock(self):
+        """A.9: pipeline duration uses monotonic, never time.time()."""
+        import importlib
+        import daily_brief.pipeline as mod
+        source_lines = set()
+        with open(os.path.join(os.path.dirname(mod.__file__), "pipeline.py")) as f:
+            source_lines = set(f.readlines())
+        # Check source doesn't use time.time() for pipeline durations
+        time_time_calls = [line.strip() for line in open(os.path.join(os.path.dirname(mod.__file__), "pipeline.py")) if "time.time()" in line]
+        self.assertEqual(len(time_time_calls), 0, "pipeline.py should not use time.time() for durations")
+
+    def test_main_phase3_includes_article_extraction(self):
+        """A.9: Phase 3 timing starts before article extraction."""
+        source = ""
+        with open(os.path.join(os.path.dirname(__import__("daily_brief.pipeline").__file__), "pipeline.py")) as f:
+            source = f.read()
+        # Phase 3 log line should appear before t3 = time.monotonic()
+        p3_log_pos = source.find('log("\\n[Phase 3] Enriching + summarizing...")')
+        t3_pos = source.find("t3 = time.monotonic()")
+        p3a_log_pos = source.find("[3A]")
+        self.assertLess(t3_pos, p3a_log_pos, "Phase 3 timer must start before 3A article extraction")

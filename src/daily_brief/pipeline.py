@@ -115,7 +115,7 @@ async def main():
     os.makedirs(LOG_DIR, exist_ok=True)
     os.makedirs(NEWS_DIR, exist_ok=True)
 
-    t0 = time.time()
+    run_started = time.monotonic()
 
     now_ts = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
@@ -146,7 +146,7 @@ async def main():
 
         # ---------- Phase 1: Weather (async) ----------
         log("\n[Phase 1] Fetching NWS weather...")
-        t1 = time.time()
+        t1 = time.monotonic()
         weather = await fetch_weather(session, WEATHER_LAT, WEATHER_LON)
         if weather:
             station = weather.get("station", {})
@@ -165,20 +165,21 @@ async def main():
             )
         else:
             log("  Weather returned empty")
-        elapsed = time.time() - t1
+        elapsed = time.monotonic() - t1
         PHASE_TIMINGS['Phase 1'] = elapsed
         log(f"  Phase 1 completed in {elapsed:.2f}s")
 
         # ---------- Phase 2: RSS feeds (extracted) ----------
-        t2 = time.time()
+        t2 = time.monotonic()
         deduped, dedup_stats = await fetch_and_dedup(session, CATEGORIES, log)
-        elapsed = time.time() - t2
+        elapsed = time.monotonic() - t2
         PHASE_TIMINGS['Phase 2'] = elapsed
         log(f"  Phase 2 completed in {elapsed:.2f}s")
         total_after_dedup = dedup_stats["total_after"]
 
         # ---------- Phase 3: Summarization (single batch call) ----------
         log("\n[Phase 3] Enriching + summarizing...")
+        t3 = time.monotonic()
 
         stories = []
         for title, link, snippet, pub_dt, cat in deduped:
@@ -201,7 +202,6 @@ async def main():
 
         # ---------- Phase 3B/3C: Batch summary ----------
         log(f"  [3BC] Running BATCH summaries via {LLM_MODEL}...")
-        t3 = time.time()
         llm_batch_summarize_all(_llm_client, stories, session=session)
         sum_ok = sum(1 for s in stories if s.summary and s.summary.strip() and not s.summary.strip().startswith("[Summary") and not _is_refusal(s.summary))
         sum_fail = total - sum_ok
@@ -259,15 +259,15 @@ async def main():
             else:
                 log(f"  [3E] Recovered all {recovered}/{boilerplate_count} boilerplate summaries")
 
-        elapsed = time.time() - t3
+        elapsed = time.monotonic() - t3
         log(f"  Phase 3 completed in {elapsed:.2f}s")
         PHASE_TIMINGS['Phase 3'] = elapsed
 
-        log(f"\n  PROCESSING COMPLETE: {total} stories in {time.time() - t0:.2f}s")
+        log(f"\n  PROCESSING COMPLETE: {total} stories in {time.monotonic() - run_started:.2f}s (Phases 1-3)")
 
         # ---------- Phase 4: Render report ----------
         log("\n[Phase 4] Rendering report...")
-        t4 = time.time()
+        t4 = time.monotonic()
 
         sections, alerts_list = build_sections_from_stories(stories, format_pub_date)
         filepath, file_ver = compute_output_path(OUTPUT_DIR)
@@ -288,7 +288,7 @@ async def main():
         })
         write_report(filepath, md)
 
-        elapsed = time.time() - t4
+        elapsed = time.monotonic() - t4
         log(f"\nFile written to {filepath}")
         log(f"  Stories: {total_after_dedup} | Alerts: {len(alerts_list)} | Failed: {sum_fail}/{total} | Time: {elapsed:.1f}s")
         PHASE_TIMINGS['Phase 4'] = elapsed
@@ -296,9 +296,15 @@ async def main():
 
         # --- Phase 5: Internal report validation ---
         log("\n[Phase 5] Validating report...")
+        t5 = time.monotonic()
         validation_passed, validation_issues = validate_report(filepath)
+        elapsed_5 = time.monotonic() - t5
+        PHASE_TIMINGS['Phase 5'] = elapsed_5
+        log(f"  Phase 5 completed in {elapsed_5:.2f}s")
 
         if not validation_passed:
+            total_elapsed = time.monotonic() - run_started
+            log(f"TOTAL PIPELINE TIME: {total_elapsed:.2f}s")
             log("\n*** RUN VALIDATION FAILED — Report has broken summaries ***")
             log(f"STATUS: FAILED ({len(validation_issues)} issues found)")
             print(f"\n*** RUN FAILED — {len(validation_issues)} validation issues found ***")
@@ -308,7 +314,13 @@ async def main():
 
         # --- Phase 6: External test harness validation ---
         log("\n[Phase 6] Running test harness...")
+        t6 = time.monotonic()
         run_test_harness(RUN_LOGFILE)
+        elapsed_6 = time.monotonic() - t6
+        PHASE_TIMINGS['Phase 6'] = elapsed_6
+        log(f"  Phase 6 completed in {elapsed_6:.2f}s")
+        total_elapsed = time.monotonic() - run_started
+        log(f"TOTAL PIPELINE TIME: {total_elapsed:.2f}s")
 
         log("\n=== PIPELINE COMPLETED SUCCESSFULLY ===")
         print(f"\nDone. File: {filepath}")

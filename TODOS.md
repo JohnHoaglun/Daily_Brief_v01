@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 - v1.0.78
+# TODO: Daily Brief v01 - v1.0.79
 
 ## Status Legend
 - `[ ]` TODO
@@ -17,7 +17,7 @@ Detailed findings, implementation constraints, and verification commands are in 
 - [x] A.6 `Rel-3`: create output/log directories before logging setup or listing.
 - [x] A.7 `Rel-4`: restore TLS verification in RSS connectivity probes.
 - [x] A.8 `Bug-6`: reject and diagnose unsuccessful RSS HTTP responses.
-- [ ] A.9 `Quality-6`: add monotonic total and per-phase timings.
+- [x] A.9 `Quality-6`: add monotonic total and per-phase timings.
 - [ ] A.10 `Bug-5`: correct `dedupi_window_hours` to `dedupe_window_hours`.
 
 ### Phase B - High-Impact Performance (4-6 hours, low-medium risk)

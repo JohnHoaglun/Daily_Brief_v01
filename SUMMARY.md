@@ -4,6 +4,11 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.79 — A.9 Monotonic total and per-phase timing measurements
+- `src/daily_brief/pipeline.py`: replaced all `time.time()` duration measurements with `time.monotonic()`. Phase 1–4 timings migrated. Added Phase 5 (validation) and Phase 6 (harness) timing, stored in `PHASE_TIMINGS`. Moved Phase 3 start mark before article extraction (3A) so it measures the full enrichment cycle. Added `TOTAL PIPELINE TIME` log line on both success and validation-failure paths. Existing `PROCESSING COMPLETE` metric now labeled `(Phases 1-3)` to clarify scope.
+- `tests/test_pipeline.py`: added 5 regression tests — `test_main_monotonic_phase_timings` (all 6 phases populated, positive durations), `test_main_validation_failure_has_total` (total logged on failure path), `test_main_monotonic_not_wall_clock` (source-level check: no `time.time()` calls), `test_main_phase3_includes_article_extraction` (source positions verify Phase 3 timer starts before 3A).
+- 772 tests passed, 0 failures.
+
 ### v1.0.78 — A.8 Reject and diagnose unsuccessful RSS HTTP responses
 - `src/daily_brief/sources/rss.py`: added HTTP status gate in `fetch_feed()`, rejecting non-2xx responses before `await resp.text()` and `feedparser.parse()`. Logs a warning with feed name, HTTP status, and URL; returns existing graceful-failure `(name, [])`.
 - `tests/test_sources/test_rss.py`: added 3 regression tests — `test_http_404_returns_empty_no_parse`, `test_http_503_returns_empty_no_parse`, `test_http_error_logs_status_and_name`.

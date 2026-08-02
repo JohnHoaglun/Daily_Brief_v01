@@ -1,4 +1,4 @@
-# Daily Brief v1.0.96
+# Daily Brief v1.0.97
 Automated daily news brief generator that fetches stories from 17 configured categories via Google News RSS, enriches them with weather and lake-level data, summarizes them with AI, and produces a structured Markdown report.
 
 ## Architecture
@@ -7,7 +7,7 @@ Modular codebase in `src/daily_brief/`:
 
 - **`pipeline.py`** — asynchronous orchestrator (6 phases: weather, RSS, LLM, render, validate, test harness)
 - **`sources/`** — NWS forecast, Wunderground station metrics, Open-Meteo/ERA5 climate normals, Texas reservoir levels, RSS feeds, and article extraction
-- **`llm/`** — OpenAI-compatible client (AsyncOpenAI), configurable batch-of-N summarization with semaphore-concurrency (default: `batch_size=4`, `max_concurrency=2`), boilerplate/refusal detection, auto fallback
+- **`llm/`** — OpenAI-compatible client (AsyncOpenAI), configurable batch-of-N summarization with semaphore-concurrency (default: `batch_size=4`, `max_concurrency=2`), boilerplate/refusal detection, auto fallback, structured metrics
 - **`pipelines/rss_dedup.py`** — RSS filtering, deduplication, and widening
 - **`rendering/`** — weather table generation, Markdown report assembly, output cleanup
 - **`config.py` / `config_validator.py`** — YAML-based configuration, loading, and validation
@@ -36,7 +36,7 @@ All runtime settings in `config.yaml`. Key groups:
 
 | Key | Description | Default |
 |---|---|---|
-| `version` | Pipeline version | `1.0.96` |
+| `version` | Pipeline version | `1.0.97` |
 | `llm.model` | Model for summarization | `gemma4-e2b` |
 | `llm.host` | vLLM API endpoint | `http://192.168.4.52:8007` |
 | `directories.log_dir` | Log output directory | vault `Dev/logs/` |
@@ -89,6 +89,7 @@ reports/                    # Benchmark results and performance data
 - v1.0.94 (C.2a adopted): Phase 3 median 43.4s (from 97.7s baseline) — 55.6% speedup via `batch_size=4`, `max_concurrency=2`. Quality: zero invalid/boilerplate/refusal/exceptions across 24 benchmark runs.
 - v1.0.95 (C.4): centralized batch retry, single-story recovery, and structured `SummaryMetrics`. Pipeline Phase 3D/3E duplicate recovery loops removed (−57 lines). Transient batch failures now retried as full batches before falling to individual recovery.
 - v1.0.96 (C.3): centralized HTTP retry/status — bounded 3-attempt retry with async backoff for transient failures (502/503/504/429/timeout). RSS routed with 2xx acceptance; article extraction gated to exact-200 before parsing. Weather/climate/lakes/Wunderground inherit retry automatically (zero caller changes).
+- v1.0.97 (C.5): retired the dormant alert feature — removed `llm/alerter.py`, alert config/prompt/CLI, `AlertResult` model, alert report extraction, and alert validation. 925 tests (924 passing, 1 pre-existing), config validate PASS.
 
 ## Tracking
 

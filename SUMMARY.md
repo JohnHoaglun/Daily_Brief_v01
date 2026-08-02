@@ -4,12 +4,22 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
-### v1.0.97 — Wave 1C: remove alert-list from report builder and pipeline
-- `src/daily_brief/rendering/report.py`: removed `alerts_list` extraction (`is_alert` check) and second return value from `build_sections_from_stories()`. Updated docstring. Function now returns only `sections` dict.
-- `src/daily_brief/pipeline.py`: updated `build_sections_from_stories()` call to single-return. Removed `Alerts: {len(alerts_list)}` from log and print output lines.
-- `tests/test_report.py`: removed `is_alert` parameter from `_make_story()`. Deleted `test_alerts_extracted` and `test_no_alert_when_not_set`. Updated all `build_sections_from_stories()` call sites to single return. Removed `alerts` assertions from `test_empty_stories_returns_empty`.
-- `tests/test_pipeline.py`: updated `_pipeline_patches` mock return from `({}, [])` to `{}`.
-- 60 tests collected, 60 passing.
+### v1.0.97 — C.5 retire dormant alert feature end-to-end (Bug-2/Bug-3/Bug-9) — Phase C complete
+- `src/daily_brief/llm/alerter.py`: deleted (388 lines). `batch_evaluate_alerts()` and `parse_alert_batch_response()` never invoked — `StoryPipelineState` lacked alert state fields (Bug-2).
+- `tests/test_alerter.py`: deleted (35 tests). No production code retained.
+- `config.yaml`: removed `llm.alert_options` block and `prompts.system_alert` text. Bumped version to 1.0.97.
+- `src/daily_brief/config.py`: removed `LLM_ALERT_OPTIONS` and `SYSTEM_ALERT_PROMPT` constants. Bumped to 1.0.97.
+- `config.py` (legacy root): removed `LLM_ALERT_OPTIONS` and `SYSTEM_ALERT_PROMPT` constants. Bumped to 1.0.97.
+- `src/daily_brief/config_validator.py`: restricted option/prompt validation loops to non-alert entries.
+- `src/daily_brief/cli.py`: removed `system_alert` from `show-prompt` subcommand choices.
+- `src/daily_brief/rendering/report.py`: simplified to single `sections` return (Wave 1C).
+- `src/daily_brief/pipeline.py`, `src/daily_brief/validation.py`, `src/daily_brief/models.py`, `src/daily_brief/__init__.py`: removed all alert-related code, model fields, validation checks, and exports.
+- `tests/test_config.py`: removed `alert_options` from mock config dicts.
+- `tests/test_report.py`: removed alert tests and all `is_alert`/`alerts_list` handling.
+- `tests/test_pipeline.py`: updated mock return value.
+- `tests/test_validation_extended.py`: removed alert-related test classes and imports.
+- `tests/test_validate_report.py`: renumbered REPORT check references.
+- 925 tests collected, 924 passing (1 pre-existing), config validate PASS, zero alert remnants in audit. Phase C complete.
 
 ### v1.0.96 — C.3 centralize bounded HTTP retry and status handling (Rel-1/Rel-2)
 - `src/daily_brief/http_client.py`: new `_request_with_retry()` with bounded 3-attempt retry, async backoff `[0.25, 0.5]`, configurable status predicates. Retries only transient: `429`/`502`/`503`/`504`/`TimeoutError`/`ClientError`. Never retries `400`/`401`/`403`/`404`. `_fetch_json` and `_fetch_text` refactored to use central executor with exact-200 default. Added `_safe_json_parse` helper for JSON decode error handling.

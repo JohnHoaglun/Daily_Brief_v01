@@ -97,5 +97,5 @@ Implement config unification (`Bug-4`, `Arch-4`, `Quality-1`, `Quality-7`); one 
 - Confirm package, YAML, report, and project documentation versions are aligned.
 
 ## Blockers
-- Alert feature disposition is unresolved: restore and render it, or retire it completely.
+- ~~Alert feature disposition is unresolved: restore and render it, or retire it completely.~~ Resolved: retired end-to-end in v1.0.97 (C.5).
 - LLM concurrency is an experiment, not an assumed optimization; it depends on controlled vLLM benchmarking.

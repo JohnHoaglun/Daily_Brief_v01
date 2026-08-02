@@ -5,7 +5,7 @@
 - `[~]` In progress
 - `[!]` Blocked by a decision or external dependency
 
-## Active Work: Phase C remaining, Phase D planning
+## Active Work: Phase C complete. Phase D next.
 Detailed findings, implementation constraints, and verification commands are in `PLAN.md`.
 
 ### Phase A - Quick Wins (2-3 hours, low risk) — COMPLETE
@@ -30,7 +30,7 @@ Detailed findings, implementation constraints, and verification commands are in 
 - [x] B.7 `Perf-11`: make production preflight probes opt-in or short-TTL cached.
 - [x] B.8 `Arch-1`: separate weather provider fetching from deterministic merge/fallback policy.
 
-### Phase C - Async, LLM, and Reliability (1-3 days, medium-high risk)
+### Phase C - Async, LLM, and Reliability (1-3 days, medium-high risk) — COMPLETE
 - [x] C.1 `Perf-8` / `Perf-9`: migrate LLM calls to `AsyncOpenAI` and retry delays to `asyncio.sleep()`.
 - [x] C.2 `Perf-7`: batch scheduler controls — configurable `batch_size` and `max_concurrency` added; production defaults unchanged pending benchmark.
 - [x] C.2a `Perf-7`: benchmark infrastructure complete — capture script, benchmark runner, 21 non-network tests.
@@ -38,7 +38,7 @@ Detailed findings, implementation constraints, and verification commands are in 
 - [x] C.2a.2 `Perf-7`: execute 8-cell live benchmark matrix; adopt new defaults if proven. (Winner: `batch_size=4`, `max_concurrency=2`, 55.6% faster, 0 quality regression. Adopted v1.0.94.)
 - [x] C.3 `Rel-1` / `Rel-2`: centralize bounded HTTP retry and status handling. (v1.0.96)
 - [x] C.4 `Rel-6` / `Rel-7` / `Arch-2`: centralize batch retry, fallback, and summarization metrics. (v1.0.95, +39 tests, 3 new files, pipeline −57 lines)
-- [!] C.5 `Bug-2` / `Bug-3` / `Bug-9`: decide whether to restore the alert feature end-to-end or remove it.
+- [x] C.5 `Bug-2` / `Bug-3` / `Bug-9`: retire the dormant alert feature end-to-end. (v1.0.97)
 
 ### Phase D - Architecture Follow-Up (2-4 days, medium risk)
 - [ ] D.1 `Bug-4` / `Arch-4`: unify configuration schema, loading, validation, and imports.
@@ -56,4 +56,4 @@ Detailed findings, implementation constraints, and verification commands are in 
 - [ ] Record timing medians, report validation, and production outcomes in `SUMMARY.md`.
 
 ## Blocked Decisions
-- [!] Alert-system disposition is required before C.5.
+- (none — alert disposition resolved: retired, v1.0.97)

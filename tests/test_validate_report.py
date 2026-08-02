@@ -337,11 +337,11 @@ class TestStoryCount(TestCase):
 
 
 # ---------------------------------------------------------------------------
-# REPORT-7: Duplicate URLs
+# REPORT-6: Duplicate URLs
 # ---------------------------------------------------------------------------
 
 class TestDuplicateURLs(TestCase):
-    """REPORT-7: No duplicate markdown URLs."""
+    """REPORT-6: No duplicate markdown URLs."""
 
     def test_duplicate_urls_detected(self):
         content = _valid_report()
@@ -352,8 +352,8 @@ class TestDuplicateURLs(TestCase):
         path = _write_report(content)
         try:
             _, issues = validate_report(path)
-            report7 = [i for i in issues if "[REPORT-7]" in i]
-            self.assertGreater(len(report7), 0)
+            report6 = [i for i in issues if "[REPORT-6]" in i]
+            self.assertGreater(len(report6), 0)
         finally:
             _cleanup(path)
 
@@ -362,25 +362,25 @@ class TestDuplicateURLs(TestCase):
         path = _write_report(content)
         try:
             _, issues = validate_report(path)
-            report7 = [i for i in issues if "[REPORT-7]" in i]
-            self.assertEqual(report7, [])
+            report6 = [i for i in issues if "[REPORT-6]" in i]
+            self.assertEqual(report6, [])
         finally:
             _cleanup(path)
 
 
 # ---------------------------------------------------------------------------
-# REPORT-8: File size reasonable
+# REPORT-7: File size reasonable
 # ---------------------------------------------------------------------------
 
 class TestFileSize(TestCase):
-    """REPORT-8: File size between 5KB and 10MB."""
+    """REPORT-7: File size between 5KB and 10MB."""
 
     def test_file_too_small(self):
         path = _write_report("# Small report\njust a few words\n")
         try:
             _, issues = validate_report(path)
-            report8 = [i for i in issues if "[REPORT-8]" in i]
-            self.assertGreater(len(report8), 0)
+            report7 = [i for i in issues if "[REPORT-7]" in i]
+            self.assertGreater(len(report7), 0)
         finally:
             _cleanup(path)
 
@@ -390,8 +390,8 @@ class TestFileSize(TestCase):
         try:
             with mock.patch("daily_brief.validation.os.path.getsize", return_value=11 * 1024 * 1024):
                 _, issues = validate_report(path)
-                report8 = [i for i in issues if "[REPORT-8]" in i]
-                self.assertGreater(len(report8), 0)
+                report7 = [i for i in issues if "[REPORT-7]" in i]
+                self.assertGreater(len(report7), 0)
         finally:
             _cleanup(path)
 
@@ -400,8 +400,8 @@ class TestFileSize(TestCase):
         path = _write_report(content)
         try:
             _, issues = validate_report(path)
-            report8 = [i for i in issues if "[REPORT-8]" in i]
-            self.assertEqual(report8, [])
+            report7 = [i for i in issues if "[REPORT-7]" in i]
+            self.assertEqual(report7, [])
         finally:
             _cleanup(path)
 

@@ -13,6 +13,7 @@ import aiohttp
 from bs4 import BeautifulSoup
 
 from daily_brief.config import LLM_CONTEXT_PREVIEW_CHARS, USER_AGENT
+from daily_brief.http_client import _fetch_text
 from daily_brief.utils import is_obituary_title
 
 logger = logging.getLogger(__name__)
@@ -35,12 +36,12 @@ async def stage_extract_article(story: Any, session: aiohttp.ClientSession) -> N
         return
 
     try:
-        async with session.get(
-            url,
-            headers={"User-Agent": USER_AGENT},
-            timeout=aiohttp.ClientTimeout(total=5),
-        ) as resp:
-            html = await resp.text()
+        html = await _fetch_text(
+            session, url, user_agent=USER_AGENT, timeout=5
+        )
+        if html is None:
+            logger.debug("  [extract error] '%s': fetch failed", story.title[:60])
+            return
         soup = BeautifulSoup(html, "html.parser")
         for tag in soup(["script", "style", "nav", "header", "footer", "aside"]):
             tag.decompose()

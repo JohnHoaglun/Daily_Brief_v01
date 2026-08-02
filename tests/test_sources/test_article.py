@@ -200,6 +200,29 @@ class TestStageExtractArticle(TestCase):
         asyncio.get_event_loop().run_until_complete(_run())
         self.assertEqual(story.context, "")
 
+    def test_non_200_status_not_parsed(self):
+        """Non-200 response should not be parsed — error pages should never enter context."""
+        class ErrorResp:
+            status = 500
+            async def text(self):
+                return "<html><body>Error page content that should never be parsed</body></html>"
+
+        class ErrorSession:
+            def get(self, *a, **kw):
+                return _AsyncCM(ErrorResp())
+
+        story = MockStory(
+            title="Error Article",
+            link="https://example.com/error",
+            category="Tech",
+        )
+
+        async def _run():
+            await stage_extract_article(story, ErrorSession())
+
+        asyncio.get_event_loop().run_until_complete(_run())
+        self.assertEqual(story.context, "")
+
 
 # ---------------------------------------------------------------------------
 # build_context

@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 - v1.0.89
+# TODO: Daily Brief v01 - v1.0.90
 
 ## Status Legend
 - `[ ]` TODO
@@ -32,7 +32,8 @@ Detailed findings, implementation constraints, and verification commands are in 
 
 ### Phase C - Async, LLM, and Reliability (1-3 days, medium-high risk)
 - [ ] C.1 `Perf-8` / `Perf-9`: migrate LLM calls to `AsyncOpenAI` and retry delays to `asyncio.sleep()`.
-- [ ] C.2 `Perf-7`: benchmark LLM batch sizes 3-6 and concurrency 2 before production changes.
+- [x] C.2 `Perf-7`: batch scheduler controls — configurable `batch_size` and `max_concurrency` added; production defaults unchanged pending benchmark.
+- [ ] C.2a `Perf-7`: run benchmark matrix (batch 3-6, concurrency 1-2) and adopt new defaults if material speedup proven.
 - [ ] C.3 `Rel-1` / `Rel-2`: centralize bounded HTTP retry and status handling.
 - [ ] C.4 `Rel-6` / `Rel-7` / `Arch-2`: centralize batch retry, fallback, and summarization metrics.
 - [!] C.5 `Bug-2` / `Bug-3` / `Bug-9`: decide whether to restore the alert feature end-to-end or remove it.

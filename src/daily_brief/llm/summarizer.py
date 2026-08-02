@@ -563,8 +563,109 @@ def build_context(story):
     return inner[:LLM_CONTEXT_PREVIEW_CHARS]
 
 
-async def batch_summarize_all(client, stories, session=None):
-    """Async batch summarization with sub-batches of max 3 stories for reliability. Returns dict mapping story object -> summary text."""
+def _is_valid_summary(summary, headline):
+    """Check if a summary passes basic validation."""
+    if not summary or not summary.strip():
+        return False
+    if _is_boilerplate(summary):
+        return False
+    normalized = re.sub(r"\s+", " ", summary).strip().lower()
+    headline_norm = re.sub(r"\s+", " ", headline).strip().lower()
+    if normalized == headline_norm or normalized.startswith(headline_norm + "."):
+        return False
+    if _count_sentences(summary) < 2:
+        return False
+    return True
+
+
+async def _summarize_sub_batch(client, cat_name, sub_batch, *, semaphore=None, batch_size=3):
+    """Process one sub-batch of stories through a single LLM batch call.
+    
+    Args:
+        client: LLM client with chat_completions_create method
+        cat_name: Category name for logging
+        sub_batch: List of StoryPipelineState objects
+        semaphore: Optional asyncio.Semaphore for bounded concurrency
+        batch_size: Unused parameter kept for API compatibility
+    """
+    # Build contexts for this sub-batch
+    context_lines = []
+    for idx, s in enumerate(sub_batch):
+        context_parts = [s.title]
+        content = build_context(s)
+        if len(content) > LLM_CONTEXT_PREVIEW_CHARS:
+            content = content[:LLM_CONTEXT_PREVIEW_CHARS]
+        context_parts.append(content)
+        entry = f"{idx + 1}. {cat_name}\n" + "\n".join(context_parts)
+        context_lines.append(entry)
+
+    batch_text = "\n---\n\n".join(context_lines)
+
+    try:
+        t0 = time.time()
+        if semaphore:
+            async with semaphore:
+                r = await client.chat_completions_create(
+                    model=LLM_MODEL,
+                    messages=[
+                        {"role": "system", "content": SYSTEM_BATCH_PROMPT},
+                        {"role": "user", "content": batch_text}
+                    ],
+                    **LLM_SUMMARY_OPTIONS
+                )
+        else:
+            r = await client.chat_completions_create(
+                model=LLM_MODEL,
+                messages=[
+                    {"role": "system", "content": SYSTEM_BATCH_PROMPT},
+                    {"role": "user", "content": batch_text}
+                ],
+                **LLM_SUMMARY_OPTIONS
+            )
+        elapsed = time.time() - t0
+        sub_batch_label = f"{cat_name} (batch {len(sub_batch)})"
+        logger.debug(f"BATCH SUMMARIZE ({sub_batch_label}): {elapsed:.1f}s")
+
+        resp_text = r.choices[0].message.content if r.choices else ""
+        logger.debug(f"BATCH OUTPUT ({sub_batch_label}): {resp_text[:400]}")
+
+        parsed_summaries = parse_batch_summary_response(
+            resp_text, len(sub_batch),
+            story_headlines=[s.title for s in sub_batch]
+        )
+        for idx, s in enumerate(sub_batch):
+            summary = parsed_summaries[idx] if idx < len(parsed_summaries) else ""
+            headline = s.title.strip()
+            if not summary or not summary.strip():
+                s.summary = ""
+                continue
+            if _is_boilerplate(summary):
+                logger.warning(f"BOILERPLACE DETECTED for story {idx} ({headline}): '{summary[:80]}...' — marking for fallback")
+                s.summary = ""
+                continue
+            if _is_valid_summary(summary, headline):
+                s.summary = summary
+            else:
+                s.summary = ""
+
+    except Exception as e:
+        logger.warning(f"BATCH SUMMARIZE ERROR ({cat_name}): {e}")
+        for s in sub_batch:
+            s.summary = ""
+
+
+async def batch_summarize_all(client, stories, session=None, *, batch_size: int = 3, max_concurrency: int = 1):
+    """Async batch summarization with configurable sub-batch size and bounded concurrency.
+    
+    Args:
+        client: LLM client with chat_completions_create method
+        stories: List of StoryPipelineState objects
+        session: Optional HTTP session (unused, kept for API compatibility)
+        batch_size: Stories per sub-batch (default 3)
+        max_concurrency: Max concurrent sub-batch LLM calls (default 1, serial)
+    
+    Returns dict mapping story object -> summary text (currently unused, returned for API compatibility).
+    """
     if not stories:
         return {}
 
@@ -575,89 +676,30 @@ async def batch_summarize_all(client, stories, session=None):
 
     all_summaries = {}
 
-    SYSTEM_BATCH = SYSTEM_BATCH_PROMPT
-    BATCH_SIZE = 3  # Max stories per batch for reliable ordering
-
-    total_parsed = 0
+    # Collect all sub-batches across all categories
+    all_sub_batches = []
     for cat_name, cat_stories in by_category.items():
-        # Split into sub-batches of BATCH_SIZE
-        sub_batches = []
-        for i in range(0, len(cat_stories), BATCH_SIZE):
-            sub_batches.append(cat_stories[i:i + BATCH_SIZE])
+        for i in range(0, len(cat_stories), batch_size):
+            all_sub_batches.append((cat_name, cat_stories[i:i + batch_size]))
 
-        for sub_batch in sub_batches:
-            # Build contexts for this sub-batch
-            context_lines = []
-            for idx, s in enumerate(sub_batch):
-                # Build a shorter context: title + first 400 chars of article if available
-                context_parts = [s.title]
-                content = build_context(s)
-                if len(content) > LLM_CONTEXT_PREVIEW_CHARS:
-                    content = content[:LLM_CONTEXT_PREVIEW_CHARS]
-                context_parts.append(content)
-
-                entry = f"{idx + 1}. {cat_name}\n" + "\n".join(context_parts)
-                context_lines.append(entry)
-
-            batch_text = "\n---\n\n".join(context_lines)
-
-            # Make ONE batch call for this sub-batch
-            try:
-                t0 = time.time()
-                r = await client.chat_completions_create(
-                    model=LLM_MODEL,
-                    messages=[
-                        {"role": "system", "content": SYSTEM_BATCH},
-                        {"role": "user", "content": batch_text}
-                    ],
-                    **LLM_SUMMARY_OPTIONS
-                )
-                elapsed = time.time() - t0
-                sub_batch_label = f"{cat_name} (batch {len(sub_batch)})"
-                logger.debug(f"BATCH SUMMARIZE ({sub_batch_label}): {elapsed:.1f}s")
-
-                resp_text = r.choices[0].message.content if r.choices else ""
-                logger.debug(f"BATCH OUTPUT ({sub_batch_label}): {resp_text[:400]}")
-
-                parsed_summaries = parse_batch_summary_response(
-                    resp_text, len(sub_batch),
-                    story_headlines=[s.title for s in sub_batch]
-                )
-                for idx, s in enumerate(sub_batch):
-                    summary = parsed_summaries[idx] if idx < len(parsed_summaries) else ""
-                    headline = s.title.strip()
-
-                    def is_invalid_summary(value):
-                        if not value:
-                            return True
-                        normalized = re.sub(r"\s+", " ", value).strip().lower()
-                        headline_norm = reed_safe(headline)
-                        if normalized == headline_norm or normalized.startswith(headline_norm + "."):
-                            return True
-                        return _count_sentences(value) < 2
-
-                    def reed_safe(text):
-                        return re.sub(r"\s+", " ", text).strip().lower()
-
-                    if not summary or not summary.strip():
-                        s.summary = ""
-                        continue
-
-                    if _is_boilerplate(summary):
-                        logger.warning(f"BOILERPLACE DETECTED for story {idx} ({headline}): '{summary[:80]}...' — marking for fallback")
-                        s.summary = ""
-                        continue
-
-                    if not is_invalid_summary(summary):
-                        s.summary = summary
-                        total_parsed += 1
-                    else:
-                        s.summary = ""
-
-            except Exception as e:
-                logger.warning(f"BATCH SUMMARIZE ERROR ({cat_name}): {e}")
-                for s in sub_batch:
+    # Dispatch with bounded concurrency
+    if max_concurrency > 1:
+        sem = asyncio.Semaphore(max_concurrency)
+        tasks = [
+            _summarize_sub_batch(client, cat_name, sb, semaphore=sem, batch_size=batch_size)
+            for cat_name, sb in all_sub_batches
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                cat_name, sb = all_sub_batches[i]
+                logger.warning(f"BATCH SUB-BATCH EXCEPTION ({cat_name}): {result}")
+                for s in sb:
                     s.summary = ""
+    else:
+        # Serial path — no semaphore overhead, identical to current behavior
+        for cat_name, sb in all_sub_batches:
+            await _summarize_sub_batch(client, cat_name, sb, batch_size=batch_size)
 
     # Phase 3F: Single-story LLM fallback for stories with empty batch summary
     needs_fallback = [s for s in stories if not s.summary or not s.summary.strip()]

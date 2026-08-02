@@ -66,8 +66,8 @@ class TestPipelineCreatesDirs(TestCase):
                     {"total_after": 1}
                 )),
                 patch("daily_brief.pipeline.StoryPipelineState", return_value=MagicMock()),
-                patch("daily_brief.pipeline.llm_summarize", return_value=None),
-                patch("daily_brief.pipeline.llm_batch_summarize_all", return_value=None),
+                patch("daily_brief.pipeline.llm_summarize", new_callable=AsyncMock, return_value=None),
+                patch("daily_brief.pipeline.llm_batch_summarize_all", new_callable=AsyncMock, return_value=None),
                 patch("daily_brief.pipeline._is_refusal", return_value=False),
                 patch("daily_brief.pipeline._is_boilerplate", return_value=False),
                 patch("daily_brief.pipeline.build_sections_from_stories", return_value=({}, [])),

@@ -4,6 +4,10 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.90 — C.2 Batch scheduler: configurable batch_size and max_concurrency (Perf-7)
+- `src/daily_brief/llm/summarizer.py`: extracted `_summarize_sub_batch()` with optional `asyncio.Semaphore` for bounded concurrency; refactored `batch_summarize_all()` to accept `batch_size` (default 3) and `max_concurrency` (default 1, serial) parameters; when `max_concurrency > 1`, sub-batches dispatched via `asyncio.gather` with semaphore gating; exception isolation per sub-batch; extracted `_is_valid_summary()` helper. Bumped header to v1.0.90.
+- `tests/test_summarizer.py`: added `TestBatchSchedulerControls` (4 tests): custom batch_size split, semaphore concurrency 1/2, sub-batch exception isolation.
+
 ### v1.0.89 — C.1 Migrate LLM calls to AsyncOpenAI and asyncio.sleep (Perf-8/Perf-9)
 - `src/daily_brief/llm/client.py`: switched from `OpenAI` to `AsyncOpenAI`; `chat_completions_create()` is now `async`; removed `_executor` and `_run_blocking` (no longer needed).
 - `src/daily_brief/llm/summarizer.py`: `_summarize()` and `batch_summarize_all()` are now `async`; replaced `time.sleep()` with `asyncio.sleep()` for non-blocking retry backoff.

@@ -1,14 +1,14 @@
-# TODO: Daily Brief v01 - v1.0.91
+# TODO: Daily Brief v01 - v1.0.94
 
 ## Status Legend
 - `[ ]` TODO
 - `[~]` In progress
 - `[!]` Blocked by a decision or external dependency
 
-## Active Work: Research Review Execution
+## Active Work: Phase C remaining, Phase D planning
 Detailed findings, implementation constraints, and verification commands are in `PLAN.md`.
 
-### Phase A - Quick Wins (2-3 hours, low risk)
+### Phase A - Quick Wins (2-3 hours, low risk) — COMPLETE
 - [x] A.1 `Bug-1`: import `ZoneInfo` for RSS age filtering.
 - [x] A.2 `Clean-8`: precompile the HTML-strip regex.
 - [x] A.3 `Clean-5`: remove the unused `sum_results` assignment.
@@ -20,7 +20,7 @@ Detailed findings, implementation constraints, and verification commands are in 
 - [x] A.9 `Quality-6`: add monotonic total and per-phase timings.
 - [x] A.10 `Bug-5`: correct `dedupi_window_hours` to `dedupe_window_hours`.
 
-### Phase B - High-Impact Performance (4-6 hours, low-medium risk)
+### Phase B - High-Impact Performance (4-6 hours, low-medium risk) — COMPLETE
 - [x] B.1 `Perf-1`: fetch lake levels with bounded concurrency and stable output ordering.
 - [x] B.2 `Perf-2`: concurrently collect independent weather sources, then merge deterministically.
 - [x] B.3 `Perf-3`: eliminate the redundant Wunderground dashboard request.
@@ -34,8 +34,8 @@ Detailed findings, implementation constraints, and verification commands are in 
 - [x] C.1 `Perf-8` / `Perf-9`: migrate LLM calls to `AsyncOpenAI` and retry delays to `asyncio.sleep()`.
 - [x] C.2 `Perf-7`: batch scheduler controls — configurable `batch_size` and `max_concurrency` added; production defaults unchanged pending benchmark.
 - [x] C.2a `Perf-7`: benchmark infrastructure complete — capture script, benchmark runner, 21 non-network tests.
-- [ ] C.2a.1 `Perf-7`: run pipeline once to capture the Phase-3 corpus for live benchmarking.
-- [ ] C.2a.2 `Perf-7`: execute 8-cell live benchmark matrix; adopt new defaults if proven.
+- [x] C.2a.1 `Perf-7`: run pipeline once to capture the Phase-3 corpus for live benchmarking.
+- [x] C.2a.2 `Perf-7`: execute 8-cell live benchmark matrix; adopt new defaults if proven. (Winner: `batch_size=4`, `max_concurrency=2`, 55.6% faster, 0 quality regression. Adopted v1.0.94.)
 - [ ] C.3 `Rel-1` / `Rel-2`: centralize bounded HTTP retry and status handling.
 - [ ] C.4 `Rel-6` / `Rel-7` / `Arch-2`: centralize batch retry, fallback, and summarization metrics.
 - [!] C.5 `Bug-2` / `Bug-3` / `Bug-9`: decide whether to restore the alert feature end-to-end or remove it.
@@ -51,9 +51,9 @@ Detailed findings, implementation constraints, and verification commands are in 
 
 ## Verification Gate
 - [x] Establish a three-run timing and report-quality baseline before Phase A. (Recorded: 764 tests pass. Wall-clock 137–147s. P1 ~8s, P2 ~3.5s, P3 96–100s, P4 30s. LLM dominant.)
+- [x] C.2a Live benchmark completed (v1.0.94): 890 tests pass. Corpus: 75 stories. 8-cell matrix, 24 recorded runs. Winner (4,2): 43.4s median vs 97.7s baseline, 55.6% faster. Quality: 0 invalid, 0 auto_fallback, 0 boilerplate+refusal, 0 exceptions. All 5 quality gates passed with margin. Defaults set.
 - [ ] Run phase-specific tests and `pytest -q` after each phase.
 - [ ] Record timing medians, report validation, and production outcomes in `SUMMARY.md`.
 
 ## Blocked Decisions
 - [!] Alert-system disposition is required before C.5.
-- [!] LLM batching/concurrency changes require a controlled vLLM benchmark before adoption.

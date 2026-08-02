@@ -1,8 +1,5 @@
-# Daily Brief v1.0.84
-
-## Overview
-
-Automated daily news brief generator that fetches stories from 17 categories via Google News RSS, enriches them with weather and lake-level data, summarizes them with AI, and produces a structured Markdown report.
+# Daily Brief v1.0.94
+Automated daily news brief generator that fetches stories from 17 configured categories via Google News RSS, enriches them with weather and lake-level data, summarizes them with AI, and produces a structured Markdown report.
 
 ## Architecture
 
@@ -10,12 +7,12 @@ Modular codebase in `src/daily_brief/`:
 
 - **`pipeline.py`** — asynchronous orchestrator (6 phases: weather, RSS, LLM, render, validate, test harness)
 - **`sources/`** — NWS forecast, Wunderground station metrics, Open-Meteo/ERA5 climate normals, Texas reservoir levels, RSS feeds, and article extraction
-- **`llm/`** — OpenAI-compatible client, batch-of-3 summarization, boilerplate/refusal detection, auto fallback
+- **`llm/`** — OpenAI-compatible client (AsyncOpenAI), configurable batch-of-N summarization with semaphore-concurrency (default: `batch_size=4`, `max_concurrency=2`), boilerplate/refusal detection, auto fallback
 - **`pipelines/rss_dedup.py`** — RSS filtering, deduplication, and widening
 - **`rendering/`** — weather table generation, Markdown report assembly, output cleanup
 - **`config.py` / `config_validator.py`** — YAML-based configuration, loading, and validation
-- **`tagging.py` / `categorization.py`** — config-driven keyword tagging, category ordering
-- **`tests/`** — 764 tests (unit, mocked, integration, smoke, post-run validation)
+- **`categorization.py`** — config-driven keyword tagging, category ordering
+- **`tests/`** — 890 tests (unit, mocked, integration, smoke, post-run validation)
 
 ## Requirements
 
@@ -39,7 +36,7 @@ All runtime settings in `config.yaml`. Key groups:
 
 | Key | Description | Default |
 |---|---|---|
-| `version` | Pipeline version | `1.0.76` |
+| `version` | Pipeline version | `1.0.94` |
 | `llm.model` | Model for summarization | `gemma4-e2b` |
 | `llm.host` | vLLM API endpoint | `http://192.168.4.52:8007` |
 | `directories.log_dir` | Log output directory | vault `Dev/logs/` |
@@ -53,7 +50,7 @@ All runtime settings in `config.yaml`. Key groups:
 
 1. **Weather** — async fetch of NWS forecast, station metrics, climate normals, lake levels
 2. **RSS** — 15 Google News RSS feeds, concurrent fetch, deduplication, date filtering
-3. **LLM** — article extraction, batch-of-3 summarization, retry, boilerplate detection, auto fallback
+3. **LLM** — article extraction, batch-of-N summarization (configurable `batch_size`/`max_concurrency`), async retry, boilerplate detection, auto fallback
 4. **Render** — Markdown assembly with frontmatter, weather tables, categorized sections
 5. **Validate** — internal report validation (story count, fallback thresholds)
 6. **Test harness** — external post-run validation
@@ -78,16 +75,18 @@ src/daily_brief/            # Modular source code
   config_validator.py       # Configuration validation
   tagging.py                # Keyword tagging engine
   categorization.py         # Category ordering
-tests/                      # 764 tests
+tests/                      # 890 tests
 PROJECT.md                  # Architecture and status
 SUMMARY.md                  # Changelog
 TODOS.md                    # Live task board
 PLAN.md                     # Optimization strategy and findings
+reports/                    # Benchmark results and performance data
 ```
 
 ## Performance
 
-Baseline (v1.0.67): ~105–114s internal pipeline time across 70–73 stories. LLM summarization (Phase 3) dominates at ~96–100s. Phase B optimization targets 10–20s reduction via weather and RSS concurrency.
+- v1.0.67 baseline: ~105–114s internal pipeline time across 70–73 stories. LLM summarization (Phase 3) dominates at ~96–100s.
+- v1.0.94 (C.2a adopted): Phase 3 median 43.4s (from 97.7s baseline) — 55.6% speedup via `batch_size=4`, `max_concurrency=2`. Quality: zero invalid/boilerplate/refusal/exceptions across 24 benchmark runs.
 
 ## Tracking
 

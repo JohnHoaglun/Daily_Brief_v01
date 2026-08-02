@@ -4,6 +4,28 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.94 — C.2a adopt (4,2) — 55.6% faster, all quality gates pass (Perf-7)
+- Live benchmark on 75-story corpus, 8-cell matrix (batch 3-6 × concurrency 1-2 × 3 runs). Winner (4,2): median 43.4s vs 97.7s baseline, 55.6% improvement. Quality: 0 invalid, 0 auto_fallback, 0 boilerplate+refusal, 0 exceptions. All 5 quality gates passed with margin.
+- `src/daily_brief/config.py`: `LLM_SUMMARY_BATCH_SIZE` default 4, `LLM_SUMMARY_MAX_CONCURRENCY` default 2 (up from 3, 1). Bumped VERSION to 1.0.94.
+- `config.py`: `LLM_SUMMARY_BATCH_SIZE` default 4, `LLM_SUMMARY_MAX_CONCURRENCY` default 2 (up from 3, 1). Bumped version to 1.0.94.
+- `tests/test_adoption_plumbing.py`: updated default assertions to (4, 2).
+- `reports/llm_batch_benchmark.json`: full benchmark results with 24 recorded runs, 8 cells, environment provenance.
+- 890 tests passed, 0 failures. config validate PASS.
+
+### v1.0.93 — C.2a adoption plumbing — config constants, pipeline forwarding, validation (Perf-7)
+- `src/daily_brief/config.py`: added `LLM_SUMMARY_BATCH_SIZE` (default 3) and `LLM_SUMMARY_MAX_CONCURRENCY` (default 1) with YAML overrides. Bumped VERSION to 1.0.93.
+- `src/daily_brief/pipeline.py`: explicit `batch_size=LLM_SUMMARY_BATCH_SIZE`, `max_concurrency=LLM_SUMMARY_MAX_CONCURRENCY` on Phase 3 `llm_batch_summarize_all()` call. Added scheduler settings log line.
+- `src/daily_brief/config_validator.py`: added `check_batch_scheduler()` — validates `LLM_SUMMARY_BATCH_SIZE` and `LLM_SUMMARY_MAX_CONCURRENCY` are int ≥ 1.
+- `tests/test_adoption_plumbing.py`: 10 tests: config defaults (4), pipeline wiring (2), validation (2), logging (2).
+- 890 tests passed, 0 failures.
+
+### v1.0.92 — C.2a benchmark hardening — matrix validation, quality gates, instrumentation, capture validation (Perf-7)
+- `scripts/capture_corpus.py`: hardened with PROJECT_ROOT-relative output path, `--force` overwrite guard, pre-write corpus validation (min-stories threshold, 80% context coverage, required fields), metadata enrichment (`categories`, `category_order`, `context_stats`).
+- `scripts/benchmark_llm_batches.py`: hardened with matrix validation (rejects ≤0, deduplicates, requires (3, 1) baseline), warmup fix (N warmups per cell), host normalization (`/v1` suffix), model override (`summarizer.LLM_MODEL` monkey-patch), instrumentation (per-call latency p50/p95/max, exception count, sub-batch sizes), environment provenance (fixture hash, capture date, LLM options, retry config). Standalone validators removed — imports from `daily_brief.llm.summarizer`. `select_winner()` with 5 quality gates (speed, invalid_rate, auto_fallback_rate, boilerplate_refusal_rate, exceptions) that fail closed.
+- `tests/test_benchmark_llm_batches.py`: 38 tests across 12 classes (matrix validation, host normalization, instrumentation fields, environment provenance, quality gates, plus existing tests).
+- `tests/test_capture_corpus.py`: 25 tests across 5 classes: path resolution (4), force flag (4), validation (8), metadata/stats (5), no-LLM proof (4).
+- 865 tests passed, 0 failures.
+
 ### v1.0.91 — C.2a LLM batch benchmark infrastructure (Perf-7)
 - `scripts/capture_corpus.py`: standalone corpus capture script. Runs the full pipeline to Phase 3 (RSS, dedup, article extraction) without calling LLM; serializes `StoryPipelineState` inputs (title, url, category, snippet, pub_date, full context) to a versioned JSON corpus with category order preservation and summary metadata. No credentials or LLM responses captured.
 - `scripts/benchmark_llm_batches.py`: standalone benchmark runner. Loads a captured JSON corpus, reconstructs `StoryPipelineState` objects, and calls `batch_summarize_all()` across an 8-cell matrix (batch sizes 3-6 × concurrency 1-2). Each cell runs one warmup and N recorded runs with shuffled order per repetition. Instrumented async client tracks batch/fallback calls, max concurrent requests, wall time, per-run quality metrics, and stories/second. JSON output with median/min/max aggregation and a formatted terminal table. Winner selection requires >=10% median improvement over baseline (3, 1) with no quality regression.

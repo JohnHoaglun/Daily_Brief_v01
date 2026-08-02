@@ -558,6 +558,90 @@ class TestBenchmarkOutput(TestCase):
 
 
 # ---------------------------------------------------------------------------
+# 6.  TestQualityGates
+# ---------------------------------------------------------------------------
+
+
+class TestQualityGates(TestCase):
+    """Quality gate winner selection tests."""
+
+    def _make_cell(self, bs, mc, med_time, invalid_rate=0.0, auto_rate=0.0, bp_rate=0.0, ref_rate=0.0, exceptions=0):
+        return {
+            "settings": {"batch_size": bs, "max_concurrency": mc},
+            "median_wall_time_s": med_time,
+            "runs": [{
+                "invalid_rate": invalid_rate,
+                "auto_fallback_rate": auto_rate,
+                "boilerplate_rate": bp_rate,
+                "refusal_rate": ref_rate,
+                "exception_count": exceptions,
+                "valid_summaries": 10,
+                "wall_time_s": med_time,
+            }],
+        }
+
+    def _get_bench(self):
+        import sys, os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+        import benchmark_llm_batches as bench
+        return bench
+
+    def test_baseline_missing_no_winner(self):
+        bench = self._get_bench()
+        cells = [self._make_cell(4, 1, 5.0)]
+        baseline, winner = bench.select_winner(cells)
+        self.assertIsNone(winner)
+
+    def test_faster_but_more_invalid_rejected(self):
+        bench = self._get_bench()
+        baseline_cell = self._make_cell(3, 1, 10.0, invalid_rate=0.05)
+        candidate = self._make_cell(4, 1, 8.0, invalid_rate=0.10)
+        baseline, winner = bench.select_winner([baseline_cell, candidate])
+        self.assertIsNone(winner)
+
+    def test_faster_equal_quality_accepted(self):
+        bench = self._get_bench()
+        baseline_cell = self._make_cell(3, 1, 10.0, invalid_rate=0.05)
+        candidate = self._make_cell(4, 1, 8.0, invalid_rate=0.03)
+        baseline, winner = bench.select_winner([baseline_cell, candidate])
+        self.assertIsNotNone(winner)
+        self.assertEqual(winner["settings"]["batch_size"], 4)
+
+    def test_not_fast_enough_rejected(self):
+        bench = self._get_bench()
+        baseline_cell = self._make_cell(3, 1, 10.0, invalid_rate=0.05)
+        candidate = self._make_cell(4, 1, 9.5, invalid_rate=0.03)
+        baseline, winner = bench.select_winner([baseline_cell, candidate])
+        self.assertIsNone(winner)
+
+    def test_gates_object_present(self):
+        bench = self._get_bench()
+        baseline_cell = self._make_cell(3, 1, 10.0, invalid_rate=0.05)
+        candidate = self._make_cell(4, 1, 8.0, invalid_rate=0.03)
+        baseline, winner = bench.select_winner([baseline_cell, candidate])
+        self.assertIn("gates", winner)
+        for gate_name in ["speed_improvement", "invalid_rate", "auto_fallback_rate", "boilerplate_refusal_rate", "exceptions"]:
+            self.assertIn(gate_name, winner["gates"])
+            self.assertIn("pass", winner["gates"][gate_name])
+
+    def test_more_auto_fallback_rejected(self):
+        bench = self._get_bench()
+        baseline_cell = self._make_cell(3, 1, 10.0, auto_rate=0.02)
+        candidate = self._make_cell(4, 1, 8.0, auto_rate=0.05)
+        baseline, winner = bench.select_winner([baseline_cell, candidate])
+        self.assertIsNone(winner)
+
+    def test_classify_uses_production_validators(self):
+        bench = self._get_bench()
+        self.assertTrue(hasattr(bench, '_is_refusal'))
+        source_file = os.path.join(os.path.dirname(__file__), "..", "scripts", "benchmark_llm_batches.py")
+        with open(source_file) as f:
+            source = f.read()
+        self.assertIn("from daily_brief.llm.summarizer import", source)
+        self.assertIn("_is_valid_summary", source)
+
+
+# ---------------------------------------------------------------------------
 # Import the benchmark script for direct unit testing
 # ---------------------------------------------------------------------------
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))

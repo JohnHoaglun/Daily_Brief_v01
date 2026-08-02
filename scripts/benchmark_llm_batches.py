@@ -206,34 +206,43 @@ def corpus_metadata(stories):
 def classify_summaries(stories):
     """Count summary quality categories across a list of stories."""
     valid = 0
-    invalid_batch = 0
-    boilerplate = 0
-    refusal = 0
     auto_fallback = 0
     unavailable = 0
+    boilerplate = 0
+    refusal = 0
+    invalid = 0
 
     for s in stories:
         sm = s.summary or ""
-        if not sm.strip():
-            invalid_batch += 1
-        elif sm.startswith("[Auto]"):
+        if sm.startswith("[Auto]"):
             auto_fallback += 1
         elif sm.startswith("[Summary"):
             unavailable += 1
-        elif _is_boilerplate(sm):
-            boilerplate += 1
+        elif not sm.strip():
+            invalid += 1
         elif _is_refusal(sm):
             refusal += 1
-        else:
+        elif _is_boilerplate(sm):
+            boilerplate += 1
+        elif _is_valid_summary(sm, s.title):
             valid += 1
+        else:
+            invalid += 1
 
+    total = len(stories)
     return {
         "valid_summaries": valid,
-        "invalid_batch": invalid_batch,
-        "boilerplate": boilerplate,
-        "refusal": refusal,
         "auto_fallback": auto_fallback,
         "unavailable": unavailable,
+        "boilerplate": boilerplate,
+        "refusal": refusal,
+        "invalid": invalid,
+        "total": total,
+        "valid_rate": valid / total if total else 0,
+        "auto_fallback_rate": auto_fallback / total if total else 0,
+        "invalid_rate": invalid / total if total else 0,
+        "boilerplate_rate": boilerplate / total if total else 0,
+        "refusal_rate": refusal / total if total else 0,
     }
 
 
@@ -310,6 +319,94 @@ def format_table(cells):
         lines.append(row)
 
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Winner selection with quality gates
+# ---------------------------------------------------------------------------
+def select_winner(output_cells):
+    baseline_cell = None
+    for cell in output_cells:
+        if cell["settings"]["batch_size"] == 3 and cell["settings"]["max_concurrency"] == 1:
+            baseline_cell = cell
+            break
+
+    if not baseline_cell or not baseline_cell["runs"]:
+        return None, None
+
+    baseline_med = baseline_cell["median_wall_time_s"]
+    baseline_runs = baseline_cell["runs"]
+    baseline_valid_med = int(statistics.median([r["valid_summaries"] for r in baseline_runs]))
+    baseline_invalid_rate = float(statistics.median([r.get("invalid_rate", 0) for r in baseline_runs]))
+    baseline_auto_rate = float(statistics.median([r.get("auto_fallback_rate", 0) for r in baseline_runs]))
+    baseline_bp_refusal_rate = float(statistics.median([
+        r.get("boilerplate_rate", 0) + r.get("refusal_rate", 0) for r in baseline_runs
+    ]))
+    baseline_exceptions = int(statistics.median([r.get("exception_count", 0) for r in baseline_runs]))
+
+    baseline = {
+        "settings": dict(baseline_cell["settings"]),
+        "median_wall_time_s": baseline_med,
+        "valid_summaries": baseline_valid_med,
+        "quality": {
+            "invalid_rate": baseline_invalid_rate,
+            "auto_fallback_rate": baseline_auto_rate,
+            "boilerplate_refusal_rate": baseline_bp_refusal_rate,
+            "exceptions": baseline_exceptions,
+        }
+    }
+
+    best = None
+    best_med = float("inf")
+
+    for cell in output_cells:
+        if cell is baseline_cell:
+            continue
+        med = cell["median_wall_time_s"]
+        if med >= best_med:
+            continue
+        run = cell["runs"][0] if cell["runs"] else {}
+        cand_invalid_rate = float(statistics.median([r.get("invalid_rate", 0) for r in cell["runs"]]))
+        cand_auto_rate = float(statistics.median([r.get("auto_fallback_rate", 0) for r in cell["runs"]]))
+        cand_bp_refusal_rate = float(statistics.median([
+            r.get("boilerplate_rate", 0) + r.get("refusal_rate", 0) for r in cell["runs"]
+        ]))
+        cand_exceptions = int(statistics.median([r.get("exception_count", 0) for r in cell["runs"]]))
+
+        gates = {}
+        speed_ok = med <= baseline_med * 0.90
+        gates["speed_improvement"] = {"pass": speed_ok,
+            "baseline": baseline_med, "candidate": med,
+            "improvement_pct": round((baseline_med - med) / baseline_med * 100, 1)}
+
+        inv_ok = cand_invalid_rate <= baseline_invalid_rate
+        gates["invalid_rate"] = {"pass": inv_ok, "baseline": baseline_invalid_rate, "candidate": cand_invalid_rate}
+
+        auto_ok = cand_auto_rate <= baseline_auto_rate
+        gates["auto_fallback_rate"] = {"pass": auto_ok, "baseline": baseline_auto_rate, "candidate": cand_auto_rate}
+
+        bp_ok = cand_bp_refusal_rate <= baseline_bp_refusal_rate
+        gates["boilerplate_refusal_rate"] = {"pass": bp_ok, "baseline": baseline_bp_refusal_rate, "candidate": cand_bp_refusal_rate}
+
+        exc_ok = cand_exceptions <= baseline_exceptions
+        gates["exceptions"] = {"pass": exc_ok, "baseline": baseline_exceptions, "candidate": cand_exceptions}
+
+        if all(g["pass"] for g in gates.values()):
+            best = {
+                "settings": dict(cell["settings"]),
+                "median_wall_time_s": med,
+                "improvement_pct": round((baseline_med - med) / baseline_med * 100, 1),
+                "quality": {
+                    "invalid_rate": cand_invalid_rate,
+                    "auto_fallback_rate": cand_auto_rate,
+                    "boilerplate_refusal_rate": cand_bp_refusal_rate,
+                    "exceptions": cand_exceptions,
+                },
+                "gates": gates,
+            }
+            best_med = med
+
+    return baseline, best
 
 
 # ---------------------------------------------------------------------------
@@ -421,44 +518,7 @@ async def main_async(args):
             output_cells.append(cell)
 
     # --- Determine baseline and winner ---
-    baseline_cell = None
-    for cell in output_cells:
-        if cell["settings"]["batch_size"] == 3 and cell["settings"]["max_concurrency"] == 1:
-            baseline_cell = cell
-            break
-
-    baseline = None
-    winner = None
-
-    if baseline_cell:
-        baseline = {
-            "settings": dict(baseline_cell["settings"]),
-            "median_wall_time_s": baseline_cell["median_wall_time_s"],
-        }
-
-        baseline_valid = int(statistics.median([r["valid_summaries"] for r in baseline_cell["runs"]]))
-        baseline_median = baseline_cell["median_wall_time_s"]
-
-        best = None
-        best_med = float("inf")
-
-        for cell in output_cells:
-            if cell is baseline_cell:
-                continue
-            med = cell["median_wall_time_s"]
-            cell_valid = int(statistics.median([r["valid_summaries"] for r in cell["runs"]]))
-            if med < best_med and med < baseline_median and cell_valid >= baseline_valid * 0.95:
-                best = cell
-                best_med = med
-
-        if best and best_med < baseline_median:
-            improvement = (baseline_median - best_med) / baseline_median
-            if improvement >= 0.10:
-                winner = {
-                    "settings": dict(best["settings"]),
-                    "median_wall_time_s": best["median_wall_time_s"],
-                    "improvement_pct": round(improvement * 100, 1),
-                }
+    baseline, winner = select_winner(output_cells)
 
     # --- Write output ---
     summarizer.LLM_MODEL = orig_model
@@ -503,7 +563,7 @@ async def main_async(args):
         print(f"WINNER: bs={winner['settings']['batch_size']}, mc={winner['settings']['max_concurrency']}  "
               f"({winner['median_wall_time_s']:.3f}s, {winner['improvement_pct']:.1f}% faster)")
     elif baseline:
-        print("No winner — no cell improved >= 10% over baseline without quality regression (95% valid threshold)")
+        print("No winner — no cell improved >= 10% over baseline while passing all quality gates")
     print()
     print(f"Full JSON: {output_path}")
 

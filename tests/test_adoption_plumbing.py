@@ -9,11 +9,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 class TestConfigDefaults(unittest.TestCase):
     def test_batch_size_default(self):
         from daily_brief.config import LLM_SUMMARY_BATCH_SIZE
-        self.assertEqual(LLM_SUMMARY_BATCH_SIZE, 3)
+        self.assertEqual(LLM_SUMMARY_BATCH_SIZE, 4)
 
     def test_max_concurrency_default(self):
         from daily_brief.config import LLM_SUMMARY_MAX_CONCURRENCY
-        self.assertEqual(LLM_SUMMARY_MAX_CONCURRENCY, 1)
+        self.assertEqual(LLM_SUMMARY_MAX_CONCURRENCY, 2)
 
     def test_batch_size_positive(self):
         from daily_brief.config import LLM_SUMMARY_BATCH_SIZE

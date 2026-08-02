@@ -9,6 +9,7 @@ Usage:
 
 import argparse
 import asyncio
+import hashlib
 import json
 import os
 import random
@@ -30,6 +31,9 @@ from daily_brief.llm.summarizer import (
     StoryPipelineState,
     batch_summarize_all,
     SYSTEM_BATCH_PROMPT,
+    _is_valid_summary,
+    _is_boilerplate,
+    _is_refusal,
 )
 
 
@@ -45,6 +49,9 @@ class _ConcurrencyTracker:
         self.batch_calls = 0
         self.single_calls = 0
         self.wall_start = time.monotonic()
+        self.latencies = []
+        self.exceptions = 0
+        self.sub_batch_sizes = []
 
     def reset(self):
         self.active = 0
@@ -52,6 +59,9 @@ class _ConcurrencyTracker:
         self.batch_calls = 0
         self.single_calls = 0
         self.wall_start = time.monotonic()
+        self.latencies = []
+        self.exceptions = 0
+        self.sub_batch_sizes = []
 
     @property
     def elapsed_s(self):
@@ -86,8 +96,23 @@ class InstrumentedClient:
         else:
             self._tracker.single_calls += 1
 
+        call_start = time.monotonic()
         try:
-            return await self._orig(**kwargs)
+            result = await self._orig(**kwargs)
+            elapsed = time.monotonic() - call_start
+            self._tracker.latencies.append(elapsed)
+            if is_batch:
+                user_msg = ""
+                for msg in messages:
+                    if msg.get("role") == "user":
+                        user_msg = msg.get("content", "")
+                        break
+                separators = user_msg.count("\n---\n\n")
+                self._tracker.sub_batch_sizes.append(separators + 1)
+            return result
+        except Exception:
+            self._tracker.exceptions += 1
+            raise
         finally:
             self._tracker.active -= 1
 
@@ -96,57 +121,25 @@ class InstrumentedClient:
 
 
 # ---------------------------------------------------------------------------
-# Standalone validators (mirror summarizer.py logic without re-importing)
+# Matrix validation
 # ---------------------------------------------------------------------------
-def _is_refusal(text):
-    if not text:
-        return False
-    t = text.strip().lower()
-    return any(p in t for p in [
-        "please provide the article", "i don't have access", "i do not have access",
-        "i can't", "i cannot", "cannot summarize", "no article content",
-        "unable to summarize", "article not provided", "no content available",
-        "write a detailed summary for you", "i am not able to", "i'm not able to",
-        "please provide the source",
-    ])
+def _validate_matrix(batch_sizes, concurrencies):
+    """Validate and deduplicate the benchmark matrix. Exits on invalid input."""
+    bs = sorted(set(batch_sizes))
+    mc = sorted(set(concurrencies))
 
+    if any(b <= 0 for b in bs):
+        print(f"Error: batch_size must be > 0, got {bs}", file=sys.stderr)
+        sys.exit(1)
+    if any(m <= 0 for m in mc):
+        print(f"Error: max_concurrency must be > 0, got {mc}", file=sys.stderr)
+        sys.exit(1)
+    if 3 not in bs or 1 not in mc:
+        print("Error: baseline cell (batch_size=3, max_concurrency=1) must be in the matrix", file=sys.stderr)
+        sys.exit(1)
 
-def _is_boilerplate(text):
-    if not text:
-        return False
-    t = text.strip().lower()
-    return any(p in t for p in [
-        "this highlights a significant", "this suggests a", "this indicates a",
-        "further details on the nature", "further details are not", "are not included",
-        "are not specified", "details regarding", "this serves as", "this demonstrates",
-        "this underscores", "this reflects", "this signals", "this article discusses",
-        "this story covers", "the author writes", "according to", "the report states",
-        "in this piece", "this piece explores", "this article explores",
-        "the article examines", "this story examines", "the following article",
-        "the following story",
-    ])
+    return bs, mc
 
-
-def _count_sentences(text):
-    if not text:
-        return 0
-    return len([p for p in re.split(
-        r"(?<=[.!?])\s+(?=[A-Z0-9\"'])", re.sub(r"\s+", " ", str(text)).strip()
-    ) if p.strip()])
-
-
-def _is_valid_summary(summary, headline):
-    if not summary or not summary.strip():
-        return False
-    if _is_boilerplate(summary):
-        return False
-    normalized = re.sub(r"\s+", " ", summary).strip().lower()
-    headline_norm = re.sub(r"\s+", " ", headline).strip().lower()
-    if normalized == headline_norm or normalized.startswith(headline_norm + "."):
-        return False
-    if _count_sentences(summary) < 2:
-        return False
-    return True
 
 
 # ---------------------------------------------------------------------------
@@ -262,6 +255,19 @@ async def run_single(stories, batch_size, concurrency, client):
     total = len(clones)
     sps = round(total / wall_time, 2) if wall_time > 0 else 0.0
 
+    latencies = tracker.latencies
+    if latencies:
+        sorted_lat = sorted(latencies)
+        n = len(sorted_lat)
+        p50 = sorted_lat[n // 2]
+        idx_95 = min(int(n * 0.95), n - 1)
+        p95 = sorted_lat[idx_95]
+        lat_max = max(sorted_lat)
+    else:
+        p50 = 0.0
+        p95 = 0.0
+        lat_max = 0.0
+
     return {
         "wall_time_s": round(wall_time, 3),
         "batch_calls": tracker.batch_calls,
@@ -270,6 +276,11 @@ async def run_single(stories, batch_size, concurrency, client):
         **counts,
         "stories_per_second": sps,
         "sub_batch_count": tracker.batch_calls,
+        "latency_p50": round(p50, 4),
+        "latency_p95": round(p95, 4),
+        "latency_max": round(lat_max, 4),
+        "exception_count": tracker.exceptions,
+        "sub_batch_sizes": tracker.sub_batch_sizes,
     }
 
 
@@ -314,6 +325,21 @@ async def main_async(args):
     warmups = args.warmups
     runs = args.runs
 
+    batch_sizes, concurrencies = _validate_matrix(batch_sizes, concurrencies)
+
+    if not host.rstrip("/").endswith("/v1"):
+        host = host.rstrip("/") + "/v1"
+
+    from daily_brief.llm import summarizer
+    orig_model = summarizer.LLM_MODEL
+    summarizer.LLM_MODEL = model
+
+    with open(fixture_path, "rb") as _fh:
+        fixture_hash = hashlib.sha256(_fh.read()).hexdigest()
+    with open(fixture_path, "r", encoding="utf-8") as _fh:
+        _raw_data = json.load(_fh)
+    fixture_capture_date = _raw_data.get("capture_date") if isinstance(_raw_data, dict) else None
+
     stories = load_corpus(fixture_path)
     cmeta = corpus_metadata(stories)
     total = cmeta["total_stories"]
@@ -332,17 +358,22 @@ async def main_async(args):
     cell_results = defaultdict(list)
 
     # --- Warmup runs (fixed order, unrecorded) ---
-    print("Warmup runs...")
-    for bs, mc in matrix:
-        clones = clone_stories(stories)
-        await batch_summarize_all(
-            client, clones, batch_size=bs, max_concurrency=mc,
-        )
-        status = f"  [{bs},{mc}] done"
-        print(f"\r{status}", end="", flush=True)
-    print("\r" + " " * 40, end="\r")
-    print("Warmup complete.")
-    print()
+    if warmups > 0:
+        print("Warmup runs...")
+        for _ in range(warmups):
+            for bs, mc in matrix:
+                clones = clone_stories(stories)
+                await batch_summarize_all(
+                    client, clones, batch_size=bs, max_concurrency=mc,
+                )
+                status = f"  [{bs},{mc}] done"
+                print(f"\r{status}", end="", flush=True)
+        print("\r" + " " * 40, end="\r")
+        print("Warmup complete.")
+        print()
+    else:
+        print("Skipping warmups.")
+        print()
 
     # --- Recorded runs (rotated order per repetition) ---
     print("Benchmark runs...")
@@ -430,6 +461,7 @@ async def main_async(args):
                 }
 
     # --- Write output ---
+    summarizer.LLM_MODEL = orig_model
     output = {
         "benchmark_date": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "version": VERSION,
@@ -437,6 +469,14 @@ async def main_async(args):
             "model": model,
             "host": host,
             "fixture_path": os.path.abspath(fixture_path),
+        },
+        "environment": {
+            "resolved_model": model,
+            "resolved_host": host,
+            "fixture_path": os.path.abspath(fixture_path),
+            "fixture_hash": fixture_hash,
+            "fixture_capture_date": fixture_capture_date,
+            "corpus_stories": total,
         },
         "corpus_metadata": cmeta,
         "cells": output_cells,

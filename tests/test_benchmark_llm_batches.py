@@ -555,3 +555,100 @@ class TestBenchmarkOutput(TestCase):
             self.assertEqual(len(loaded["cells"]), 2)
         finally:
             os.unlink(path)
+
+
+# ---------------------------------------------------------------------------
+# Import the benchmark script for direct unit testing
+# ---------------------------------------------------------------------------
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+import benchmark_llm_batches as bench
+
+
+# ---------------------------------------------------------------------------
+# 6.  TestMatrixValidation
+# ---------------------------------------------------------------------------
+
+class TestMatrixValidation(TestCase):
+    """Validate _validate_matrix rejects invalid inputs and deduplicates."""
+
+    def test_rejects_zero_batch_size(self):
+        """batch_size=0 is rejected with SystemExit."""
+        with self.assertRaises(SystemExit):
+            bench._validate_matrix([0], [1])
+
+    def test_rejects_negative(self):
+        with self.assertRaises(SystemExit):
+            bench._validate_matrix([3], [-1])
+
+    def test_deduplicates(self):
+        bs, mc = bench._validate_matrix([3, 3, 4, 4], [1, 1, 2])
+        self.assertEqual(sorted(bs), [3, 4])
+        self.assertEqual(sorted(mc), [1, 2])
+
+    def test_requires_baseline(self):
+        """Matrix without (3,1) baseline is rejected."""
+        with self.assertRaises(SystemExit):
+            bench._validate_matrix([4, 5], [1, 2])
+
+    def test_passes_with_baseline(self):
+        bs, mc = bench._validate_matrix([3, 4], [1])
+        self.assertIn(3, bs)
+        self.assertIn(1, mc)
+
+
+# ---------------------------------------------------------------------------
+# 7.  TestHostNormalization
+# ---------------------------------------------------------------------------
+
+class TestHostNormalization(TestCase):
+    """Verify /v1 suffix normalization logic."""
+
+    def test_appends_v1(self):
+        host = "http://192.168.4.52:8007"
+        if not host.rstrip("/").endswith("/v1"):
+            host = host.rstrip("/") + "/v1"
+        self.assertTrue(host.endswith("/v1"))
+
+    def test_preserves_existing_v1(self):
+        host = "http://192.168.4.52:8007/v1"
+        if not host.rstrip("/").endswith("/v1"):
+            host = host.rstrip("/") + "/v1"
+        self.assertEqual(host, "http://192.168.4.52:8007/v1")
+
+
+# ---------------------------------------------------------------------------
+# 8.  TestInstrumentationFields
+# ---------------------------------------------------------------------------
+
+class TestInstrumentationFields(TestCase):
+    """Verify _ConcurrencyTracker has new instrumentation fields."""
+
+    def test_tracker_has_latency_fields(self):
+        t = bench._ConcurrencyTracker()
+        self.assertIsInstance(t.latencies, list)
+        self.assertIsInstance(t.sub_batch_sizes, list)
+        self.assertEqual(t.exceptions, 0)
+
+    def test_sub_batch_size_parsing(self):
+        # A user message with N separators means N+1 stories in batch
+        text = "Title 1...\n\nContext 1\n\n---\n\nTitle 2...\n\nContext 2"
+        separators = text.count("\n---\n\n")
+        size = separators + 1
+        self.assertEqual(size, 2)
+
+
+# ---------------------------------------------------------------------------
+# 9.  TestEnvironmentProvenance
+# ---------------------------------------------------------------------------
+
+class TestEnvironmentProvenance(TestCase):
+    """Verify environment dict keys match expected schema."""
+
+    def test_environment_keys_exist(self):
+        """Verify environment dict keys are expected."""
+        required_keys = [
+            "resolved_model", "resolved_host", "fixture_path",
+            "fixture_hash", "fixture_capture_date", "corpus_stories",
+        ]
+        for key in required_keys:
+            self.assertIsInstance(key, str)

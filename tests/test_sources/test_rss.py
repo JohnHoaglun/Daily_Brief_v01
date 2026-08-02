@@ -10,6 +10,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from unittest import TestCase, mock
+from unittest.mock import AsyncMock
 from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
@@ -512,7 +513,8 @@ class TestFetchFeedHappy(TestCase):
                 pass
 
         async def run():
-            with mock.patch("daily_brief.sources.rss.feedparser.parse") as mp:
+            with mock.patch("asyncio.sleep", new_callable=AsyncMock, return_value=None), \
+                 mock.patch("daily_brief.sources.rss.feedparser.parse") as mp:
                 result = await fetch_feed(FakeSession(), "fail-feed", "https://example.com/rss", 5)
                 return result, mp.called
             return (result, mp.called)
@@ -544,7 +546,8 @@ class TestFetchFeedHappy(TestCase):
                 pass
 
         async def run():
-            with self.assertLogs("daily_brief.sources.rss", level=logging.WARNING) as cm:
+            with mock.patch("asyncio.sleep", new_callable=AsyncMock, return_value=None), \
+                 self.assertLogs("daily_brief", level=logging.WARNING) as cm:
                 result = await fetch_feed(FakeSession(), "fail-feed", "https://example.com/rss", 5)
             return result, list(cm.records)
 

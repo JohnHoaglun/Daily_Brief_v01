@@ -18,6 +18,7 @@ import aiohttp
 import feedparser
 
 from daily_brief.config import RSS_BASE, RSS_PARAMS, TIMEZONE, USER_AGENT
+from daily_brief.http_client import _fetch_text
 from daily_brief.utils import strip_html
 
 logger = logging.getLogger(__name__)
@@ -119,18 +120,17 @@ async def fetch_feed(
     ``(title, link, plain_snippet, pub_dt)``.
     """
     try:
-        async with session.get(
-            rss_url, headers={"User-Agent": USER_AGENT}, timeout=10
-        ) as resp:
-            if not 200 <= resp.status < 300:
-                logger.warning(
-                    "feed fetch failed (%s): HTTP %s (%s)",
-                    name,
-                    resp.status,
-                    rss_url,
-                )
-                return (name, [])
-            text = await resp.text()
+        text = await _fetch_text(
+            session, rss_url, user_agent=USER_AGENT, timeout=10,
+            status_predicate=lambda s: 200 <= s < 300
+        )
+        if text is None:
+            logger.warning(
+                "feed fetch failed (%s): %s",
+                name,
+                rss_url,
+            )
+            return (name, [])
         feed = feedparser.parse(text)
         entries: List[Tuple[str, str, str, Optional[datetime]]] = []
         for e in feed.entries:

@@ -201,7 +201,7 @@ async def main():
 
         # ---------- Phase 3B/3C: Batch summary ----------
         log(f"  [3BC] Running BATCH summaries via {LLM_MODEL}...")
-        await llm_batch_summarize_all(_llm_client, stories, session=session)
+        await llm_batch_summarize_all(_llm_client, stories, batch_size=LLM_SUMMARY_BATCH_SIZE, max_concurrency=LLM_SUMMARY_MAX_CONCURRENCY)
         sum_ok = sum(1 for s in stories if s.summary and s.summary.strip() and not s.summary.strip().startswith("[Summary") and not _is_refusal(s.summary))
         sum_fail = total - sum_ok
         log(f"  Batch summaries: {sum_ok} OK / {sum_fail} failed")
@@ -261,6 +261,7 @@ async def main():
         elapsed = time.monotonic() - t3
         log(f"  Phase 3 completed in {elapsed:.2f}s")
         PHASE_TIMINGS['Phase 3'] = elapsed
+        log(f"  Phase 3 LLM scheduler: batch_size={LLM_SUMMARY_BATCH_SIZE}, max_concurrency={LLM_SUMMARY_MAX_CONCURRENCY}")
 
         log(f"\n  PROCESSING COMPLETE: {total} stories in {time.monotonic() - run_started:.2f}s (Phases 1-3)")
 

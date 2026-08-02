@@ -407,6 +407,25 @@ def check_prompts(config: dict):
 
 
 # ---------------------------------------------------------------------------
+# Batch scheduler constants validation
+# ---------------------------------------------------------------------------
+
+def check_batch_scheduler(config: dict):
+    """Validate LLM_SUMMARY_BATCH_SIZE and LLM_SUMMARY_MAX_CONCURRENCY from config module."""
+    issues: list[str] = []
+
+    from daily_brief.config import LLM_SUMMARY_BATCH_SIZE, LLM_SUMMARY_MAX_CONCURRENCY
+
+    if not _is_int(LLM_SUMMARY_BATCH_SIZE) or LLM_SUMMARY_BATCH_SIZE < 1:
+        issues.append(f"'LLM_SUMMARY_BATCH_SIZE' must be an integer >= 1: {LLM_SUMMARY_BATCH_SIZE}")
+
+    if not _is_int(LLM_SUMMARY_MAX_CONCURRENCY) or LLM_SUMMARY_MAX_CONCURRENCY < 1:
+        issues.append(f"'LLM_SUMMARY_MAX_CONCURRENCY' must be an integer >= 1: {LLM_SUMMARY_MAX_CONCURRENCY}")
+
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # 7.  Timezone & path checks
 # ---------------------------------------------------------------------------
 
@@ -440,6 +459,7 @@ CHECK_GROUPS = [
     ("categories", check_categories),
     ("lake_urls", check_lake_urls),
     ("prompts", check_prompts),
+    ("batch_scheduler", check_batch_scheduler),
     ("timezone_paths", check_timezone_and_paths),
 ]
 

@@ -5,7 +5,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 DEFAULTS = {
-    "version": "1.0.13",
+    "version": "1.0.93",
     "llm_model": "gemma4-e2b",
     "ollama_host": "http://localhost:11434/v1",
     "directories": {
@@ -74,6 +74,10 @@ LLM_ALERT_OPTIONS = _get_nested(CONFIG_YAML, 'runtime_defaults.llm_alert_options
 # Summary retry configuration
 LLM_SUMMARY_RETRY_ATTEMPTS = int(_get_nested(CONFIG_YAML, 'runtime_defaults.summary_retry.attempts') or 2)
 LLM_SUMMARY_RETRY_BACKOFF = list(_get_nested(CONFIG_YAML, 'runtime_defaults.summary_retry.backoff') or [0.5, 1.0])
+
+# Batch scheduler settings (C.2a adoption plumbing)
+LLM_SUMMARY_BATCH_SIZE = int(_get_nested(CONFIG_YAML, 'runtime_defaults.llm_summary_batch_size') or 3)
+LLM_SUMMARY_MAX_CONCURRENCY = int(_get_nested(CONFIG_YAML, 'runtime_defaults.llm_summary_max_concurrency') or 1)
 
 # Category definitions
 CATEGORIES_RAW = _get_nested(CONFIG_YAML, 'categories') or {}

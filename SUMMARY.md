@@ -4,6 +4,17 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.96 — C.3 centralize bounded HTTP retry and status handling (Rel-1/Rel-2)
+- `src/daily_brief/http_client.py`: new `_request_with_retry()` with bounded 3-attempt retry, async backoff `[0.25, 0.5]`, configurable status predicates. Retries only transient: `429`/`502`/`503`/`504`/`TimeoutError`/`ClientError`. Never retries `400`/`401`/`403`/`404`. `_fetch_json` and `_fetch_text` refactored to use central executor with exact-200 default. Added `_safe_json_parse` helper for JSON decode error handling.
+- `src/daily_brief/sources/rss.py`: routed through `_fetch_text` with `status_predicate=lambda s: 200 <= s < 300`. Retries on transient 502/503/504/429. Non-success still returns `(name, [])` without parsing.
+- `src/daily_brief/sources/article.py`: routed through `_fetch_text` with exact-200 gate. Non-200 responses no longer parsed — error-page HTML cannot enter story context. Best-effort failure behavior preserved.
+- `tests/test_http_client.py`: 37 new tests covering status classification, retry recovery (429/502/503/504/timeout), retry exhaustion, non-retryable 4xx, status predicates, JSON decode failure, header forwarding, JSON/text return contracts.
+- `tests/test_sources/test_rss.py`: updated 503/502 tests with mocked `asyncio.sleep` for retry compatibility; verified no-feedparser-parse on failure.
+- `tests/test_sources/test_article.py`: added `test_non_200_status_not_parsed` verifying error-page isolation.
+- Weather/climate/lakes/Wunderground: zero caller changes — existing `_fetch_json`/`_fetch_text` imports inherit retry automatically.
+- Connectivity probes: unchanged — diagnostic-only, single-attempt, outside C.3 scope.
+- 966 tests collected, 965 passing (1 pre-existing startup test failure), config validate PASS.
+
 ### v1.0.95 — C.4 centralize batch retry, fallback, and summarization metrics (Rel-6/Rel-7/Arch-2)
 - `src/daily_brief/llm/summary_metrics.py`: new module with `SummaryMetrics` class (`__slots__` based), `validate_metrics()`, `empty_metrics()`. Lightweight structured result with 12 fields (total_stories, sub_batches, batch_calls, batch_retries, batch_failures, individual_recovery_attempts, individual_recovered, auto_fallbacks, unavailable_summaries, final_valid, final_invalid, elapsed_s). Invariant: `final_valid + auto_fallbacks + unavailable_summaries + final_invalid == total_stories`.
 - `src/daily_brief/llm/summarizer.py`: `_summarize_sub_batch()` now tracks `valid_count` and returns `{'success', 'valid_count', 'failed'}` outcome dict. `batch_summarize_all()` rewritten with 4 explicit phases: (1) initial batch dispatch, (2) one bounded full-batch retry with backoff for failed sub-batches, (3) individual recovery via `_summarize()` for unresolved stories, (4) outcome counting and structured metrics. Returns `SummaryMetrics` instead of unused empty dict. All recovery/fallback centralized — no scattered call sites.

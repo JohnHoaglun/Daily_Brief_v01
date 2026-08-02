@@ -8,7 +8,6 @@ from daily_brief.models import (
     Story,
     WeatherData,
     LakeData,
-    AlertResult,
     ForecastPeriod,
     BriefOutput,
 )
@@ -30,7 +29,6 @@ __all__ = [
     "Story",
     "WeatherData",
     "LakeData",
-    "AlertResult",
     "ForecastPeriod",
     "BriefOutput",
     # Utils

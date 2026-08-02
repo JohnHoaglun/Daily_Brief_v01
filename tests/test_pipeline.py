@@ -128,7 +128,7 @@ def _pipeline_patches(
     patches.append(patch("daily_brief.pipeline.llm_batch_summarize_all", new_callable=AsyncMock, return_value=batch_metrics))
 
     patches.extend([
-        patch("daily_brief.pipeline.build_sections_from_stories", return_value=({}, [])),
+        patch("daily_brief.pipeline.build_sections_from_stories", return_value={}),
         patch("daily_brief.pipeline.ordered_categories_for_render", return_value=["cat"]),
         patch("daily_brief.pipeline.compute_output_path", return_value=("/tmp/r.md", 1)),
         patch("daily_brief.pipeline.cleanup_old_files"),

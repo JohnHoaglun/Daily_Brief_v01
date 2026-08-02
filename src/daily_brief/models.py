@@ -20,7 +20,6 @@ class Story:
     summary: str = ""
     category: str = ""
     tags: list[str] = field(default_factory=list)
-    alert: Optional[str] = None
     source: Optional[str] = None
 
 
@@ -48,16 +47,6 @@ class LakeData:
     one_week_ago: Optional[str] = None
     thirty_days_ago: Optional[str] = None
     source: Optional[str] = None
-
-
-@dataclass
-class AlertResult:
-    """Represents a single alert evaluation result."""
-
-    story_index: int = -1
-    is_alert: bool = False
-    reason: str = ""
-    category: str = ""
 
 
 @dataclass

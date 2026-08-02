@@ -408,7 +408,7 @@ class TestConfigUncoveredBranches(TestCase):
     def test_category_age_limits_with_category_settings(self):
         mock_data = {
             "version": "1.0.0",
-            "llm": {"model": "x", "host": "http://x", "summary_options": {"temperature": 0.3, "top_p": 0.8}, "alert_options": {"temperature": 0.1, "top_p": 0.3}, "context_preview_chars": 600, "summary_context_chars": 6000, "summary_trim_min_chars": 100},
+            "llm": {"model": "x", "host": "http://x", "summary_options": {"temperature": 0.3, "top_p": 0.8}, "context_preview_chars": 600, "summary_context_chars": 6000, "summary_trim_min_chars": 100},
             "rss": {"base_url": "http://x", "params": "x", "default_age_limit_hours": 24},
             "runtime": {"timezone": "UTC", "thread_pool_size": 1, "max_log_versions": 5},
             "cleanup": {"max_log_versions": 5},
@@ -481,7 +481,7 @@ class TestConfigUncoveredBranches(TestCase):
         """Return a minimal valid config dict for mocking."""
         return {
             "version": "1.0.0",
-            "llm": {"model": "x", "host": "http://x", "summary_options": {"temperature": 0.3, "top_p": 0.8}, "alert_options": {"temperature": 0.1, "top_p": 0.3}, "context_preview_chars": 600, "summary_context_chars": 6000, "summary_trim_min_chars": 100},
+            "llm": {"model": "x", "host": "http://x", "summary_options": {"temperature": 0.3, "top_p": 0.8}, "context_preview_chars": 600, "summary_context_chars": 6000, "summary_trim_min_chars": 100},
             "rss": {"base_url": "http://x", "params": "x", "default_age_limit_hours": 24},
             "runtime": {"timezone": "UTC", "thread_pool_size": 1, "max_log_versions": 5},
             "cleanup": {"max_log_versions": 5},

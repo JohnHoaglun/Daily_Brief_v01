@@ -1,7 +1,7 @@
 """
 Unit tests for src/daily_brief/validation.py — report-level validation.
 
-Tests 8 report-level checks + existing per-story check regression.
+Tests 7 report-level checks + existing per-story check regression.
 """
 import os
 import sys

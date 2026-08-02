@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def build_sections_from_stories(stories, format_pub_date_fn):
-    """Convert StoryPipelineState objects into sections dict + alerts list.
+    """Convert StoryPipelineState objects into sections dict.
 
     Args:
         stories: list of StoryPipelineState objects
@@ -19,10 +19,7 @@ def build_sections_from_stories(stories, format_pub_date_fn):
 
     Returns:
         sections: dict mapping category name -> list of entry dicts
-        alerts_list: list of stories where is_alert is True
     """
-    alerts_list = [s for s in stories if hasattr(s, 'is_alert') and s.is_alert]
-
     sections = {}
     for s in stories:
         smry = s.summary if s.summary else "[Summary unavailable]"
@@ -35,7 +32,7 @@ def build_sections_from_stories(stories, format_pub_date_fn):
         }
         sections.setdefault(s.category, []).append(entry)
 
-    return sections, alerts_list
+    return sections
 
 
 def compute_output_path(output_dir):

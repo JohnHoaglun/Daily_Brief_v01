@@ -22,7 +22,7 @@ from daily_brief.rendering.report import (
 # ---------------------------------------------------------------------------
 
 def _make_story(title="Test Title", link="http://example.com", category="World News",
-                summary="A summary.", pub_dt="2026-07-29", is_alert=False):
+                summary="A summary.", pub_dt="2026-07-29"):
     """Create a minimal StoryPipelineState-like object."""
     s = mock.Mock()
     s.title = title
@@ -30,7 +30,6 @@ def _make_story(title="Test Title", link="http://example.com", category="World N
     s.category = category
     s.summary = summary
     s.pub_dt = pub_dt
-    s.is_alert = is_alert
     return s
 
 
@@ -69,7 +68,7 @@ def _weather():
 # ---------------------------------------------------------------------------
 
 class TestBuildSectionsFromStories(TestCase):
-    """Group stories into sections, extract alerts, format dates."""
+    """Group stories into sections, format dates."""
 
     def test_stories_grouped_by_category(self):
         stories = [
@@ -77,40 +76,30 @@ class TestBuildSectionsFromStories(TestCase):
             _make_story(title="B", category="US News"),
             _make_story(title="C", category="World News"),
         ]
-        sections, alerts = build_sections_from_stories(stories, _format_date)
+        sections = build_sections_from_stories(stories, _format_date)
         self.assertIn("World News", sections)
         self.assertIn("US News", sections)
         self.assertEqual(len(sections["World News"]), 2)
         self.assertEqual(len(sections["US News"]), 1)
 
-    def test_alerts_extracted(self):
-        stories = [
-            _make_story(title="Normal"),
-            _make_story(title="Alert Story", is_alert=True),
-        ]
-        sections, alerts = build_sections_from_stories(stories, _format_date)
-        self.assertEqual(len(alerts), 1)
-        self.assertEqual(alerts[0].title, "Alert Story")
-
     def test_date_formatted_via_callable(self):
         stories = [_make_story(pub_dt="2026-07-29")]
-        sections, _ = build_sections_from_stories(stories, _format_date)
+        sections = build_sections_from_stories(stories, _format_date)
         entry = sections["World News"][0]
         self.assertEqual(entry["pub_date"], "2026-07-29")
 
     def test_empty_stories_returns_empty(self):
-        sections, alerts = build_sections_from_stories([], _format_date)
+        sections = build_sections_from_stories([], _format_date)
         self.assertEqual(sections, {})
-        self.assertEqual(alerts, [])
 
     def test_none_summary_becomes_unavailable(self):
         stories = [_make_story(summary=None)]
-        sections, _ = build_sections_from_stories(stories, _format_date)
+        sections = build_sections_from_stories(stories, _format_date)
         self.assertEqual(sections["World News"][0]["summary"], "[Summary unavailable]")
 
     def test_entry_contains_all_fields(self):
         stories = [_make_story(title="T", link="http://x", category="Tech", summary="S", pub_dt="2026-01-01")]
-        sections, _ = build_sections_from_stories(stories, _format_date)
+        sections = build_sections_from_stories(stories, _format_date)
         entry = sections["Tech"][0]
         self.assertEqual(entry["title"], "T")
         self.assertEqual(entry["link"], "http://x")
@@ -118,15 +107,10 @@ class TestBuildSectionsFromStories(TestCase):
         self.assertEqual(entry["summary"], "S")
         self.assertEqual(entry["pub_date"], "2026-01-01")
 
-    def test_no_alert_when_not_set(self):
-        stories = [_make_story(title="Normal", is_alert=False)]
-        _, alerts = build_sections_from_stories(stories, _format_date)
-        self.assertEqual(alerts, [])
-
     def test_multiple_categories_preserved(self):
         cats = ["World News", "US News", "Tech", "Finance"]
         stories = [_make_story(title=f"S{i}", category=c) for i, c in enumerate(cats)]
-        sections, _ = build_sections_from_stories(stories, _format_date)
+        sections = build_sections_from_stories(stories, _format_date)
         for c in cats:
             self.assertIn(c, sections)
             self.assertEqual(len(sections[c]), 1)
@@ -226,7 +210,7 @@ class TestBuildMarkdown(TestCase):
         mock_wx.return_value = ["## Weather"]
         mock_tag.return_value = ""
         stories = [_make_story(title="A Test Story")]
-        sections, _ = build_sections_from_stories(stories, _format_date)
+        sections = build_sections_from_stories(stories, _format_date)
         result = build_markdown(stories, {}, sections, ["World News"], _config_kwargs())
         self.assertGreater(len(result), 20)
 
@@ -266,7 +250,7 @@ class TestBuildMarkdown(TestCase):
         mock_wx.return_value = ["## Weather"]
         mock_tag.return_value = "#texas #news"
         stories = [_make_story(title="Texas Story")]
-        sections, _ = build_sections_from_stories(stories, _format_date)
+        sections = build_sections_from_stories(stories, _format_date)
         result = build_markdown(stories, {}, sections, ["World News"], _config_kwargs())
         tags_section = [l for l in result if l.startswith("  - ")]
         tag_values = [l.replace("  - ", "") for l in tags_section]
@@ -280,7 +264,7 @@ class TestBuildMarkdown(TestCase):
         mock_wx.return_value = ["## Weather"]
         mock_tag.return_value = "#zebra #alpha #mango"
         stories = [_make_story(title="Test")]
-        sections, _ = build_sections_from_stories(stories, _format_date)
+        sections = build_sections_from_stories(stories, _format_date)
         result = build_markdown(stories, {}, sections, ["World News"], _config_kwargs())
         tags_section = [l for l in result if l.startswith("  - ")]
         tag_values = [l.replace("  - ", "") for l in tags_section]
@@ -295,7 +279,7 @@ class TestBuildMarkdown(TestCase):
             _make_story(title="A", category="Category B"),
             _make_story(title="B", category="Category A"),
         ]
-        sections, _ = build_sections_from_stories(stories, _format_date)
+        sections = build_sections_from_stories(stories, _format_date)
         result = build_markdown(stories, {}, sections, ["Category A", "Category B"], _config_kwargs())
         a_idx = next(i for i, l in enumerate(result) if l == "## Category A (1 stories)")
         b_idx = next(i for i, l in enumerate(result) if l == "## Category B (1 stories)")
@@ -325,7 +309,7 @@ class TestBuildMarkdown(TestCase):
         mock_wx.return_value = ["## Weather"]
         mock_tag.return_value = ""
         stories = [_make_story(title="My Title", link="http://example.com")]
-        sections, _ = build_sections_from_stories(stories, _format_date)
+        sections = build_sections_from_stories(stories, _format_date)
         result = build_markdown(stories, {}, sections, ["World News"], _config_kwargs())
         self.assertIn("1. [My Title](http://example.com)", result)
 
@@ -335,7 +319,7 @@ class TestBuildMarkdown(TestCase):
         mock_wx.return_value = ["## Weather"]
         mock_tag.return_value = ""
         stories = [_make_story(title="Weather Alert", category="Weather Forecast 77316")]
-        sections, _ = build_sections_from_stories(stories, _format_date)
+        sections = build_sections_from_stories(stories, _format_date)
         result = build_markdown(stories, {}, sections, ["Weather Forecast 77316"], _config_kwargs())
         weather_headers = [l for l in result if l.startswith("## Weather Forecast 77316 (")]
         self.assertEqual(len(weather_headers), 0)
@@ -346,7 +330,7 @@ class TestBuildMarkdown(TestCase):
         mock_wx.return_value = ["## Weather"]
         mock_tag.return_value = ""
         stories = [_make_story(title="T", pub_dt="2026-07-29")]
-        sections, _ = build_sections_from_stories(stories, _format_date)
+        sections = build_sections_from_stories(stories, _format_date)
         result = build_markdown(stories, {}, sections, ["World News"], _config_kwargs())
         self.assertIn("*Originally published on:* 2026-07-29", "\n".join(result))
 
@@ -356,7 +340,7 @@ class TestBuildMarkdown(TestCase):
         mock_wx.return_value = ["## Weather"]
         mock_tag.return_value = ""
         stories = [_make_story(title="No Link", link="#")]
-        sections, _ = build_sections_from_stories(stories, _format_date)
+        sections = build_sections_from_stories(stories, _format_date)
         result = build_markdown(stories, {}, sections, ["World News"], _config_kwargs())
         self.assertIn("1. No Link", result)
         for line in result:
@@ -419,7 +403,7 @@ class TestWriteReport(TestCase):
         # tag_story_with_keywords returns a string with both hash and bracket tags
         mock_tag.return_value = "#hash [Bracket]"
         stories = [_make_story(title="Bracket Story")]
-        sections, _ = build_sections_from_stories(stories, _format_date)
+        sections = build_sections_from_stories(stories, _format_date)
         result = build_markdown(stories, {}, sections, ["World News"], _config_kwargs())
         joined = "\n".join(result)
         # The hash tag "hash" should appear in frontmatter
@@ -437,7 +421,7 @@ class TestWriteReport(TestCase):
         mock_tag.return_value = "#weather #forecast"
         # Story placed in the weather section title category
         stories = [_make_story(title="Weather Story", category="Weather Forecast 77316")]
-        sections, _ = build_sections_from_stories(stories, _format_date)
+        sections = build_sections_from_stories(stories, _format_date)
         result = build_markdown(stories, {}, sections, ["Weather Forecast 77316"], _config_kwargs())
         # The weather category should be skipped (line 140 continue)
         weather_section_headers = [l for l in result if l.startswith("## Weather Forecast 77316 (")]

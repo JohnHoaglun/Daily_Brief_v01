@@ -49,7 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sp_parser.add_argument(
         "name",
-        choices=["summary", "summary_strict", "system_batch", "system_alert"],
+        choices=["summary", "summary_strict", "system_batch"],
         help="Prompt name to display",
     )
     config_subs.add_parser(

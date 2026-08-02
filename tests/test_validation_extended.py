@@ -1,5 +1,5 @@
 """
-Extended validation tests — edge cases for frontmatter, alerts, story parsing,
+Extended validation tests — edge cases for frontmatter, story parsing,
 and per-story validation logic.
 """
 import os
@@ -11,8 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from daily_brief.validation import (
     _parse_frontmatter,
-    _find_alerts_section,
-    _count_stories_in_section,
     validate_report,
 )
 
@@ -61,41 +59,6 @@ class TestParseFrontmatter(TestCase):
 
 
 # ---------------------------------------------------------------------------
-# _find_alerts_section
-# ---------------------------------------------------------------------------
-
-class TestFindAlertsSection(TestCase):
-    """_find_alerts_section detection."""
-
-    def test_find_alerts_section_found(self):
-        body = "## Some Stuff\n\ncontent\n\n## Alerts (2 stories)\n\n1. [Alert A](url)\nalert details.\n"
-        result = _find_alerts_section(body)
-        self.assertIsNotNone(result)
-        self.assertIn("Alert A", result)
-
-    def test_find_alerts_section_not_found(self):
-        body = "## Weather Forecast\n\nSome weather\n## World News\n\nSome news\n"
-        result = _find_alerts_section(body)
-        self.assertIsNone(result)
-
-
-# ---------------------------------------------------------------------------
-# _count_stories_in_section
-# ---------------------------------------------------------------------------
-
-class TestCountStories(TestCase):
-    """_count_stories_in_section counting."""
-
-    def test_count_stories_empty(self):
-        self.assertEqual(_count_stories_in_section(""), 0)
-        self.assertEqual(_count_stories_in_section(None), 0)
-
-    def test_count_stories_counts(self):
-        text = "1. [Story A](url)\n2. [Story B](url)\n3. [Story C](url)\n"
-        self.assertEqual(_count_stories_in_section(text), 3)
-
-
-# ---------------------------------------------------------------------------
 # validate_report file read error
 # ---------------------------------------------------------------------------
 
@@ -109,54 +72,6 @@ class TestValidateReportFileError(TestCase):
                 passed, issues = validate_report(path)
             self.assertFalse(passed)
             self.assertTrue(any("Cannot read file" in i for i in issues))
-        finally:
-            _cleanup(path)
-
-
-# ---------------------------------------------------------------------------
-# REPORT-6: Alert count > 50%
-# ---------------------------------------------------------------------------
-
-class TestAlertCountExceed(TestCase):
-    """REPORT-6: Alert count exceeds 50% of stories."""
-
-    def test_report_6_alerts_exceed_50(self):
-        stories = ""
-        for i in range(1, 11):
-            stories += f"{i}. [Story {i}](https://example.com/s{i})\nThis is a good summary of story {i}. It contains detail.\n"
-
-        alert_stories = ""
-        for i in range(1, 8):
-            alert_stories += f"{i}. [Alert {i}](https://example.com/a{i})\nAlert summary details here.\n"
-
-        content = (
-            "---\n"
-            "title: Daily Brief\n"
-            "date: 2026-07-29\n"
-            "time_generated: 2026-07-29T12:00:00Z\n"
-            "story_count_total: 10\n"
-            "categories: 1\n"
-            "tags:\n"
-            "  - test\n"
-            "---\n"
-            "# Daily Brief\n\n"
-            "## Weather Forecast 77316\n\n"
-            "| Day | High | Low | Precip | Wind |\n"
-            "|-----|------|-----|--------|------|\n"
-            "| Mon | 85  | 68  | 0%    | 5    |\n"
-            "| Tue | 80  | 65  | 60%   | 10   |\n"
-            "| Wed | 82  | 66  | 10%   | 8    |\n\n"
-            "## Alerts (7 stories)\n\n"
-            f"{alert_stories}\n\n"
-            "## World News (10 stories)\n\n"
-            f"{stories}\n\n"
-            f"{PAD}\n"
-        )
-        path = _write_report(content)
-        try:
-            _, issues = validate_report(path)
-            report6 = [i for i in issues if "[REPORT-6]" in i]
-            self.assertGreater(len(report6), 0)
         finally:
             _cleanup(path)
 

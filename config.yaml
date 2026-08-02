@@ -5,9 +5,6 @@ llm:
   summary_options:
     temperature: 0.3
     top_p: 0.8
-  alert_options:
-    temperature: 0.1
-    top_p: 0.3
   context_preview_chars: 600
   summary_context_chars: 6000
   summary_trim_min_chars: 100
@@ -99,12 +96,6 @@ prompts:
     with specific actors: "X announced", "Y filed", "Z said".
 
     '
-  system_alert: 'You are a news priority classifier. For EACH story provided, respond
-    with exactly one line.\nFormat: STORY_<number>: TRUE or FALSE\nJudge: extreme
-    weather (hurricane/tornado/flood/freeze in Houston/Texas/77316), major breakthroughs
-    from top tech labs,\ncritcial economic disruption, geopolitical crises, or infrastructure
-    failure.\nBe conservative; only flag TRUE for genuinely important news. No preamble.\n\nUse
-    EXACT format:\nSTORY_0: TRUE\nSTORY_1: FALSE\nSTORY_2: TRUE'
 filtering_keywords:
   real_estate:
   - realtor

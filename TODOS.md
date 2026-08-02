@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 - v1.0.94
+# TODO: Daily Brief v01 - v1.0.97
 
 ## Status Legend
 - `[ ]` TODO

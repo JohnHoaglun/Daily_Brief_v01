@@ -4,6 +4,13 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.97 — Wave 1C: remove alert-list from report builder and pipeline
+- `src/daily_brief/rendering/report.py`: removed `alerts_list` extraction (`is_alert` check) and second return value from `build_sections_from_stories()`. Updated docstring. Function now returns only `sections` dict.
+- `src/daily_brief/pipeline.py`: updated `build_sections_from_stories()` call to single-return. Removed `Alerts: {len(alerts_list)}` from log and print output lines.
+- `tests/test_report.py`: removed `is_alert` parameter from `_make_story()`. Deleted `test_alerts_extracted` and `test_no_alert_when_not_set`. Updated all `build_sections_from_stories()` call sites to single return. Removed `alerts` assertions from `test_empty_stories_returns_empty`.
+- `tests/test_pipeline.py`: updated `_pipeline_patches` mock return from `({}, [])` to `{}`.
+- 60 tests collected, 60 passing.
+
 ### v1.0.96 — C.3 centralize bounded HTTP retry and status handling (Rel-1/Rel-2)
 - `src/daily_brief/http_client.py`: new `_request_with_retry()` with bounded 3-attempt retry, async backoff `[0.25, 0.5]`, configurable status predicates. Retries only transient: `429`/`502`/`503`/`504`/`TimeoutError`/`ClientError`. Never retries `400`/`401`/`403`/`404`. `_fetch_json` and `_fetch_text` refactored to use central executor with exact-200 default. Added `_safe_json_parse` helper for JSON decode error handling.
 - `src/daily_brief/sources/rss.py`: routed through `_fetch_text` with `status_predicate=lambda s: 200 <= s < 300`. Retries on transient 502/503/504/429. Non-success still returns `(name, [])` without parsing.

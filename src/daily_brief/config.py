@@ -69,7 +69,6 @@ LLM_CONTEXT_PREVIEW_CHARS = _get_nested(CONFIG_YAML, 'runtime_defaults.llm_conte
 LLM_SUMMARY_TRIM_MIN_CHARS = _get_nested(CONFIG_YAML, 'runtime_defaults.llm_summary_trim_min_chars') or 100
 
 LLM_SUMMARY_OPTIONS = _get_nested(CONFIG_YAML, 'runtime_defaults.llm_summary_options') or {"temperature": 0.3, "top_p": 0.8}
-LLM_ALERT_OPTIONS = _get_nested(CONFIG_YAML, 'runtime_defaults.llm_alert_options') or {"temperature": 0.1, "top_p": 0.3}
 
 # Summary retry configuration
 LLM_SUMMARY_RETRY_ATTEMPTS = int(_get_nested(CONFIG_YAML, 'runtime_defaults.summary_retry.attempts') or 2)
@@ -122,7 +121,6 @@ PROMPTS = _get_nested(CONFIG_YAML, 'prompts') or {}
 SUMMARY_PROMPT = PROMPTS.get('summary', '')
 SUMMARY_STRICT_PROMPT = PROMPTS.get('summary_strict', SUMMARY_PROMPT)
 SYSTEM_BATCH_PROMPT = PROMPTS.get('system_batch', '')
-SYSTEM_ALERT_PROMPT = PROMPTS.get('system_alert', '')
 
 # Weather infrastructure
 WEATHER_WUNDERGROUND_STATION_ID = _get_nested(CONFIG_YAML, 'weather.wunderground_station_id') or "KTXMONTG645"

@@ -4,15 +4,14 @@ Daily Brief v1.0.13 — Report Validation
 
 Reads rendered markdown and checks summary quality.
 
-Report-level checks (8):
+Report-level checks (7):
 1. Frontmatter required fields
 2. Weather section with forecast rows
 3. No "Dynamic" fallback string
 4. No "Unavailable" fallback string
 5. Story count plausible range
-6. Alert count plausible ratio
-7. No duplicate URLs
-8. File size reasonable
+6. No duplicate URLs
+7. File size reasonable
 
 Per-story checks (5):
 - Non-empty summary
@@ -72,22 +71,6 @@ def _find_weather_section(body):
     return None
 
 
-def _find_alerts_section(body):
-    """Find the alerts section in body. Returns the section content or None."""
-    sections = re.split(r'^##\s+', body, flags=re.MULTILINE)
-    for section in sections:
-        first_line = section.strip().split("\n")[0].lower() if section.strip() else ""
-        if "alert" in first_line:
-            return section.strip()
-    return None
-
-
-def _count_stories_in_section(section_text):
-    """Count numbered stories in a section."""
-    if not section_text:
-        return 0
-    story_blocks = re.findall(r'^\d+\.\s+\[', section_text, re.MULTILINE)
-    return len(story_blocks)
 
 
 def _extract_urls(body):
@@ -98,15 +81,14 @@ def _extract_urls(body):
 def validate_report(filepath):
     """Validate the rendered markdown report. Returns (passed, issues) tuple.
 
-    Report-level checks (8):
+    Report-level checks (7):
     1. Frontmatter required fields
     2. Weather section with forecast rows
     3. No "Dynamic" fallback
     4. No "Unavailable" fallback
     5. Story count plausible (5-200)
-    6. Alert count plausible (<50% of stories)
-    7. No duplicate URLs
-    8. File size reasonable (5KB-10MB)
+    6. No duplicate URLs
+    7. File size reasonable (5KB-10MB)
 
     Per-story checks (5):
     - Non-empty summary
@@ -172,15 +154,7 @@ def validate_report(filepath):
         except (ValueError, TypeError):
             issues.append(f"[REPORT-5] story_count_total is not a valid integer: {story_count}")
 
-    # REPORT CHECK 6: Alert count plausible
-    alerts_section = _find_alerts_section(body)
-    if alerts_section is not None:
-        alert_count = _count_stories_in_section(alerts_section)
-        total = story_count if isinstance(story_count, int) and story_count > 0 else None
-        if total and alert_count > (total * 0.5):
-            issues.append(f"[REPORT-6] Alert count ({alert_count}) exceeds 50% of total stories ({total})")
-
-    # REPORT CHECK 7: No duplicate URLs
+    # REPORT CHECK 6: No duplicate URLs
     urls = _extract_urls(body)
     url_list = [url for _, url in urls]
     seen = {}
@@ -189,13 +163,13 @@ def validate_report(filepath):
     dupes = {u: c for u, c in seen.items() if c > 1}
     if dupes:
         dup_count = len(dupes)
-        issues.append(f"[REPORT-7] Found {dup_count} duplicate URL(s) in report")
+        issues.append(f"[REPORT-6] Found {dup_count} duplicate URL(s) in report")
 
-    # REPORT CHECK 8: File size reasonable
+    # REPORT CHECK 7: File size reasonable
     if file_size < 5 * 1024:
-        issues.append(f"[REPORT-8] File too small ({file_size} bytes) — expected at least 5KB")
+        issues.append(f"[REPORT-7] File too small ({file_size} bytes) — expected at least 5KB")
     elif file_size > 10 * 1024 * 1024:
-        issues.append(f"[REPORT-8] File too large ({file_size} bytes) — expected at most 10MB")
+        issues.append(f"[REPORT-7] File too large ({file_size} bytes) — expected at most 10MB")
 
     # --- Per-story checks ---
     # Split into sections — find category headings

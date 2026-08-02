@@ -1,4 +1,4 @@
-# Project: Daily Brief v01 (v1.0.96)
+# Project: Daily Brief v01 (v1.0.97)
 
 ## Purpose
 Daily Brief aggregates RSS stories from configured categories, enriches them with weather and lake data, summarizes them through a vLLM OpenAI-compatible endpoint, and writes a Markdown report.
@@ -15,6 +15,7 @@ Daily Brief aggregates RSS stories from configured categories, enriches them wit
 - **LLM batch scheduler**: `batch_size=4`, `max_concurrency=2` — adopted after live benchmark showed 55.6% speedup (97.7s → 43.4s) with zero quality regression (v1.0.94).
 - **Centralized summary recovery** (v1.0.95): batch retry, single-story recovery, fallback, and structured `SummaryMetrics` centralized in `batch_summarize_all()`. Pipeline Phase 3D/3E duplicate recovery loops removed (−57 lines).
 - **Centralized HTTP retry/status** (v1.0.96): `_request_with_retry()` with bounded attempts (3) and async backoff. Retries only `429`/`502`/`503`/`504`/timeout/client errors; never retries `4xx` non-transient. RSS routed through central helper with 2xx acceptance; article extraction gated to exact-200 before parsing. Existing weather/climate/lakes/Wunderground helpers inherit retry automatically (zero caller changes).
+- **Alert list removed** (v1.0.97): `build_sections_from_stories()` no longer extracts or returns `alerts_list`. Simplified to return-only `sections` dict. Pipeline log/print lines cleaned of alert count.
 
 ## Architecture
 - `src/daily_brief/pipeline.py`: asynchronous pipeline orchestration.

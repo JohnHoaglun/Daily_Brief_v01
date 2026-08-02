@@ -123,7 +123,7 @@ def check_types(config: dict):
         issues.append("'llm.model' must be a non-empty string")
     if not _is_str(_get(llm, "host")):
         issues.append("'llm.host' must be a non-empty string")
-    for opt in ("summary_options", "alert_options"):
+    for opt in ("summary_options",):
         temp = _get(llm, f"{opt}.temperature")
         top_p = _get(llm, f"{opt}.top_p")
         if temp is not None and not _is_float(temp):
@@ -227,7 +227,7 @@ def check_ranges(config: dict):
 
     # llm.temperature 0-2, top_p 0-1
     llm = _get(config, "llm", {})
-    for opt in ("summary_options", "alert_options"):
+    for opt in ("summary_options",):
         temp = _get(llm, f"{opt}.temperature")
         if temp is not None:
             if temp < 0 or temp > 2:
@@ -396,7 +396,7 @@ def check_prompts(config: dict):
         issues.append("'prompts' must be a dict")
         return issues
 
-    for pname in ("summary", "summary_strict", "system_batch", "system_alert"):
+    for pname in ("summary", "summary_strict", "system_batch"):
         val = prompts.get(pname)
         if not _is_str(val):
             issues.append(f"'prompts.{pname}' must be a non-empty string")

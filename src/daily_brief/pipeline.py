@@ -220,7 +220,7 @@ async def main():
         log("\n[Phase 4] Rendering report...")
         t4 = time.monotonic()
 
-        sections, alerts_list = build_sections_from_stories(stories, format_pub_date)
+        sections = build_sections_from_stories(stories, format_pub_date)
         filepath, file_ver = compute_output_path(OUTPUT_DIR)
         cleanup_old_files(OUTPUT_DIR, LOG_DIR, MAX_LOG_VERSIONS)
 
@@ -241,7 +241,7 @@ async def main():
 
         elapsed = time.monotonic() - t4
         log(f"\nFile written to {filepath}")
-        log(f"  Stories: {total_after_dedup} | Alerts: {len(alerts_list)} | Time: {elapsed:.1f}s")
+        log(f"  Stories: {total_after_dedup} | Time: {elapsed:.1f}s")
         PHASE_TIMINGS['Phase 4'] = elapsed
         log(f"  Phase 4 completed in {elapsed:.2f}s")
 
@@ -275,4 +275,4 @@ async def main():
 
         log("\n=== PIPELINE COMPLETED SUCCESSFULLY ===")
         print(f"\nDone. File: {filepath}")
-        print(f"  Stories: {total_after_dedup} | Alerts: {len(alerts_list)} | Time: {elapsed:.1f}s")
+        print(f"  Stories: {total_after_dedup} | Time: {elapsed:.1f}s")

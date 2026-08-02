@@ -798,7 +798,7 @@ class TestBatchSummarizeAll(TestCase):
         async def _run():
             return await batch_summarize_all(client, [])
         result = asyncio.get_event_loop().run_until_complete(_run())
-        self.assertEqual(result, {})
+        self.assertEqual(result.total_stories, 0)
 
     def test_batch_summarize_all_with_retries(self):
         from daily_brief.config import SYSTEM_BATCH_PROMPT
@@ -862,7 +862,7 @@ class TestBatchSummarizeAll(TestCase):
                         return await batch_summarize_all(client, stories)
 
         result = asyncio.get_event_loop().run_until_complete(_run())
-        self.assertEqual(len(result), 0)
+        self.assertEqual(result.total_stories, 4)
 
 
 class TestBatchSchedulerControls(TestCase):

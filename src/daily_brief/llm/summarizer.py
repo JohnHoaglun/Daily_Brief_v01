@@ -16,6 +16,7 @@ from daily_brief.config import (
     SUMMARY_STRICT_PROMPT,
     SYSTEM_BATCH_PROMPT,
 )
+from daily_brief.llm.summary_metrics import SummaryMetrics, empty_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -589,6 +590,7 @@ async def _summarize_sub_batch(client, cat_name, sub_batch, *, semaphore=None, b
         batch_size: Unused parameter kept for API compatibility
     """
     # Build contexts for this sub-batch
+    valid_count = 0
     context_lines = []
     for idx, s in enumerate(sub_batch):
         context_parts = [s.title]
@@ -645,6 +647,7 @@ async def _summarize_sub_batch(client, cat_name, sub_batch, *, semaphore=None, b
                 continue
             if _is_valid_summary(summary, headline):
                 s.summary = summary
+                valid_count += 1
             else:
                 s.summary = ""
 
@@ -652,37 +655,43 @@ async def _summarize_sub_batch(client, cat_name, sub_batch, *, semaphore=None, b
         logger.warning(f"BATCH SUMMARIZE ERROR ({cat_name}): {e}")
         for s in sub_batch:
             s.summary = ""
+        return {'success': False, 'valid_count': 0, 'failed': True}
+
+    return {'success': valid_count > 0, 'valid_count': valid_count, 'failed': valid_count == 0}
 
 
 async def batch_summarize_all(client, stories, session=None, *, batch_size: int = 3, max_concurrency: int = 1):
-    """Async batch summarization with configurable sub-batch size and bounded concurrency.
-    
+    """Async batch summarization with batch retry, individual recovery, fallback, and structured metrics.
+
     Args:
         client: LLM client with chat_completions_create method
         stories: List of StoryPipelineState objects
         session: Optional HTTP session (unused, kept for API compatibility)
         batch_size: Stories per sub-batch (default 3)
         max_concurrency: Max concurrent sub-batch LLM calls (default 1, serial)
-    
-    Returns dict mapping story object -> summary text (currently unused, returned for API compatibility).
+
+    Returns SummaryMetrics with full accounting of all outcomes.
     """
     if not stories:
-        return {}
+        return empty_metrics()
+
+    t_start = time.monotonic()
 
     # Group by category
     by_category = {}
     for s in stories:
         by_category.setdefault(s.category, []).append(s)
 
-    all_summaries = {}
-
-    # Collect all sub-batches across all categories
+    # Collect all sub-batches
     all_sub_batches = []
     for cat_name, cat_stories in by_category.items():
         for i in range(0, len(cat_stories), batch_size):
-            all_sub_batches.append((cat_name, cat_stories[i:i + batch_size]))
+            all_sub_batches.append((cat_name, cat_stories[i:i+batch_size]))
 
-    # Dispatch with bounded concurrency
+    metrics = SummaryMetrics(total_stories=len(stories), sub_batches=len(all_sub_batches))
+
+    # Phase 1: Initial batch dispatch
+    batch_results = []
     if max_concurrency > 1:
         sem = asyncio.Semaphore(max_concurrency)
         tasks = [
@@ -692,31 +701,100 @@ async def batch_summarize_all(client, stories, session=None, *, batch_size: int 
         results = await asyncio.gather(*tasks, return_exceptions=True)
         for i, result in enumerate(results):
             if isinstance(result, Exception):
-                cat_name, sb = all_sub_batches[i]
+                cat_name, _ = all_sub_batches[i]
                 logger.warning(f"BATCH SUB-BATCH EXCEPTION ({cat_name}): {result}")
-                for s in sb:
-                    s.summary = ""
+                batch_results.append({'success': False, 'valid_count': 0, 'failed': True})
+            else:
+                batch_results.append(result)
     else:
-        # Serial path — no semaphore overhead, identical to current behavior
         for cat_name, sb in all_sub_batches:
-            await _summarize_sub_batch(client, cat_name, sb, batch_size=batch_size)
+            result = await _summarize_sub_batch(client, cat_name, sb, batch_size=batch_size)
+            batch_results.append(result)
 
-    # Phase 3F: Single-story LLM fallback for stories with empty batch summary
-    needs_fallback = [s for s in stories if not s.summary or not s.summary.strip()]
-    if needs_fallback:
-        for s in needs_fallback:
+    metrics.batch_calls = len(all_sub_batches)
+
+    # Phase 2: Retry failed full sub-batches once
+    failed_indices = [i for i, r in enumerate(batch_results) if r.get('failed')]
+
+    if failed_indices:
+        metrics.batch_retries = len(failed_indices)
+        metrics.batch_failures = len(failed_indices)
+
+        # Small backoff before retry
+        backoff = LLM_SUMMARY_RETRY_BACKOFF[0] if LLM_SUMMARY_RETRY_BACKOFF else 0.5
+        await asyncio.sleep(backoff)
+
+        retry_entries = [(all_sub_batches[i][0], all_sub_batches[i][1]) for i in failed_indices]
+        retry_results = []
+        if max_concurrency > 1:
+            sem = asyncio.Semaphore(max_concurrency)
+            retry_tasks = [
+                _summarize_sub_batch(client, cat_name, sb, semaphore=sem, batch_size=batch_size)
+                for cat_name, sb in retry_entries
+            ]
+            raw = await asyncio.gather(*retry_tasks, return_exceptions=True)
+            for idx, result in enumerate(raw):
+                if isinstance(result, Exception):
+                    cat_name, _ = retry_entries[idx]
+                    logger.warning(f"BATCH RETRY EXCEPTION ({cat_name}): {result}")
+                    retry_results.append({'success': False, 'valid_count': 0, 'failed': True})
+                else:
+                    retry_results.append(result)
+        else:
+            for cat_name, sb in retry_entries:
+                result = await _summarize_sub_batch(client, cat_name, sb, batch_size=batch_size)
+                retry_results.append(result)
+
+        metrics.batch_calls += len(failed_indices)
+
+        for idx, result in enumerate(retry_results):
+            original_index = failed_indices[idx]
+            batch_results[original_index] = result
+
+    # Phase 3: Individual recovery for unresolved stories
+    needs_recovery = [s for s in stories if not s.summary or not s.summary.strip()]
+    recovery_count = 0
+
+    if needs_recovery:
+        for s in needs_recovery:
             context = build_context(s)
             retry = await _summarize(client, context, title=s.title)
             if retry and not _is_boilerplate(retry) and not _is_refusal(retry) and retry != "[Summary Unavailable]":
                 s.summary = retry
+                recovery_count += 1
             elif not s.summary or not s.summary.strip():
                 s.summary = _generate_auto_fallback(s.title)
 
-    unavailable_count = sum(1 for s in stories if s.summary and s.summary.startswith("[Auto]"))
-    auto_recovered = sum(1 for s in needs_fallback if s.summary and not s.summary.startswith("[Auto]") and not s.summary.startswith("[Summary"))
-    if unavailable_count:
-        logger.info(f"[AUTO FALLBACK] {unavailable_count} stories fell back to [Auto] headline summary")
-    if auto_recovered:
-        logger.info(f"[BATCH RETRY] {auto_recovered}/{len(needs_fallback)} empty batch stories recovered via single-story LLM")
+    # Phase 4: Count final outcomes
+    auto_fallbacks = 0
+    unavailable = 0
+    final_valid = 0
+    final_invalid = 0
 
-    return all_summaries
+    for s in stories:
+        if not s.summary or not s.summary.strip():
+            final_invalid += 1
+        elif s.summary.strip().startswith("[Summary Unavailable]"):
+            unavailable += 1
+        elif s.summary.strip().startswith("[Auto]"):
+            auto_fallbacks += 1
+        else:
+            final_valid += 1
+
+    metrics.individual_recovery_attempts = len(needs_recovery)
+    metrics.individual_recovered = recovery_count
+    metrics.auto_fallbacks = auto_fallbacks
+    metrics.unavailable_summaries = unavailable
+    metrics.final_valid = final_valid
+    metrics.final_invalid = final_invalid
+    metrics.elapsed_s = time.monotonic() - t_start
+
+    # Logging
+    if auto_fallbacks:
+        logger.info(f"[AUTO FALLBACK] {auto_fallbacks} stories fell back to [Auto] headline summary")
+    if recovery_count:
+        logger.info(f"[BATCH RETRY] {recovery_count}/{len(needs_recovery)} empty batch stories recovered via single-story LLM")
+    if metrics.batch_retries:
+        logger.info(f"[BATCH RETRY] {metrics.batch_retries} sub-batches retried")
+
+    return metrics

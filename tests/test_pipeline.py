@@ -81,9 +81,7 @@ def _pipeline_patches(
     story_obj=None,
     weather_data=None,
     dedup_data=None,
-    summary_fn=None,
-    is_boilerplate_fn=None,
-    is_refusal_fn=None,
+    batch_metrics=None,
     validation_result=None,
     session_cms=None,
 ):
@@ -127,25 +125,7 @@ def _pipeline_patches(
         patch("daily_brief.pipeline.stage_extract_article", new_callable=AsyncMock),
     ]
 
-    if summary_fn is not None:
-        # Wrap sync summary_fn in an async wrapper for Perf-8 compat
-        async def _async_summary(*a, **kw):
-            return summary_fn(*a, **kw)
-        patches.append(patch("daily_brief.pipeline.llm_summarize", _async_summary))
-        # Also mock batch summarizer to simulate batch failure → forces retry
-        patches.append(patch("daily_brief.pipeline.llm_batch_summarize_all", new_callable=AsyncMock, return_value=None))
-    else:
-        patches.append(patch("daily_brief.pipeline.llm_batch_summarize_all", new_callable=AsyncMock, return_value=None))
-        async def _async_none(*a, **kw):
-            return None
-        patches.append(patch("daily_brief.pipeline.llm_summarize", _async_none))
-
-    patches.append(patch("daily_brief.pipeline._is_refusal", return_value=is_refusal_fn if is_refusal_fn is not None else False))
-
-    if is_boilerplate_fn is not None:
-        patches.append(patch("daily_brief.pipeline._is_boilerplate", is_boilerplate_fn))
-    else:
-        patches.append(patch("daily_brief.pipeline._is_boilerplate", return_value=False))
+    patches.append(patch("daily_brief.pipeline.llm_batch_summarize_all", new_callable=AsyncMock, return_value=batch_metrics))
 
     patches.extend([
         patch("daily_brief.pipeline.build_sections_from_stories", return_value=({}, [])),
@@ -252,44 +232,46 @@ class TestPipelineMain(TestCase):
                     asyncio.get_event_loop().run_until_complete(pm())
             mock_write.assert_called()
 
-    def test_main_phase3_retries(self):
-        story = self._get_story(summary=None)
-        call_count = [0]
-
-        def mock_summarize(client, context, **kw):
-            call_count[0] += 1
-            return "Retrieved summary for the story. Full detail included."
-
-        with _pipeline_patches(story_obj=story, summary_fn=mock_summarize):
+    def test_main_phase3_metrics_logged(self):
+        """Verify pipeline consumes SummaryMetrics from batch_summarize_all."""
+        from daily_brief.llm.summary_metrics import SummaryMetrics
+        story = self._get_story(summary="Good summary detail here.")
+        metrics = SummaryMetrics(
+            total_stories=1, batch_calls=1, final_valid=1, batch_retries=0,
+            auto_fallbacks=0, unavailable_summaries=0, final_invalid=0,
+            individual_recovery_attempts=0, individual_recovered=0, elapsed_s=0.5
+        )
+        stderr_capture = io.StringIO()
+        with _pipeline_patches(story_obj=story, batch_metrics=metrics):
             with patch("daily_brief.pipeline.aiohttp.ClientSession") as mock_session:
                 mock_session.side_effect = [_make_async_cm()]
                 with patch("daily_brief.pipeline.write_report"):
-                    from daily_brief.pipeline import main as pm
-                    asyncio.get_event_loop().run_until_complete(pm())
-        self.assertGreater(call_count[0], 0)
+                    with patch("daily_brief.pipeline.log") as mock_log:
+                        from daily_brief.pipeline import main as pm
+                        asyncio.get_event_loop().run_until_complete(pm())
+                    log_calls = [call[0][0] for call in mock_log.call_args_list]
+                    self.assertTrue(any("1 valid" in str(c) for c in log_calls), f"Expected metrics log, got {log_calls}")
+                    self.assertTrue(any("1 sub-batches" in str(c) for c in log_calls), f"Expected batch calls log, got {log_calls}")
 
     def test_main_phase3e_boilerplate(self):
-        story = self._get_story(summary="This is a generic summary.")
-
-        bp_idx = [0]
-        def mock_is_boilerplate(text):
-            bp_idx[0] += 1
-            return bp_idx[0] == 1  # First call returns True
-
-        def mock_summarize(client, context, **kw):
-            return "Strict non-boilerplate summary. Good detail here."
-
-        with _pipeline_patches(
-            story_obj=story,
-            summary_fn=mock_summarize,
-            is_boilerplate_fn=mock_is_boilerplate,
-        ):
+        """Verify pipeline logs SummaryMetrics that include auto fallbacks (recovery now in summarizer)."""
+        from daily_brief.llm.summary_metrics import SummaryMetrics
+        story = self._get_story(summary="[Auto] boilerplate headline fallback")
+        metrics = SummaryMetrics(
+            total_stories=1, batch_calls=1, final_valid=0, batch_retries=0,
+            auto_fallbacks=1, unavailable_summaries=0, final_invalid=0,
+            individual_recovery_attempts=0, individual_recovered=0, elapsed_s=0.3
+        )
+        with _pipeline_patches(story_obj=story, batch_metrics=metrics):
             with patch("daily_brief.pipeline.aiohttp.ClientSession") as mock_session:
                 mock_session.side_effect = [_make_async_cm()]
                 with patch("daily_brief.pipeline.write_report") as mock_write:
-                    from daily_brief.pipeline import main as pm
-                    asyncio.get_event_loop().run_until_complete(pm())
-            mock_write.assert_called()
+                    with patch("daily_brief.pipeline.log") as mock_log:
+                        from daily_brief.pipeline import main as pm
+                        asyncio.get_event_loop().run_until_complete(pm())
+                    mock_write.assert_called()
+                    log_calls = [call[0][0] for call in mock_log.call_args_list]
+                    self.assertTrue(any("[Auto]" in str(c) for c in log_calls), f"Expected auto fallback log, got {log_calls}")
 
     def test_main_monotonic_phase_timings(self):
         """A.9: all 6 phases use time.monotonic and PHASE_TIMINGS is populated."""

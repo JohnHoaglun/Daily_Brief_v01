@@ -21,14 +21,10 @@ from daily_brief.categorization import ordered_categories_for_render
 from daily_brief.pipelines.rss_dedup import fetch_and_dedup
 from daily_brief.llm import create_llm_client
 from daily_brief.llm.summarizer import (
-    _summarize as llm_summarize,
     batch_summarize_all as llm_batch_summarize_all,
     StoryPipelineState,
-    build_context,
-    _is_refusal,
-    _is_boilerplate,
-    _generate_auto_fallback,
 )
+from daily_brief.llm.summary_metrics import SummaryMetrics
 from daily_brief.rendering import cleanup_old_files
 from daily_brief.rendering.report import (
     build_sections_from_stories,
@@ -199,64 +195,19 @@ async def main():
             return_exceptions=True
         )
 
-        # ---------- Phase 3B/3C: Batch summary ----------
+        # ---------- Phase 3B/3C: Batch summary (recovery centralized in summarizer) ----------
         log(f"  [3BC] Running BATCH summaries via {LLM_MODEL}...")
-        await llm_batch_summarize_all(_llm_client, stories, batch_size=LLM_SUMMARY_BATCH_SIZE, max_concurrency=LLM_SUMMARY_MAX_CONCURRENCY)
-        sum_ok = sum(1 for s in stories if s.summary and s.summary.strip() and not s.summary.strip().startswith("[Summary") and not _is_refusal(s.summary))
-        sum_fail = total - sum_ok
-        log(f"  Batch summaries: {sum_ok} OK / {sum_fail} failed")
-
-        # ---------- Phase 3D: Retry failed summaries individually ----------
-        if sum_fail > 0:
-            log(f"  [3D] Retrying {sum_fail} failed summaries individually...")
-            retry_count = 0
-            for s in stories:
-                if not s.summary or not s.summary.strip() or s.summary.strip().startswith("[Summary") or _is_refusal(s.summary):
-                    context = build_context(s)
-                    retry_summary = await llm_summarize(_llm_client, context, title=s.title)
-                    if retry_summary and not _is_refusal(retry_summary):
-                        s.summary = retry_summary
-                        retry_count += 1
-            if retry_count < sum_fail:
-                unhandled = sum_fail - retry_count
-                log(f"  [3D] {unhandled} still failed — applying [Auto] headline fallback")
-                for s in stories:
-                    if not s.summary or not s.summary.strip() or s.summary.strip().startswith("[Summary") or _is_refusal(s.summary):
-                        s.summary = _generate_auto_fallback(s.title)
-
-            sum_ok = sum(1 for s in stories if s.summary and s.summary.strip() and not s.summary.strip().startswith("[Summary") and not _is_refusal(s.summary))
-            sum_fail = total - sum_ok
-            auto_count = sum(1 for s in stories if s.summary and s.summary.strip().startswith("[Auto]"))
-            log(f"  Summaries done: {sum_ok} OK / {sum_fail} fallback (retry recovered {retry_count}, [{auto_count:>2}] [Auto])")
-
-        # ---------- Phase 3E: Detect and fix boilerplate summaries ----------
-        boilerplate_count = sum(1 for s in stories if s.summary and _is_boilerplate(s.summary))
-        if boilerplate_count > 0:
-            log(f"  [3E] Detected {boilerplate_count} boilerplate summaries — re-summarizing with strict prompt...")
-            recovered = 0
-            for s in stories:
-                if s.summary and _is_boilerplate(s.summary):
-                    context = build_context(s)
-                    strict_summary = await llm_summarize(_llm_client, context, title=s.title, strict=True)
-                    if strict_summary and not _is_boilerplate(strict_summary) and not _is_refusal(strict_summary):
-                        if strict_summary != "[Summary Unavailable]":
-                            s.summary = strict_summary
-                            recovered += 1
-                        else:
-                            s.summary = _generate_auto_fallback(s.title)
-                    elif not s.summary or s.summary.strip().startswith("[Summary"):
-                        s.summary = _generate_auto_fallback(s.title)
-            auto_count = sum(1 for s in stories if s.summary and s.summary.strip().startswith("[Auto]"))
-            unavailable_count = sum(1 for s in stories if s.summary and "[Summary Unavailable]" in s.summary)
-            if auto_count:
-                log(f"  [3E] Total [Auto] fallbacks in report: {auto_count}")
-            if unavailable_count:
-                log(f"  [3E] WARNING: {unavailable_count} stories still [Summary Unavailable]")
-            if recovered < boilerplate_count:
-                remaining = boilerplate_count - recovered
-                log(f"  [3E] Recovered {recovered}/{boilerplate_count} boilerplate summaries ({remaining} fell back)")
-            else:
-                log(f"  [3E] Recovered all {recovered}/{boilerplate_count} boilerplate summaries")
+        summary_metrics = await llm_batch_summarize_all(_llm_client, stories, batch_size=LLM_SUMMARY_BATCH_SIZE, max_concurrency=LLM_SUMMARY_MAX_CONCURRENCY)
+        if summary_metrics and isinstance(summary_metrics, SummaryMetrics):
+            log(f"  Summaries: {summary_metrics.final_valid} valid / {summary_metrics.auto_fallbacks} [Auto] / {summary_metrics.unavailable_summaries} unavailable")
+            if summary_metrics.batch_retries:
+                log(f"  Batch retries: {summary_metrics.batch_retries} sub-batches retried")
+            if summary_metrics.individual_recovery_attempts:
+                log(f"  Recovery: {summary_metrics.individual_recovered}/{summary_metrics.individual_recovery_attempts} stories recovered individually")
+            log(f"  Batch calls: {summary_metrics.batch_calls} sub-batches in {summary_metrics.elapsed_s:.1f}s")
+        else:
+            sum_ok = sum(1 for s in stories if s.summary and s.summary.strip())
+            log(f"  Summaries: {sum_ok}/{total} with summaries")
 
         elapsed = time.monotonic() - t3
         log(f"  Phase 3 completed in {elapsed:.2f}s")
@@ -290,7 +241,7 @@ async def main():
 
         elapsed = time.monotonic() - t4
         log(f"\nFile written to {filepath}")
-        log(f"  Stories: {total_after_dedup} | Alerts: {len(alerts_list)} | Failed: {sum_fail}/{total} | Time: {elapsed:.1f}s")
+        log(f"  Stories: {total_after_dedup} | Alerts: {len(alerts_list)} | Time: {elapsed:.1f}s")
         PHASE_TIMINGS['Phase 4'] = elapsed
         log(f"  Phase 4 completed in {elapsed:.2f}s")
 
@@ -324,4 +275,4 @@ async def main():
 
         log("\n=== PIPELINE COMPLETED SUCCESSFULLY ===")
         print(f"\nDone. File: {filepath}")
-        print(f"  Stories: {total_after_dedup} | Alerts: {len(alerts_list)} | Failed: {sum_fail}/{total} | Time: {elapsed:.1f}s")
+        print(f"  Stories: {total_after_dedup} | Alerts: {len(alerts_list)} | Time: {elapsed:.1f}s")

@@ -5,7 +5,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 DEFAULTS = {
-    "version": "1.0.94",
+    "version": "1.0.95",
     "llm_model": "gemma4-e2b",
     "ollama_host": "http://localhost:11434/v1",
     "directories": {

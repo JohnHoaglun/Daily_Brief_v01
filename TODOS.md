@@ -37,7 +37,7 @@ Detailed findings, implementation constraints, and verification commands are in 
 - [x] C.2a.1 `Perf-7`: run pipeline once to capture the Phase-3 corpus for live benchmarking.
 - [x] C.2a.2 `Perf-7`: execute 8-cell live benchmark matrix; adopt new defaults if proven. (Winner: `batch_size=4`, `max_concurrency=2`, 55.6% faster, 0 quality regression. Adopted v1.0.94.)
 - [ ] C.3 `Rel-1` / `Rel-2`: centralize bounded HTTP retry and status handling.
-- [ ] C.4 `Rel-6` / `Rel-7` / `Arch-2`: centralize batch retry, fallback, and summarization metrics.
+- [x] C.4 `Rel-6` / `Rel-7` / `Arch-2`: centralize batch retry, fallback, and summarization metrics. (v1.0.95, +39 tests, 3 new files, pipeline −57 lines)
 - [!] C.5 `Bug-2` / `Bug-3` / `Bug-9`: decide whether to restore the alert feature end-to-end or remove it.
 
 ### Phase D - Architecture Follow-Up (2-4 days, medium risk)

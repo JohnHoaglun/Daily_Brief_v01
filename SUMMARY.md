@@ -4,6 +4,17 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.95 — C.4 centralize batch retry, fallback, and summarization metrics (Rel-6/Rel-7/Arch-2)
+- `src/daily_brief/llm/summary_metrics.py`: new module with `SummaryMetrics` class (`__slots__` based), `validate_metrics()`, `empty_metrics()`. Lightweight structured result with 12 fields (total_stories, sub_batches, batch_calls, batch_retries, batch_failures, individual_recovery_attempts, individual_recovered, auto_fallbacks, unavailable_summaries, final_valid, final_invalid, elapsed_s). Invariant: `final_valid + auto_fallbacks + unavailable_summaries + final_invalid == total_stories`.
+- `src/daily_brief/llm/summarizer.py`: `_summarize_sub_batch()` now tracks `valid_count` and returns `{'success', 'valid_count', 'failed'}` outcome dict. `batch_summarize_all()` rewritten with 4 explicit phases: (1) initial batch dispatch, (2) one bounded full-batch retry with backoff for failed sub-batches, (3) individual recovery via `_summarize()` for unresolved stories, (4) outcome counting and structured metrics. Returns `SummaryMetrics` instead of unused empty dict. All recovery/fallback centralized — no scattered call sites.
+- `src/daily_brief/pipeline.py`: removed Phase 3D (failed-summary retry loop) and Phase 3E (boilerplate re-summarization loop), −57 lines. Replaced with single `batch_summarize_all()` call that consumes returned `SummaryMetrics`. Emits concise Phase-3 log with batch calls/retries, recovery count, valid/fallback/unavailable split, and elapsed time. Removed `_is_boilerplate` and `_generate_auto_fallback` imports (centralized in summarizer).
+- `tests/test_summary_metrics.py`: 15 tests across 5 classes (constructor, is_valid, to_dict, validate_metrics, empty_metrics).
+- `tests/test_batch_behavior_regression.py`: 13 regression tests characterizing current external behavior (valid summaries retained, fallback text, category grouping, ordering, concurrency isolation, empty input, boilerplate detection, async retry).
+- `tests/test_batch_failure_fixtures.py`: 11 deterministic failure-path tests (transient exception, malformed response, partial parse, invalid recovery, exhausted recovery, concurrent metrics).
+- `tests/test_pipeline.py`: updated `_pipeline_patches` fixture; rewrote `test_main_phase3_retries` → `test_main_phase3_metrics_logged`; rewrote `test_main_phase3e_boilerplate` for centralized model.
+- `tests/test_summarizer.py`: updated 8 tests for new return type (`SummaryMetrics`).
+- 929 tests collected, 928 passing (1 pre-existing startup test failure unrelated), config validate PASS.
+
 ### v1.0.94 — C.2a adopt (4,2) — 55.6% faster, all quality gates pass (Perf-7)
 - Live benchmark on 75-story corpus, 8-cell matrix (batch 3-6 × concurrency 1-2 × 3 runs). Winner (4,2): median 43.4s vs 97.7s baseline, 55.6% improvement. Quality: 0 invalid, 0 auto_fallback, 0 boilerplate+refusal, 0 exceptions. All 5 quality gates passed with margin.
 - `src/daily_brief/config.py`: `LLM_SUMMARY_BATCH_SIZE` default 4, `LLM_SUMMARY_MAX_CONCURRENCY` default 2 (up from 3, 1). Bumped VERSION to 1.0.94.

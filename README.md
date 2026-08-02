@@ -1,4 +1,4 @@
-# Daily Brief v1.0.94
+# Daily Brief v1.0.95
 Automated daily news brief generator that fetches stories from 17 configured categories via Google News RSS, enriches them with weather and lake-level data, summarizes them with AI, and produces a structured Markdown report.
 
 ## Architecture
@@ -36,7 +36,7 @@ All runtime settings in `config.yaml`. Key groups:
 
 | Key | Description | Default |
 |---|---|---|
-| `version` | Pipeline version | `1.0.94` |
+| `version` | Pipeline version | `1.0.95` |
 | `llm.model` | Model for summarization | `gemma4-e2b` |
 | `llm.host` | vLLM API endpoint | `http://192.168.4.52:8007` |
 | `directories.log_dir` | Log output directory | vault `Dev/logs/` |
@@ -87,6 +87,7 @@ reports/                    # Benchmark results and performance data
 
 - v1.0.67 baseline: ~105–114s internal pipeline time across 70–73 stories. LLM summarization (Phase 3) dominates at ~96–100s.
 - v1.0.94 (C.2a adopted): Phase 3 median 43.4s (from 97.7s baseline) — 55.6% speedup via `batch_size=4`, `max_concurrency=2`. Quality: zero invalid/boilerplate/refusal/exceptions across 24 benchmark runs.
+- v1.0.95 (C.4): centralized batch retry, single-story recovery, and structured `SummaryMetrics`. Pipeline Phase 3D/3E duplicate recovery loops removed (−57 lines). Transient batch failures now retried as full batches before falling to individual recovery.
 
 ## Tracking
 

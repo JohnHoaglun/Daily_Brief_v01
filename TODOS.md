@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 - v1.0.90
+# TODO: Daily Brief v01 - v1.0.91
 
 ## Status Legend
 - `[ ]` TODO
@@ -31,9 +31,11 @@ Detailed findings, implementation constraints, and verification commands are in 
 - [x] B.8 `Arch-1`: separate weather provider fetching from deterministic merge/fallback policy.
 
 ### Phase C - Async, LLM, and Reliability (1-3 days, medium-high risk)
-- [ ] C.1 `Perf-8` / `Perf-9`: migrate LLM calls to `AsyncOpenAI` and retry delays to `asyncio.sleep()`.
+- [x] C.1 `Perf-8` / `Perf-9`: migrate LLM calls to `AsyncOpenAI` and retry delays to `asyncio.sleep()`.
 - [x] C.2 `Perf-7`: batch scheduler controls — configurable `batch_size` and `max_concurrency` added; production defaults unchanged pending benchmark.
-- [ ] C.2a `Perf-7`: run benchmark matrix (batch 3-6, concurrency 1-2) and adopt new defaults if material speedup proven.
+- [x] C.2a `Perf-7`: benchmark infrastructure complete — capture script, benchmark runner, 21 non-network tests.
+- [ ] C.2a.1 `Perf-7`: run pipeline once to capture the Phase-3 corpus for live benchmarking.
+- [ ] C.2a.2 `Perf-7`: execute 8-cell live benchmark matrix; adopt new defaults if proven.
 - [ ] C.3 `Rel-1` / `Rel-2`: centralize bounded HTTP retry and status handling.
 - [ ] C.4 `Rel-6` / `Rel-7` / `Arch-2`: centralize batch retry, fallback, and summarization metrics.
 - [!] C.5 `Bug-2` / `Bug-3` / `Bug-9`: decide whether to restore the alert feature end-to-end or remove it.

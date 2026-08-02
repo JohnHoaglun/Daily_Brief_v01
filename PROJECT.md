@@ -1,17 +1,18 @@
-# Project: Daily Brief v01 (v1.0.90)
+# Project: Daily Brief v01 (v1.0.91)
 
 ## Purpose
 Daily Brief aggregates RSS stories from configured categories, enriches them with weather and lake data, summarizes them through a vLLM OpenAI-compatible endpoint, and writes a Markdown report.
 
 ## Current Status
 - Modular refactoring P0-P6 is complete.
-- Test baseline: 793 tests (v1.0.87), 813 with B.8 (v1.0.88), 813 with C.1 (v1.0.89), all passing.
+- Test baseline: 793 tests (v1.0.87), 813 with B.8 (v1.0.88), 817 with C.2 (v1.0.90), 838 with C.2a (v1.0.91), all passing.
 - Research review at v1.0.65 identified the active 4-phase optimization program in `PLAN.md`.
 - Performance baseline (v1.0.67): 105–114s internal, 137–147s wall-clock. Phase 3 (LLM) dominates at ~96–100s.
-- Phase A complete (v1.0.67). Phase B complete (v1.0.88). Phase C in progress (C.1: v1.0.89).
+- Phase A complete (v1.0.67). Phase B complete (v1.0.88). Phase C in progress (C.1/2: v1.0.90, C.2a infrastructure: v1.0.91).
 - Preflight probes are now opt-in via `runtime.preflight_checks_enabled`. Default: `false` (disabled).
 - Weather provider architecture separated: NWS failure no longer prevents ERA5, rainfall, or lake collection.
 - LLM client migrated to `AsyncOpenAI`; all LLM calls and retry backoffs are non-blocking (async/await).
+- LLM batch benchmark tooling in place; corpus capture and benchmark runner ready for live testing (C.2a).
 
 ## Architecture
 - `src/daily_brief/pipeline.py`: asynchronous pipeline orchestration.

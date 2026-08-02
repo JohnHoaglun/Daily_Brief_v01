@@ -4,6 +4,13 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.91 — C.2a LLM batch benchmark infrastructure (Perf-7)
+- `scripts/capture_corpus.py`: standalone corpus capture script. Runs the full pipeline to Phase 3 (RSS, dedup, article extraction) without calling LLM; serializes `StoryPipelineState` inputs (title, url, category, snippet, pub_date, full context) to a versioned JSON corpus with category order preservation and summary metadata. No credentials or LLM responses captured.
+- `scripts/benchmark_llm_batches.py`: standalone benchmark runner. Loads a captured JSON corpus, reconstructs `StoryPipelineState` objects, and calls `batch_summarize_all()` across an 8-cell matrix (batch sizes 3-6 × concurrency 1-2). Each cell runs one warmup and N recorded runs with shuffled order per repetition. Instrumented async client tracks batch/fallback calls, max concurrent requests, wall time, per-run quality metrics, and stories/second. JSON output with median/min/max aggregation and a formatted terminal table. Winner selection requires >=10% median improvement over baseline (3, 1) with no quality regression.
+- `tests/test_benchmark_llm_batches.py`: 21 tests across 5 classes: capture corpus validation (4), fixture loading (4), matrix validation (3), metric aggregation with mocked completions (4), JSON output structure and winner logic (6).
+- `.opencode/plans/c2a_benchmark_llm.json`: plan document with matrix, metrics, selection rules, and adoption gate.
+- 838 tests passed, 0 failures. config validate PASS.
+
 ### v1.0.90 — C.2 Batch scheduler: configurable batch_size and max_concurrency (Perf-7)
 - `src/daily_brief/llm/summarizer.py`: extracted `_summarize_sub_batch()` with optional `asyncio.Semaphore` for bounded concurrency; refactored `batch_summarize_all()` to accept `batch_size` (default 3) and `max_concurrency` (default 1, serial) parameters; when `max_concurrency > 1`, sub-batches dispatched via `asyncio.gather` with semaphore gating; exception isolation per sub-batch; extracted `_is_valid_summary()` helper. Bumped header to v1.0.90.
 - `tests/test_summarizer.py`: added `TestBatchSchedulerControls` (4 tests): custom batch_size split, semaphore concurrency 1/2, sub-batch exception isolation.

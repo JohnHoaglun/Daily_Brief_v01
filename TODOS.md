@@ -1,59 +1,69 @@
 # TODO: Daily Brief v01 - v1.0.97
 
-## Status Legend
-- `[ ]` TODO
-- `[~]` In progress
-- `[!]` Blocked by a decision or external dependency
+## Status
+Phases A/B/C complete. Phase D is next work.
 
-## Active Work: Phase C complete. Phase D next.
-Detailed findings, implementation constraints, and verification commands are in `PLAN.md`.
+## Verification Gate — Phase D
+- [ ] D.1: config validate + one pipeline run proving configured values reach consumers
+- [ ] D.2: `pytest -q` + pipeline run, no story field regressions
+- [ ] D.3: `pytest -q`, import chain intact, no behavioral changes
+- [ ] D.4: parser golden fixtures covering all LLM response formats, coverage ≥90%
+- [ ] D.5: `pytest -q`, tagging computed once per story (verify with timing/probe)
+- [ ] D.6: Bug-7/8 fix + pipeline run (no weather crashes); Bug-11: `__init__.py` version aligned
+- [ ] D.7: harness returns typed result, weather errors surfaced in log, pipeline `pytest -q`
+- [ ] Phase D final: `pytest -q`, `scripts/run_coverage.sh`, `python -m daily_brief config validate`, one full pipeline execution, all versions aligned
 
-### Phase A - Quick Wins (2-3 hours, low risk) — COMPLETE
-- [x] A.1 `Bug-1`: import `ZoneInfo` for RSS age filtering.
-- [x] A.2 `Clean-8`: precompile the HTML-strip regex.
-- [x] A.3 `Clean-5`: remove the unused `sum_results` assignment.
-- [x] A.4 `Clean-9`: retain one `WEATHER_POINT_URL` assignment.
-- [x] A.5 `Clean-6`: remove unused configuration constants.
-- [x] A.6 `Rel-3`: create output/log directories before logging setup or listing.
-- [x] A.7 `Rel-4`: restore TLS verification in RSS connectivity probes.
-- [x] A.8 `Bug-6`: reject and diagnose unsuccessful RSS HTTP responses.
-- [x] A.9 `Quality-6`: add monotonic total and per-phase timings.
-- [x] A.10 `Bug-5`: correct `dedupi_window_hours` to `dedupe_window_hours`.
+---
 
-### Phase B - High-Impact Performance (4-6 hours, low-medium risk) — COMPLETE
-- [x] B.1 `Perf-1`: fetch lake levels with bounded concurrency and stable output ordering.
-- [x] B.2 `Perf-2`: concurrently collect independent weather sources, then merge deterministically.
-- [x] B.3 `Perf-3`: eliminate the redundant Wunderground dashboard request.
-- [x] B.4 `Perf-4`: pass configured coordinates to climate retrieval, eliminating per-run geocoding.
-- [x] B.5 `Perf-5`: reuse the outer HTTP session for article extraction.
-- [x] B.6 `Perf-6` / `Bug-10`: fetch adequate RSS candidate pools once; widen locally and concurrently.
-- [x] B.7 `Perf-11`: make production preflight probes opt-in or short-TTL cached.
-- [x] B.8 `Arch-1`: separate weather provider fetching from deterministic merge/fallback policy.
+## Phase D — Architecture Follow-Up
 
-### Phase C - Async, LLM, and Reliability (1-3 days, medium-high risk) — COMPLETE
-- [x] C.1 `Perf-8` / `Perf-9`: migrate LLM calls to `AsyncOpenAI` and retry delays to `asyncio.sleep()`.
-- [x] C.2 `Perf-7`: batch scheduler controls — configurable `batch_size` and `max_concurrency` added; production defaults unchanged pending benchmark.
-- [x] C.2a `Perf-7`: benchmark infrastructure complete — capture script, benchmark runner, 21 non-network tests.
-- [x] C.2a.1 `Perf-7`: run pipeline once to capture the Phase-3 corpus for live benchmarking.
-- [x] C.2a.2 `Perf-7`: execute 8-cell live benchmark matrix; adopt new defaults if proven. (Winner: `batch_size=4`, `max_concurrency=2`, 55.6% faster, 0 quality regression. Adopted v1.0.94.)
-- [x] C.3 `Rel-1` / `Rel-2`: centralize bounded HTTP retry and status handling. (v1.0.96)
-- [x] C.4 `Rel-6` / `Rel-7` / `Arch-2`: centralize batch retry, fallback, and summarization metrics. (v1.0.95, +39 tests, 3 new files, pipeline −57 lines)
-- [x] C.5 `Bug-2` / `Bug-3` / `Bug-9`: retire the dormant alert feature end-to-end. (v1.0.97)
+### D.1 `Bug-4` / `Arch-4` — Unify config schema, loading, validation (Substantial)
+Runtime reads divergent YAML paths from what the validator checks → configured values silently ignored:
+- `TIMEZONE`: runtime reads top-level `timezone`; YAML/validator use `runtime.timezone` → always falls back to `America/Chicago`
+- `USER_AGENT`: runtime reads top-level `user_agent`; YAML uses `network.user_agent`
+- `MAX_LOG_VERSIONS`: runtime reads `cleanup_api.max_log_versions`; YAML/validator use `cleanup.max_log_versions` → falls back to `5`
+- LLM options: YAML defines `llm.*` (display?) and `runtime_defaults.*` (actual); runtime reads the latter, validator validates the former
+- `globals().update(locals())` at `config.py:139`
+**Files:** `src/daily_brief/config.py`, `src/daily_brief/config_validator.py`, `config.yaml`
+**Work:** Establish one typed/defaulted config schema. Load YAML once. Validate exactly the consumed fields. Remove obsolete duplicate YAML locations and `globals().update()`. Add regression tests proving configured values reach consumers.
 
-### Phase D - Architecture Follow-Up (2-4 days, medium risk)
-- [ ] D.1 `Bug-4` / `Arch-4`: unify configuration schema, loading, validation, and imports.
-- [ ] D.2 `Arch-3`: adopt one typed internal story representation.
-- [ ] D.3 `Dup-1` to `Dup-4` / `Clean-1` to `Clean-3`: canonicalize duplicate utilities and request helpers.
-- [ ] D.4 `Quality-3`: decompose batch-response parsing with golden LLM fixtures.
-- [ ] D.5 `Quality-4` / `Perf-10`: precompile tagging patterns, compute tags once, and clarify boost semantics.
-- [ ] D.6 `Bug-7`, `Bug-8`, `Bug-11`, `Perf-12`: resolve remaining configuration, version, and parser-loop issues.
-- [ ] D.7 `Rel-5`, `Quality-2`, `Quality-5`, `Arch-5`: clarify harness failures, weather errors, logging, and probe ownership.
+### D.2 `Arch-3` — Adopt one typed story model (Medium)
+Two disparate types in circulation: `models.Story` (missing `snippet`, `pub_dt`, `context`) and `summarizer.StoryPipelineState` (used by pipeline/LLM/article/rendering). Benchmark/corpus scripts import the LLM-layer class.
+**Files:** `src/daily_brief/models.py`, `src/daily_brief/llm/summarizer.py:466-477`, `src/daily_brief/sources/article.py`, `src/daily_brief/rendering/report.py`, `scripts/capture_corpus.py`, `scripts/benchmark_llm_batches.py`
+**Work:** Choose one `Story` dataclass as the internal representation. Normalize field names. Migrate pipeline/LLM/article/rendering/scripts/tests. Keep render-only dicts private.
 
-## Verification Gate
-- [x] Establish a three-run timing and report-quality baseline before Phase A. (Recorded: 764 tests pass. Wall-clock 137–147s. P1 ~8s, P2 ~3.5s, P3 96–100s, P4 30s. LLM dominant.)
-- [x] C.2a Live benchmark completed (v1.0.94): 890 tests pass. Corpus: 75 stories. 8-cell matrix, 24 recorded runs. Winner (4,2): 43.4s median vs 97.7s baseline, 55.6% faster. Quality: 0 invalid, 0 auto_fallback, 0 boilerplate+refusal, 0 exceptions. All 5 quality gates passed with margin. Defaults set.
-- [ ] Run phase-specific tests and `pytest -q` after each phase.
-- [ ] Record timing medians, report validation, and production outcomes in `SUMMARY.md`.
+### D.3 `Dup-1-4` / `Clean-1-3` — Canonicalize duplicate utilities (Medium)
+Exact duplicates remain; HTTP request plumbing is largely resolved by Phase C.3:
+- `_safe_sentence_summary` / `_count_sentences`: duplicated in `utils.py` and `summarizer.py`
+- `build_context`: verbatim copy in `article.py` and `summarizer.py`
+- `_coerce_temperature_f`: duplicated in `pipeline.py` and `utils.py`, neither appears used in active path
+**Files:** `src/daily_brief/utils.py`, `src/daily_brief/llm/summarizer.py`, `src/daily_brief/sources/article.py`, `src/daily_brief/pipeline.py`, `src/daily_brief/validation.py`
+**Work:** Retain one implementation of each in `utils.py` (neutral module). Redirect imports and tests. Delete or consolidate temperature coercion. Document why connectivity probes use separate request paths.
 
-## Blocked Decisions
-- (none — alert disposition resolved: retired, v1.0.97)
+### D.4 `Quality-3` — Decompose batch-response parsing with golden LLM fixtures (Substantial)
+`parse_batch_summary_response()` is 361 lines: multi-strategy, nested functions, per-call regex compilation, accumulated defensive logic, positional fallbacks, swap mutation. No checked-in golden corpus.
+**Files:** `src/daily_brief/llm/summarizer.py:103-463`, `tests/test_summarizer.py`
+**Work:** (1) Capture representative sanitized LLM response fixtures as golden files, (2) Split into named helpers: lexing/block extraction, headline matching, positional fallback, cleanup, swap detection, (3) Add fixture-driven tests for expected assignments and non-regression.
+
+### D.5 `Quality-4` / `Perf-10` — Tagging precompilation and single computation (Medium)
+- `_word_boundary_match()` compiles two regexes per keyword comparison (`tagging.py:32-40`)
+- `build_markdown()` tags each story twice: once for frontmatter aggregation, once for body rendering
+- Boost semantics ambiguous: `category_boosts` entries are both tag names AND title keywords
+**Files:** `src/daily_brief/tagging.py`, `src/daily_brief/rendering/report.py`
+**Work:** Precompile keyword matchers once after config load. Compute tags once at story creation, reuse for frontmatter and body output. Separate `category_boost_tags` from `category_boost_keywords` in schema if both behaviors are desired.
+
+### D.6 `Bug-7` / `Bug-8` / `Bug-11` / `Perf-12` — Weather bugs, version drift, parser loop (Medium)
+- **Bug-7:** `weather.py:107-111` — NWS response `properties.forecast` URL is altered to append `/forecast`, corrupting valid endpoints. Fallback derives from `WEATHER_POINT_URL`, not the resolved point URL. Hardcoded suffix (`config.py:52-54`), YAML's `weather.forecast_suffix` is unused.
+- **Bug-8:** `weather_table.py:41-45` — `station_rows[0]` / `[1]` / `[2]` indexed without type/length validation. Config validator doesn't check `weather_labels.station_rows`. Shortened config crashes rendering.
+- **Bug-11:** `__init__.py` version is stale at `1.0.84`; YAML/config/README/PROJECT all say `1.0.97`. Legacy root `config.py` adds drift risk.
+- **Perf-12:** RSS/feedparser and article/BeautifulSoup parsing run synchronously on the event loop. No loop-lag measurement exists.
+**Files:** `src/daily_brief/sources/weather.py`, `src/daily_brief/rendering/weather_table.py`, `src/daily_brief/__init__.py`, `src/daily_brief/sources/rss.py`, `src/daily_brief/sources/article.py`
+**Work:** Respect NWS-provided URL unchanged; explicit fallback only for missing forecast URL. Validate/fallback `station_rows` array entries. Derive package/YAML/display versions from one source. Add loop-lag instrumentation, use `asyncio.to_thread` only if measured as disruptive.
+
+### D.7 `Rel-5` / `Quality-2/5` / `Arch-5` — Harness, weather errors, logging, probes (Medium)
+- **Harness:** `run_test_harness()` returns `None` for all outcomes. Pipeline always logs "COMPLETED SUCCESSFULLY" afterward regardless.
+- **Weather errors:** `weather["errors"]` kept but never surfaced in pipeline status line or report renderer. Report can show "Unavailable" without error attribution.
+- **Logging:** `pipeline.py` uses custom lock/file/stderr `log()` writer; module logger messages don't land in per-run Markdown log. Some status output goes directly to stderr.
+- **Probes:** `connectivity.run_all_checks()` hardcodes three probes; `run_smoke_test()` has six. Not declarative/configured.
+**Files:** `src/daily_brief/harness.py`, `src/daily_brief/pipeline.py`, `src/daily_brief/sources/weather.py`, `src/daily_brief/rendering/weather_table.py`, `src/daily_brief/connectivity.py`
+**Work:** Make harness return typed pass/warn/fail result. Surface concise weather degradation/errors in log. Route phase logs through standard logging or formalize the run-log sink explicitly. Define one named probe profile/configuration for preflight, CLI, and smoke test.

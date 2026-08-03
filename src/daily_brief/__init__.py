@@ -1,6 +1,6 @@
 """
-Daily Brief v1.0.79 — Package Exports
-======================================
+Daily Brief v1.0.100 — Package Exports
+=======================================
 Public API for the daily_brief package.
 """
 
@@ -20,6 +20,7 @@ from daily_brief.utils import (
     _count_sentences,
     _coerce_percent,
     _coerce_temperature_f,
+    build_context,
 )
 from daily_brief.http_client import _fetch_json, _fetch_text
 from daily_brief.config_validator import validate_config
@@ -40,6 +41,7 @@ __all__ = [
     "_count_sentences",
     "_coerce_percent",
     "_coerce_temperature_f",
+    "build_context",
     # HTTP
     "_fetch_json",
     "_fetch_text",
@@ -47,4 +49,4 @@ __all__ = [
     "validate_config",
 ]
 
-__version__ = "1.0.99"
+__version__ = "1.0.100"

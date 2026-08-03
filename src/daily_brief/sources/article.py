@@ -1,7 +1,7 @@
 """
-Daily Brief v1.0.13 — Article Extraction
-==========================================
-Fetch full article text and build story context for summarization.
+Daily Brief v1.0.100 — Article Extraction
+=========================================
+Fetch full article text for summary context. ``build_context`` is in utils.py.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 async def stage_extract_article(story: Any, session: aiohttp.ClientSession) -> None:
-    """Phase 3A: Fetch full article text from source URL for summary context.
+    """Fetch full article text and build story context for summarization.
 
     Skips obituary titles, invalid URLs, and Google News tracking links. On
     success, populates ``story.context`` with cleaned text capped at the
@@ -52,26 +52,3 @@ async def stage_extract_article(story: Any, session: aiohttp.ClientSession) -> N
     except Exception as exc:
         logger.debug("  [extract error] '%s...': %s", story.title[:60], exc)
 
-
-def build_context(story: Any) -> str:
-    """Build text context for a single story.
-
-    Returns up to *LLM_CONTEXT_PREVIEW_CHARS* characters. Prefers ``story.context``
-    (extracted article text) when it is at least 50 characters; otherwise falls
-    back to ``snippet``, ``title``, and ``category``.
-    """
-    context = story.context
-    if context and len(str(context).strip()) >= 50:
-        return str(context).strip()[:LLM_CONTEXT_PREVIEW_CHARS]
-
-    parts = [
-        v.strip()
-        for v in (story.snippet, story.title)
-        if v and len((v or "").strip()) > 0
-    ]
-
-    if not parts:
-        return f"{story.category}: {story.title}"
-
-    inner = "\n---\n".join(parts + [f"Category: {story.category}"])
-    return inner[:LLM_CONTEXT_PREVIEW_CHARS]

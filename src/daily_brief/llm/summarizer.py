@@ -3,7 +3,12 @@ import difflib
 import logging
 import re
 import time
-from daily_brief.utils import _safe_text
+from daily_brief.utils import (
+    _safe_text,
+    _safe_sentence_summary,
+    _count_sentences,
+    build_context,
+)
 from daily_brief.config import (
     LLM_MODEL,
     LLM_SUMMARY_TRIM_MIN_CHARS,
@@ -19,18 +24,6 @@ from daily_brief.config import (
 from daily_brief.llm.summary_metrics import SummaryMetrics, empty_metrics
 
 logger = logging.getLogger(__name__)
-
-
-def _safe_sentence_summary(text):
-    if not text:
-        return ""
-    s = re.sub(r"\s+", " ", str(text)).strip()
-    s = s.replace("..", ".").strip()
-    parts = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"'])", s)
-    parts = [p.strip() for p in parts if p.strip()]
-    if len(parts) >= 3:
-        return " ".join(parts[:3]).strip()
-    return s
 
 
 def _is_refusal(text):
@@ -90,14 +83,6 @@ def _is_boilerplate(text):
         "the following story",
     ]
     return any(p in t for p in boilerplate_phrases)
-
-
-def _count_sentences(text):
-    if not text:
-        return 0
-    parts = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"'])", re.sub(r"\s+", " ", str(text)).strip())
-    parts = [p.strip() for p in parts if p.strip()]
-    return len(parts)
 
 
 def parse_batch_summary_response(response, count, story_headlines=None):
@@ -542,19 +527,6 @@ async def _summarize(client, context, title=None, min_chars=LLM_SUMMARY_TRIM_MIN
     return _generate_auto_fallback(title)
 
 
-def build_context(story):
-    """Build the text context for a single story — capped at 600 chars for batch processing."""
-    context = story.context
-    if context and len(str(context).strip()) >= 50:
-        return str(context).strip()[:LLM_CONTEXT_PREVIEW_CHARS]  # Cap article content
-
-    parts = [v.strip() for v in [story.snippet, story.title] if v and len((v or "").strip()) > 0]
-    if not parts:
-        return f"{story.category}: {story.title}"
-
-    inner = "\n---\n".join(parts + [f"Category: {story.category}"])
-    return inner[:LLM_CONTEXT_PREVIEW_CHARS]
-
 
 def _is_valid_summary(summary, headline):
     """Check if a summary passes basic validation."""
@@ -586,7 +558,7 @@ async def _summarize_sub_batch(client, cat_name, sub_batch, *, semaphore=None, b
     context_lines = []
     for idx, s in enumerate(sub_batch):
         context_parts = [s.title]
-        content = build_context(s)
+        content = build_context(s, preview_chars=LLM_CONTEXT_PREVIEW_CHARS)
         if len(content) > LLM_CONTEXT_PREVIEW_CHARS:
             content = content[:LLM_CONTEXT_PREVIEW_CHARS]
         context_parts.append(content)
@@ -749,7 +721,7 @@ async def batch_summarize_all(client, stories, session=None, *, batch_size: int 
 
     if needs_recovery:
         for s in needs_recovery:
-            context = build_context(s)
+            context = build_context(s, preview_chars=LLM_CONTEXT_PREVIEW_CHARS)
             retry = await _summarize(client, context, title=s.title)
             if retry and not _is_boilerplate(retry) and not _is_refusal(retry) and retry != "[Summary Unavailable]":
                 s.summary = retry

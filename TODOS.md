@@ -1,12 +1,12 @@
-# TODO: Daily Brief v01 - v1.0.99
+# TODO: Daily Brief v01 - v1.0.100
 
 ## Status
-Phases A/B/C complete. D.1 completed (v1.0.98). D.2 completed (v1.0.99). Phase D continues.
+Phases A/B/C complete. D.1 completed (v1.0.98). D.2 completed (v1.0.99). D.3 completed (v1.0.100). Phase D continues.
 
 ## Verification Gate — Phase D
 - [x] D.1: config validate + one pipeline run proving configured values reach consumers
 - [x] D.2: `pytest -q` + pipeline run, no story field regressions
-- [ ] D.3: `pytest -q`, import chain intact, no behavioral changes
+- [x] D.3: `pytest -q`, import chain intact, no behavioral changes
 - [ ] D.4: parser golden fixtures covering all LLM response formats, coverage ≥90%
 - [ ] D.5: `pytest -q`, tagging computed once per story (verify with timing/probe)
 - [ ] D.6: Bug-7/8 fix + pipeline run (no weather crashes); Bug-11: `__init__.py` version aligned
@@ -30,13 +30,15 @@ Phases A/B/C complete. D.1 completed (v1.0.98). D.2 completed (v1.0.99). Phase D
 ### D.2 `Arch-3` — Adopt one typed story model ~~(Medium)~~ **DONE (v1.0.99)**
 **Done:** Promoted `models.Story` to canonical 7-field typed dataclass: `title`, `link`, `snippet`, `category`, `pub_dt`, `context`, `summary`. Replaced `StoryPipelineState` class in `summarizer.py` with alias `StoryPipelineState = Story`. Updated all construction sites (pipeline, capture_corpus, benchmark script, test factories) to use keyword args. Replaced `__slots__` test with dataclass fields check. 921/923 tests passing (2 pre-existing), config validate PASS.
 
-### D.3 `Dup-1-4` / `Clean-1-3` — Canonicalize duplicate utilities (Medium)
-Exact duplicates remain; HTTP request plumbing is largely resolved by Phase C.3:
-- `_safe_sentence_summary` / `_count_sentences`: duplicated in `utils.py` and `summarizer.py`
-- `build_context`: verbatim copy in `article.py` and `summarizer.py`
-- `_coerce_temperature_f`: duplicated in `pipeline.py` and `utils.py`, neither appears used in active path
-**Files:** `src/daily_brief/utils.py`, `src/daily_brief/llm/summarizer.py`, `src/daily_brief/sources/article.py`, `src/daily_brief/pipeline.py`, `src/daily_brief/validation.py`
-**Work:** Retain one implementation of each in `utils.py` (neutral module). Redirect imports and tests. Delete or consolidate temperature coercion. Document why connectivity probes use separate request paths.
+### D.3 `Dup-1-4` / `Clean-1-3` — Canonicalize duplicate utilities ~~(Medium)~~ **DONE (v1.0.100)**
+**Done:** Eliminated 4 exact-duplicate functions by consolidating all in `utils.py`:
+- `_safe_sentence_summary`: removed from `summarizer.py`, imported from `utils.py`
+- `_count_sentences`: removed from `summarizer.py`, imported from `utils.py`
+- `build_context`: promoted to `utils.py` with `preview_chars: int = 600` (typed, no config deps); removed from `article.py` and `summarizer.py`; all callers pass `preview_chars=LLM_CONTEXT_PREVIEW_CHARS`
+- `_coerce_temperature_f`: `pipeline.py` delegates to `utils.py` with thin wrapper for extreme temp logging
+- Tests updated: `test_article.py` import changed; `test_summarizer.py`/`test_benchmark_llm_batches.py` imports work via summarizer re-export
+- `__init__.py` exports `build_context`
+- 921/923 tests passing (2 pre-existing). Config validate PASS.
 
 ### D.4 `Quality-3` — Decompose batch-response parsing with golden LLM fixtures (Substantial)
 `parse_batch_summary_response()` is 361 lines: multi-strategy, nested functions, per-call regex compilation, accumulated defensive logic, positional fallbacks, swap mutation. No checked-in golden corpus.

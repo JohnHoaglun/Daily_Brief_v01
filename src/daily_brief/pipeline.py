@@ -87,19 +87,12 @@ def log(msg):
 
 def _coerce_temperature_f(val):
     """Safely convert temperature string/none to float and sanity check."""
-    if val is None:
+    from daily_brief.utils import _coerce_temperature_f as _ct
+    result = _ct(val)
+    if result is not None and (result < -50 or result > 140):
+        log(f"  WARNING: Extreme temperature detected and discarded: {result}°F")
         return None
-    try:
-        clean_val = re.sub(r"[^\d.]", "", str(val))
-        if not clean_val:
-            return None
-        temp = float(clean_val)
-        if temp < -50 or temp > 140:
-            log(f"  WARNING: Extreme temperature detected and discarded: {temp}°F")
-            return None
-        return temp
-    except (ValueError, TypeError):
-        return None
+    return result
 
 
 # -- Main -------------------------------------------------------------------

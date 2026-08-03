@@ -4,6 +4,16 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.100 — D.3 canonicalize duplicate utilities (Dup-1-4/Clean-1-3)
+- `src/daily_brief/utils.py`: added canonical `build_context(story, preview_chars=600)` (typed, no config dependencies). Bumped version to 1.0.100.
+- `src/daily_brief/llm/summarizer.py`: removed duplicate definitions of `_safe_sentence_summary`, `_count_sentences`, `build_context`. Imports all three from `utils.py`. Call sites pass `preview_chars=LLM_CONTEXT_PREVIEW_CHARS`.
+- `src/daily_brief/sources/article.py`: removed duplicate `build_context`. Updated file header to v1.0.100.
+- `src/daily_brief/pipeline.py`: `_coerce_temperature_f` now delegates to `utils._coerce_temperature_f` with thin wrapper that logs extreme temps.
+- `src/daily_brief/__init__.py`: added `build_context` to exports; version bumped to 1.0.100.
+- `tests/test_sources/test_article.py`: updated `build_context` import from `daily_brief.sources.article` → `daily_brief.utils`.
+- `tests/test_summarizer.py`, `tests/test_benchmark_llm_batches.py`: `build_context` import from `summarizer` works via re-export (summarizer imports from utils).
+- 921/923 tests passing (2 pre-existing). Config validate PASS.
+
 ### v1.0.99 — D.2 adopt one typed story model (Arch-3)
 - `src/daily_brief/models.py`: promoted `Story` to canonical 7-field typed dataclass (title, link, snippet, category, pub_dt, context, summary). Removed unused `pubDate`, `tags`, `source`.
 - `src/daily_brief/llm/summarizer.py`: replaced `StoryPipelineState` class (was slotted, 11 lines) with alias `StoryPipelineState = Story` (2 lines).

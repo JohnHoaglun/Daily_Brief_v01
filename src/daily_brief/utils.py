@@ -1,13 +1,13 @@
 """
-Daily Brief v1.0.12 — Utilities
-===============================
-Helper functions used throughout the pipeline.
+Daily Brief v1.0.100 — Utilities
+=================================
+Helper functions used throughout the pipeline. No config dependencies.
 """
 
 from __future__ import annotations
 
 import re
-from typing import Optional
+from typing import Any, Optional
 
 _HTML_TAG_RE = re.compile(r"<.*?>")
 
@@ -141,3 +141,27 @@ def _coerce_temperature_f(val):
         return temp
     except (ValueError, TypeError):
         return None
+
+
+def build_context(story: Any, preview_chars: int = 600) -> str:
+    """Build text context for a single story.
+
+    Returns up to *preview_chars* characters. Prefers ``story.context``
+    (extracted article text) when it is at least 50 characters; otherwise falls
+    back to ``snippet``, ``title``, and ``category``.
+    """
+    context = story.context
+    if context and len(str(context).strip()) >= 50:
+        return str(context).strip()[:preview_chars]
+
+    parts = [
+        v.strip()
+        for v in (story.snippet, story.title)
+        if v and len((v or "").strip()) > 0
+    ]
+
+    if not parts:
+        return f"{story.category}: {story.title}"
+
+    inner = "\n---\n".join(parts + [f"Category: {story.category}"])
+    return inner[:preview_chars]

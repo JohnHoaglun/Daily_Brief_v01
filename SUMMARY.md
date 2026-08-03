@@ -4,6 +4,12 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.101 — D.4 parser golden fixtures (Quality-3)
+- `tests/fixtures/parser_golden_fixtures.py`: 15 golden fixtures documenting all LLM response formats: canonical STORY_N with headline=summary, reordered STORY_N with fuzzy remapping, STORY_N without equals, numbered lists (1., 2), ### variants, multi-line entries, summary-of headings, plain paragraphs, malformed/partial responses, adjacent swap, sentence trimming, STORY_N colon/dash/space variants, headline overlap skip. Each fixture has response text, headlines, count, expected output, and behavioral notes.
+- `tests/test_parser_golden.py`: 32 test cases — 15 dynamic golden fixture tests + 17 edge cases (None/empty response, count zero, garbage, STORY_N zero-based, numbered variants, bold headers, equal-in-summary, blank summary, pipe-in-content, count exceeds entries, 3-sentence trim, sequential chunking).
+- `src/daily_brief/__init__.py`: version bumped to 1.0.101.
+- 953/955 tests passing (2 pre-existing). Config validate PASS.
+
 ### v1.0.100 — D.3 canonicalize duplicate utilities (Dup-1-4/Clean-1-3)
 - `src/daily_brief/utils.py`: added canonical `build_context(story, preview_chars=600)` (typed, no config dependencies). Bumped version to 1.0.100.
 - `src/daily_brief/llm/summarizer.py`: removed duplicate definitions of `_safe_sentence_summary`, `_count_sentences`, `build_context`. Imports all three from `utils.py`. Call sites pass `preview_chars=LLM_CONTEXT_PREVIEW_CHARS`.

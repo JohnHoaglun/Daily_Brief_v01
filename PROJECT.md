@@ -1,11 +1,11 @@
-# Project: Daily Brief v01 (v1.0.100)
+# Project: Daily Brief v01 (v1.0.101)
 
 ## Purpose
 Daily Brief aggregates RSS stories from configured categories, enriches them with weather and lake data, summarizes them through a vLLM OpenAI-compatible endpoint, and writes a Markdown report.
 
 ## Current Status
 - Modular refactoring P0-P6 is complete.
-- Test baseline: 923 tests, 921 passing (2 pre-existing), config validate PASS (v1.0.100).
+- Test baseline: 955 tests, 953 passing (2 pre-existing), config validate PASS (v1.0.101).
 - Research review at v1.0.65 identified the active 4-phase optimization program in `PLAN.md`.
 - Performance baseline (v1.0.67): 105–114s internal, 137–147s wall-clock. Phase 3 (LLM) dominates at ~96–100s.
 - Phase A complete (v1.0.67). Phase B complete (v1.0.88). Phase C complete (v1.0.97).
@@ -19,6 +19,7 @@ Daily Brief aggregates RSS stories from configured categories, enriches them wit
 - **Config unification** (v1.0.98): D.1 — unified config schema: `config.py` uses nested `DEFAULTS`, `_get_nested()` helper, single YAML read. `config_validator.py` validates canonical `llm.*`/`network.*`/`runtime.*` paths only. `pipeline.py` uses explicit imports (no star). Legacy root `config.py` deleted.
 - **Canonical story model** (v1.0.99): D.2 — promoted `models.Story` to 7-field typed dataclass (title, link, snippet, category, pub_dt, context, summary). Replaced `StoryPipelineState` with alias. All pipeline, source, rendering, script, and test consumers use keyword construction. Unused `pubDate`, `tags`, `source` fields removed.
 - **Duplicate utility canonicalization** (v1.0.100): D.3 — eliminated 4 exact-duplicate functions: `_safe_sentence_summary` and `_count_sentences` removed from `summarizer.py`; `build_context` promoted to `utils.py` (parametrized with `preview_chars`, default 600, no config dependencies); `_coerce_temperature_f` in `pipeline.py` delegates to `utils`. All imports redirect to `utils.py`.
+- **Parser golden fixtures** (v1.0.101): D.4 — added 15 golden fixtures + 17 edge-case tests for `parse_batch_summary_response()` covering all LLM response formats: STORY_N with/without pipe/equals, numbered lists (1., 2), ### variants, plain paragraphs, summary-of headings, fuzzy headline remapping, adjacent swap, sentence trimming. Documents actual parser behavior including edge cases with positional fallback.
 
 ## Architecture
 - `src/daily_brief/pipeline.py`: asynchronous pipeline orchestration.

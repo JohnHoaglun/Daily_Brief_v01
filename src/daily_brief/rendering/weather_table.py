@@ -38,11 +38,17 @@ def build_weather_markdown(weather):
 
     md.append("")
     station = weather.get("station", {})
-    md.append(f"| {WEATHER_LABELS.get('station_rows', ['Climate Normal High for today 77316'])[0]} | {_present_weather_value(station.get('avg_temp_today'), 'Unavailable')} |")
+    station_rows = WEATHER_LABELS.get('station_rows', [])
+    _default_station_rows = ["Climate Normal High for today 77316", "Average Monthly rainfall for 77316", "Current Monthly rainfall for 77316"]
+    def _row(i, key, default_idx=0):
+        return (station_rows[i] if i < len(station_rows) else _default_station_rows[default_idx]), station.get(key)
+    r0 = _row(0, 'avg_temp_today', 0)
+    r1 = _row(1, 'avg_monthly_rainfall', 1)
+    r2 = _row(2, 'current_monthly_rainfall', 2)
+    md.append(f"| {r0[0]} | {_present_weather_value(r0[1], 'Unavailable')} |")
     md.append("| --- | --- |")
-    station_rows = WEATHER_LABELS.get('station_rows', ["Climate Normal High for today 77316", "Average Monthly rainfall for 77316", "Current Monthly rainfall for 77316"])
-    md.append(f"| {station_rows[1]} | {_present_weather_value(station.get('avg_monthly_rainfall'), 'Unavailable')} |")
-    md.append(f"| {station_rows[2]} | {_present_weather_value(station.get('current_monthly_rainfall'), 'Unavailable')} |")
+    md.append(f"| {r1[0]} | {_present_weather_value(r1[1], 'Unavailable')} |")
+    md.append(f"| {r2[0]} | {_present_weather_value(r2[1], 'Unavailable')} |")
     md.append("")
     md.append("| Where | Today | 1 Week Ago | 30 Days ago |")
     md.append("| --- | --- | --- | --- |")

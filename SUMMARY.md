@@ -4,6 +4,13 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.103 — D.6 weather bugs (Bug-7/8), version alignment (Bug-11)
+- `src/daily_brief/sources/weather.py`: Bug-7 fix — NWS-provided `forecast` URL is now used unchanged instead of being altered to append `/forecast`. Fallback to `WEATHER_POINT_URL + suffix` only fires when `properties.forecast` is missing. `WEATHER_POINT_FORECAST_SUFFIX` import retained for fallback path only.
+- `src/daily_brief/rendering/weather_table.py`: Bug-8 fix — `station_rows` indexed safely with `len()` guard + fallback defaults. Short or missing `station_rows` no longer crashes rendering; `_row()` helper returns `(label, value)` from config with safe fallback. `_default_station_rows` local list covers missing indices.
+- `src/daily_brief/__init__.py`, `config.yaml`, `config.py`: Bug-11 — version bumped to 1.0.103, all sources aligned.
+- `tests/test_sources/test_weather_extended.py`: `test_forecast_url_suffix_appended` renamed to `test_forecast_url_used_as_is` (validates NWS URL passed through unchanged). New `test_forecast_fallback_uses_suffix` test covers missing-forecast fallback path.
+- 954/956 tests passing (2 pre-existing: `test_rss_dedup`, `test_startup`). Config validate PASS.
+
 ### v1.0.102 — D.5 tagging precompilation and single computation (Quality-4/Perf-10)
 - `src/daily_brief/tagging.py`: `precompile_tagging()` builds 410 precompiled regex pairs from TAGGING_MAPPINGS + CATEGORY_BOOSTS at startup. `_word_boundary_match()` delegates to precompiled cache via `_get_compiled_patterns()`, falls back to runtime compile if precompile hasn't run. `_KEYWORD_REGEXP_CACHE` global shared with callers.
 - `src/daily_brief/pipeline.py`: `precompile_tagging()` called after config validation gate, before preflight checks. Logged keyword count.

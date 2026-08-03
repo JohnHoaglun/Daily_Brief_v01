@@ -107,8 +107,9 @@ async def fetch_nws_forecast(
         fc_url = point["properties"].get("forecast")
         if not fc_url:
             fc_url = WEATHER_POINT_URL.split("?")[0] + WEATHER_POINT_FORECAST_SUFFIX
-        if WEATHER_POINT_FORECAST_SUFFIX and not fc_url.rstrip("/").endswith(WEATHER_POINT_FORECAST_SUFFIX):
-            fc_url = fc_url.rstrip("/") + f"/{WEATHER_POINT_FORECAST_SUFFIX}"
+        else:
+            # Use NWS-provided URL as-is — don't alter it
+            pass
         logger.debug(f"[fetch_nws_forecast] Forecast URL: {fc_url}")
         forecast_payload = await _fetch_json(session, fc_url, user_agent=USER_AGENT)
         if isinstance(forecast_payload, dict):

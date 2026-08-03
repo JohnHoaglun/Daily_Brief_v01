@@ -53,14 +53,14 @@ class TestWeatherZoneinfoFallback(TestCase):
 
 
 class TestWeatherForecastUrlSuffix(TestCase):
-    """weather.py line 116: forecast URL suffix appended when not present."""
+    """weather.py: NWS-provided forecast URL is used as-is (Bug-7 fix)."""
 
     def setUp(self):
         self.today = datetime(2026, 7, 18, tzinfo=CHICTZ)
         self.forecast_url_no_suffix = "https://api.weather.gov/grid/EAX/250,125"
 
-    def test_forecast_url_suffix_appended(self):
-        """When forecast URL doesn't end with /forecast, suffix is appended (line 116)."""
+    def test_forecast_url_used_as_is(self):
+        """NWS-provided forecast URL is used unchanged — no suffix appended (Bug-7 fix)."""
         calls = []
 
         async def capture_fetch(session, url, **k):
@@ -82,7 +82,35 @@ class TestWeatherForecastUrlSuffix(TestCase):
                         with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
                             asyncio.get_event_loop().run_until_complete(fetch_weather(None, 30.286, -95.566))
 
-        # The second call URL should have the forecast suffix appended
+        # The second call URL should be the NWS-provided URL as-is
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[1], self.forecast_url_no_suffix)
+
+    def test_forecast_fallback_uses_suffix(self):
+        """When forecast URL is missing from point response, fallback uses suffix."""
+        self.maxDiff = None
+        calls = []
+
+        async def capture_fetch(session, url, **k):
+            calls.append(url)
+            if not hasattr(capture_fetch, "cc"):
+                capture_fetch.cc = 0
+            capture_fetch.cc += 1
+            if capture_fetch.cc == 1:
+                # Point response missing forecast URL
+                return {"properties": {}}
+            # Forecast response
+            return {"properties": {"periods": []}}
+
+        mock_fn = asyncio.coroutine(mock.MagicMock(side_effect=capture_fetch))
+        with mock.patch("daily_brief.sources.weather._fetch_json", mock_fn):
+            with mock.patch("daily_brief.sources.weather.get_reference_datetime", return_value=self.today):
+                with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value=None))):
+                    with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall", new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value={"avg_monthly_rainfall": None, "current_monthly_rainfall": None}))):
+                        with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
+                            asyncio.get_event_loop().run_until_complete(fetch_weather(None, 30.286, -95.566))
+
+        # The second call URL should use the configured fallback with /forecast suffix
         self.assertEqual(len(calls), 2)
         forecast_suffix = "forecast"
         self.assertTrue(calls[1].rstrip("/").endswith(forecast_suffix), f"URL '{calls[1]}' should end with '{forecast_suffix}'")

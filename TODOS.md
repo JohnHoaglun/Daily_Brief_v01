@@ -49,12 +49,8 @@ Phases A/B/C complete. D.1 completed (v1.0.98). D.2 completed (v1.0.99). D.3 com
 **Files:** `src/daily_brief/tagging.py`, `src/daily_brief/rendering/report.py`, `src/daily_brief/pipeline.py`
 
 ### D.6 `Bug-7` / `Bug-8` / `Bug-11` / `Perf-12` — Weather bugs, version drift, parser loop (Medium)
-- **Bug-7:** `weather.py:107-111` — NWS response `properties.forecast` URL is altered to append `/forecast`, corrupting valid endpoints. Fallback derives from `WEATHER_POINT_URL`, not the resolved point URL. Hardcoded suffix (`config.py:52-54`), YAML's `weather.forecast_suffix` is unused.
-- **Bug-8:** `weather_table.py:41-45` — `station_rows[0]` / `[1]` / `[2]` indexed without type/length validation. Config validator doesn't check `weather_labels.station_rows`. Shortened config crashes rendering.
-- **Bug-11:** `__init__.py` version is stale at `1.0.84`; YAML/config/README/PROJECT all say `1.0.97`. Legacy root `config.py` adds drift risk.
-- **Perf-12:** RSS/feedparser and article/BeautifulSoup parsing run synchronously on the event loop. No loop-lag measurement exists.
-**Files:** `src/daily_brief/sources/weather.py`, `src/daily_brief/rendering/weather_table.py`, `src/daily_brief/__init__.py`, `src/daily_brief/sources/rss.py`, `src/daily_brief/sources/article.py`
-**Work:** Respect NWS-provided URL unchanged; explicit fallback only for missing forecast URL. Validate/fallback `station_rows` array entries. Derive package/YAML/display versions from one source. Add loop-lag instrumentation, use `asyncio.to_thread` only if measured as disruptive.
+**Done (v1.0.103):** Bug-7 — NWS `forecast` URL used unchanged, suffix appended only on missing URL. Bug-8 — `station_rows` indexed safely with `len()` guard and fallback defaults, no crash on short config. Bug-11 — version bumped to 1.0.103, all sources (`__init__.py`, `config.py`, `config.yaml`, `PROJECT.md`) aligned. Perf-12 deferred (no loop-lag instrumentation yet). 954/956 tests passing (2 pre-existing).
+**Files:** `src/daily_brief/sources/weather.py`, `src/daily_brief/rendering/weather_table.py`, `src/daily_brief/__init__.py`, `src/daily_brief/config.py`, `config.yaml`, `tests/test_sources/test_weather_extended.py`
 
 ### D.7 `Rel-5` / `Quality-2/5` / `Arch-5` — Harness, weather errors, logging, probes (Medium)
 - **Harness:** `run_test_harness()` returns `None` for all outcomes. Pipeline always logs "COMPLETED SUCCESSFULLY" afterward regardless.

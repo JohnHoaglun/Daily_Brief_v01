@@ -1,4 +1,4 @@
-# Project: Daily Brief v01 (v1.0.104)
+# Project: Daily Brief v01 (v1.0.105)
 
 ## Purpose
 Daily Brief aggregates RSS stories from configured categories, enriches them with weather and lake data, summarizes them through a vLLM OpenAI-compatible endpoint, and writes a Markdown report.
@@ -20,6 +20,7 @@ Daily Brief aggregates RSS stories from configured categories, enriches them wit
 - **Canonical story model** (v1.0.99): D.2 — promoted `models.Story` to 7-field typed dataclass (title, link, snippet, category, pub_dt, context, summary). Replaced `StoryPipelineState` with alias. All pipeline, source, rendering, script, and test consumers use keyword construction. Unused `pubDate`, `tags`, `source` fields removed.
 - **Duplicate utility canonicalization** (v1.0.100): D.3 — eliminated 4 exact-duplicate functions: `_safe_sentence_summary` and `_count_sentences` removed from `summarizer.py`; `build_context` promoted to `utils.py` (parametrized with `preview_chars`, default 600, no config dependencies); `_coerce_temperature_f` in `pipeline.py` delegates to `utils`. All imports redirect to `utils.py`.
 - **Parser golden fixtures** (v1.0.101): D.4 — added 15 golden fixtures + 17 edge-case tests for `parse_batch_summary_response()` covering all LLM response formats: STORY_N with/without pipe/equals, numbered lists (1., 2), ### variants, plain paragraphs, summary-of headings, fuzzy headline remapping, adjacent swap, sentence trimming. Documents actual parser behavior including edge cases with positional fallback.
+- **Startup crash fix** (v1.0.105): D.8 — `log()` guarded against `RUN_LOGFILE` being `None` before logfile initialization at pipeline start. Early logging writes stderr only until logfile initialized. 954/956 tests passing (2 pre-existing), config validate PASS, pipeline runs successfully.
 
 ## Architecture
 - `src/daily_brief/pipeline.py`: asynchronous pipeline orchestration.

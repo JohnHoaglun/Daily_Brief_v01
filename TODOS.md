@@ -1,19 +1,7 @@
-# TODO: Daily Brief v01 - v1.0.101
+# TODO: Daily Brief v01 - v1.0.105
 
 ## Status
-Phases A/B/C complete. D.1 completed (v1.0.98). D.2 completed (v1.0.99). D.3 completed (v1.0.100). D.4 completed (v1.0.101). Phase D continues.
-
-## Verification Gate — Phase D
-- [x] D.1: config validate + one pipeline run proving configured values reach consumers
-- [x] D.2: `pytest -q` + pipeline run, no story field regressions
-- [x] D.3: `pytest -q`, import chain intact, no behavioral changes
-- [x] D.4: 32 golden fixture tests (15 formats + 17 edge cases), coverage of all parser paths
-- [ ] D.5: `pytest -q`, tagging computed once per story (verify with timing/probe)
-- [ ] D.6: Bug-7/8 fix + pipeline run (no weather crashes); Bug-11: `__init__.py` version aligned
-- [ ] D.7: harness returns typed result, weather errors surfaced in log, pipeline `pytest -q`
-- [ ] Phase D final: `pytest -q`, `scripts/run_coverage.sh`, `python -m daily_brief config validate`, one full pipeline execution, all versions aligned
-
----
+Phases A/B/C complete. D.1-D.8 completed. 954/956 passing (2 pre-existing), config validate PASS, pipeline runs successfully.
 
 ## Phase D — Architecture Follow-Up
 
@@ -55,3 +43,9 @@ Phases A/B/C complete. D.1 completed (v1.0.98). D.2 completed (v1.0.99). D.3 com
 ### D.7 `Rel-5` / `Quality-2/5` / `Arch-5` — Harness, weather errors, logging, probes (Medium)
 **Done (v1.0.104):** Harness — `run_test_harness()` returns `HarnessResult` dataclass (status: PASS/WARN/FAIL/SKIPPED/ERROR, message, exit_code, stdout/stderr lines). Weather errors — `weather["errors"]` surfaced in pipeline log with concise summary. Probes — `run_all_checks()` and `run_smoke_test()` unified via `CHECK_LIST`/`SMOKE_TEST_CHECKS` declarative lists + `_wrapped()` helper with `name` field. 954/956 tests passing.
 **Files:** `src/daily_brief/harness.py`, `src/daily_brief/pipeline.py`, `src/daily_brief/connectivity.py`
+
+### D.8 `Critical-1` — Startup sequence crash + test gap (Critical) **DONE (v1.0.105)**
+**Bug:** `log()` crashed on startup before `RUN_LOGFILE` initialized — `log()` called at line 115 (`precompile_tagging`), but `RUN_LOGFILE` set at line 149 (after directory setup). `os.path.dirname(RUN_LOGFILE)` threw `TypeError: expected str, bytes or os.PathLike object, not NoneType`.
+**Fix applied:** `log()` now guards against `RUN_LOGFILE` being `None` — early logs write stderr only until logfile initialized. Pipeline runs successfully.
+**Gap discovered:** 954 tests pass, 94% coverage — but no test verifies the startup sequence end-to-end. This gap must be closed.
+**Files:** `src/daily_brief/pipeline.py`

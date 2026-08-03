@@ -77,11 +77,12 @@ def log(msg):
     global RUN_LOGFILE
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     line = f"[{timestamp}] {msg}"
-    os.makedirs(os.path.dirname(RUN_LOGFILE), exist_ok=True)
-    with log_lock:
-        with open(RUN_LOGFILE, "a", encoding="utf-8") as f:
-            f.write(line + "\n")
-            f.flush()
+    if RUN_LOGFILE is not None:
+        os.makedirs(os.path.dirname(RUN_LOGFILE), exist_ok=True)
+        with log_lock:
+            with open(RUN_LOGFILE, "a", encoding="utf-8") as f:
+                f.write(line + "\n")
+                f.flush()
     sys.stderr.write(line + "\n")
     sys.stderr.flush()
 

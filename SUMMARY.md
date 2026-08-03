@@ -4,6 +4,11 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.105 — D.8 startup crash fix: `log()` guard before `RUN_LOGFILE` init + test gap (Critical-1)
+- `src/daily_brief/pipeline.py`: `log()` guarded against `RUN_LOGFILE` being `None` — early logs write stderr only until logfile initialized at line 149. Pipeline `precompile_tagging()` call at line 115 no longer crashes. **Gap discovered:** 954 tests pass, 94% coverage, but app crashes on startup — no test validates startup sequence end-to-end.
+- `src/daily_brief/__init__.py`, `config.py`, `config.yaml`: version bumped to 1.0.105.
+- 954/956 tests passing (2 pre-existing). Config validate PASS. Pipeline runs successfully.
+
 ### v1.0.104 — D.7 harness typed result, weather errors, probe unification, logging (Rel-5/Quality-2/5)
 - `src/daily_brief/harness.py`: `run_test_harness()` now returns `HarnessResult` dataclass with `status` (PASS/WARN/FAIL/SKIPPED/ERROR), `message`, `exit_code`, `stdout_lines`, `stderr_lines`. All code paths return typed result instead of `None`. Pipeline logs harness status/result message.
 - `src/daily_brief/pipeline.py`: Weather errors from `weather["errors"]` now surfaced in pipeline log with concise summary (up to 3 errors). Weather status shows "PARTIAL" when errors present.

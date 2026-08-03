@@ -4,6 +4,12 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.106 — D.9 startup integration test, obsolete test removed (Quality-6)
+- `tests/test_startup_sequence.py`: New `TestStartupSequence` integration test runs real `pipeline.main()` through Phase 4 with deterministic mocks for all external boundaries (weather, RSS, LLM, aiohttp, config). Validates: `run_log_*.md` created, `DailyBrief-*.md` report written, `PHASE_TIMINGS` populated Phases 1-4, `RUN_LOGFILE=None` guard exercised. Uses explicit `pipeline_mod.*` for all assertions to avoid stale import issues.
+- `tests/test_startup.py`: Removed obsolete `TestPipelineCreatesDirs` (patched removed attributes like `llm_summarize`, caused test to crash and leak partially-entered patches — `CATEGORIES=[]`, temp paths — that polluted subsequent tests). Retained passing `TestSetupLoggingCreatesDir`.
+- `src/daily_brief/__init__.py`, `config.py`, `config.yaml`, `PROJECT.md`: version bumped to 1.0.106.
+- 955/956 tests passing (1 pre-existing: `test_zoneinfo_uses_configured_timezone`). Config validate PASS.
+
 ### v1.0.105 — D.8 startup crash fix: `log()` guard before `RUN_LOGFILE` init + test gap (Critical-1)
 - `src/daily_brief/pipeline.py`: `log()` guarded against `RUN_LOGFILE` being `None` — early logs write stderr only until logfile initialized at line 149. Pipeline `precompile_tagging()` call at line 115 no longer crashes. **Gap discovered:** 954 tests pass, 94% coverage, but app crashes on startup — no test validates startup sequence end-to-end.
 - `src/daily_brief/__init__.py`, `config.py`, `config.yaml`: version bumped to 1.0.105.

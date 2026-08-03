@@ -1,7 +1,7 @@
-# TODO: Daily Brief v01 - v1.0.105
+# TODO: Daily Brief v01 - v1.0.106
 
 ## Status
-Phases A/B/C complete. D.1-D.8 completed. 954/956 passing (2 pre-existing), config validate PASS, pipeline runs successfully.
+Phases A/B/C complete. D.1-D.9 completed. 955/956 passing (1 pre-existing), config validate PASS, pipeline runs successfully.
 
 ## Phase D — Architecture Follow-Up
 
@@ -49,3 +49,8 @@ Phases A/B/C complete. D.1-D.8 completed. 954/956 passing (2 pre-existing), conf
 **Fix applied:** `log()` now guards against `RUN_LOGFILE` being `None` — early logs write stderr only until logfile initialized. Pipeline runs successfully.
 **Gap discovered:** 954 tests pass, 94% coverage — but no test verifies the startup sequence end-to-end. This gap must be closed.
 **Files:** `src/daily_brief/pipeline.py`
+
+### D.9 `Quality-6` — Startup integration test (Medium) **DONE (v1.0.106)**
+**Gap closed:** End-to-end integration test for startup sequence through Phase 4. Replaces obsolete `test_startup.py::TestPipelineCreatesDirs` which was broken (patched removed attributes like `llm_summarize`) and polluted module state for subsequent tests.
+**Implementation:** `test_startup_sequence.py` runs real `pipeline.main()` with deterministic mocks: weather, RSS fetch/dedup, LLM summarization, aiohttp session, config validation, and preflight checks. Mocks external boundaries only — real rendering functions (Phases 1-5) execute. Validates: `run_log_*.md` created, `DailyBrief-*.md` report written, `PHASE_TIMINGS` contains Phases 1-4, and `RUN_LOGFILE=None` guard exercised via stderr-only precompile message.
+**Files:** `tests/test_startup_sequence.py`, `tests/test_startup.py` (removed `TestPipelineCreatesDirs`, `_AggregateCM`)

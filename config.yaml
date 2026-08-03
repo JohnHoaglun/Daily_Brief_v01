@@ -1,4 +1,4 @@
-version: 1.0.97
+version: 1.0.98
 llm:
   model: gemma4-e2b
   host: http://192.168.4.52:8007
@@ -8,18 +8,13 @@ llm:
   context_preview_chars: 600
   summary_context_chars: 6000
   summary_trim_min_chars: 100
-runtime_defaults:
-  llm_summary_options:
-    temperature: 0.5
-    top_p: 0.8
-  llm_summary_context_chars: 6000
-  llm_context_preview_chars: 600
-  llm_summary_trim_min_chars: 100
   summary_retry:
     attempts: 2
     backoff:
     - 0.5
     - 1.0
+  summary_batch_size: 4
+  summary_max_concurrency: 2
 directories:
   log_dir: /Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/Dev/logs
   news_dir: /Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/Dev/news
@@ -53,15 +48,11 @@ network:
 runtime:
   timezone: America/Chicago
   preflight_checks_enabled: false
-  date_override: null
   frontmatter_tag_segments:
   - daily-intelligently
   - news-summary
   - ai-generated
   frontmatter_fallback_tag: '#news'
-  thread_pool_size: 3
-  max_log_versions: 5
-cleanup:
   max_log_versions: 5
 prompts:
   summary: "You are an objective news editor. Write a detailed summary of at least\

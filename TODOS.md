@@ -1,10 +1,10 @@
-# TODO: Daily Brief v01 - v1.0.97
+# TODO: Daily Brief v01 - v1.0.98
 
 ## Status
-Phases A/B/C complete. Phase D is next work.
+Phases A/B/C complete. D.1 completed (v1.0.98). Phase D continues.
 
 ## Verification Gate — Phase D
-- [ ] D.1: config validate + one pipeline run proving configured values reach consumers
+- [x] D.1: config validate + one pipeline run proving configured values reach consumers
 - [ ] D.2: `pytest -q` + pipeline run, no story field regressions
 - [ ] D.3: `pytest -q`, import chain intact, no behavioral changes
 - [ ] D.4: parser golden fixtures covering all LLM response formats, coverage ≥90%
@@ -17,15 +17,15 @@ Phases A/B/C complete. Phase D is next work.
 
 ## Phase D — Architecture Follow-Up
 
-### D.1 `Bug-4` / `Arch-4` — Unify config schema, loading, validation (Substantial)
-Runtime reads divergent YAML paths from what the validator checks → configured values silently ignored:
-- `TIMEZONE`: runtime reads top-level `timezone`; YAML/validator use `runtime.timezone` → always falls back to `America/Chicago`
-- `USER_AGENT`: runtime reads top-level `user_agent`; YAML uses `network.user_agent`
-- `MAX_LOG_VERSIONS`: runtime reads `cleanup_api.max_log_versions`; YAML/validator use `cleanup.max_log_versions` → falls back to `5`
-- LLM options: YAML defines `llm.*` (display?) and `runtime_defaults.*` (actual); runtime reads the latter, validator validates the former
-- `globals().update(locals())` at `config.py:139`
-**Files:** `src/daily_brief/config.py`, `src/daily_brief/config_validator.py`, `config.yaml`
-**Work:** Establish one typed/defaulted config schema. Load YAML once. Validate exactly the consumed fields. Remove obsolete duplicate YAML locations and `globals().update()`. Add regression tests proving configured values reach consumers.
+### D.1 `Bug-4` / `Arch-4` — Unify config schema, loading, validation ~~(Substantial)~~ **DONE (v1.0.98)**
+**Done:** Unified canonical YAML paths — runtime, validator, and config.yaml all agree:
+- config.yaml: removed `runtime_defaults`, moved LLM retry/batch under `llm.*`, runtime under `runtime.*`, network under `network.*`
+- config.py: nested `DEFAULTS`, `_get_nested()` helper, single YAML read, removed `globals().update()`
+- config_validator.py: validates canonical `llm.*`, `network.*`, `runtime.*` paths; removed `cleanup.*` checks; `check_batch_scheduler()` reads YAML directly
+- pipeline.py: replaced star import with explicit constants list
+- tests/test_config.py: removed obsolete cleanup/runtime_defaults tests (101 passing)
+- Legacy root `config.py` deleted
+- 921/923 tests passing, config validate PASS
 
 ### D.2 `Arch-3` — Adopt one typed story model (Medium)
 Two disparate types in circulation: `models.Story` (missing `snippet`, `pub_dt`, `context`) and `summarizer.StoryPipelineState` (used by pipeline/LLM/article/rendering). Benchmark/corpus scripts import the LLM-layer class.

@@ -7,7 +7,6 @@ lake_urls, prompts, tagging.  Runs at pipeline startup before Phase 1.
 
 from __future__ import annotations
 
-from datetime import datetime
 from zoneinfo import ZoneInfo
 import re
 from typing import Any
@@ -62,11 +61,13 @@ def _looks_like_url(v: str) -> bool:
 # 1.  Required keys
 # ---------------------------------------------------------------------------
 
-_REQUIRED_TOP = ["version", "llm", "directories", "weather", "categories", "prompts"]
+_REQUIRED_TOP = ["version", "llm", "directories", "weather", "categories", "prompts", "rss", "network", "runtime"]
 _REQUIRED_LLM = ["model", "host"]
 _REQUIRED_DIRS = ["log_dir", "news_dir"]
 _REQUIRED_WEATHER = ["lat", "lon", "wunderground_station_id", "lake_urls"]
 _REQUIRED_PROMPTS = ["summary", "system_batch"]
+_REQUIRED_NETWORK = ["user_agent"]
+_REQUIRED_RUNTIME = ["timezone"]
 
 
 def check_required_keys(config: dict):
@@ -81,8 +82,18 @@ def check_required_keys(config: dict):
         for key in _REQUIRED_LLM:
             if key not in llm:
                 issues.append(f"Missing required key: 'llm.{key}'")
-    elif "llm" not in config:
-        pass  # already caught
+
+    netw = _get(config, "network", {})
+    if netw:
+        for key in _REQUIRED_NETWORK:
+            if key not in netw:
+                issues.append(f"Missing required key: 'network.{key}'")
+
+    runtime = _get(config, "runtime", {})
+    if runtime:
+        for key in _REQUIRED_RUNTIME:
+            if key not in runtime:
+                issues.append(f"Missing required key: 'runtime.{key}'")
 
     dirs = _get(config, "directories", {})
     if dirs:
@@ -134,6 +145,27 @@ def check_types(config: dict):
         val = _get(llm, char_key)
         if val is not None and not _is_int(val):
             issues.append(f"'llm.{char_key}' must be an integer")
+    for bat_key in ("summary_batch_size", "summary_max_concurrency"):
+        val = _get(llm, bat_key)
+        if val is not None and not _is_int(val):
+            issues.append(f"'llm.{bat_key}' must be an integer")
+    retry = _get(llm, "summary_retry", {})
+    att = _get(retry, "attempts")
+    if att is not None and not _is_int(att):
+        issues.append("'llm.summary_retry.attempts' must be an integer")
+    bak = _get(retry, "backoff")
+    if bak is not None:
+        if isinstance(bak, list):
+            for i, b in enumerate(bak):
+                if not _is_float(b):
+                    issues.append(f"'llm.summary_retry.backoff[{i}]' must be a number")
+        elif not _is_float(bak):
+            issues.append("'llm.summary_retry.backoff' must be a number")
+
+    # network
+    netw = _get(config, "network", {})
+    if not _is_str(_get(netw, "user_agent")):
+        issues.append("'network.user_agent' must be a non-empty string")
 
     # directories
     dirs = _get(config, "directories", {})
@@ -176,12 +208,6 @@ def check_types(config: dict):
     pfc = _get(runtime, "preflight_checks_enabled")
     if pfc is not None and not _is_bool(pfc):
         issues.append("'runtime.preflight_checks_enabled' must be a boolean")
-
-    # cleanup
-    cleanup = _get(config, "cleanup", {})
-    clv = _get(cleanup, "max_log_versions")
-    if clv is not None and not _is_int(clv):
-        issues.append("'cleanup.max_log_versions' must be an integer")
 
     # categories  (must be a non-empty dict)
     cats = config.get("categories")
@@ -243,6 +269,24 @@ def check_ranges(config: dict):
         if val is not None and val <= 0:
             issues.append(f"'llm.{ck}' must be > 0: {val}")
 
+    # llm batch/concurrency >= 1
+    for bk in ("summary_batch_size", "summary_max_concurrency"):
+        val = _get(llm, bk)
+        if val is not None and val < 1:
+            issues.append(f"'llm.{bk}' must be >= 1: {val}")
+
+    # llm summary_retry
+    retry = _get(llm, "summary_retry", {})
+    att = _get(retry, "attempts")
+    if att is not None and att < 1:
+        issues.append(f"'llm.summary_retry.attempts' must be >= 1: {att}")
+    bak = _get(retry, "backoff")
+    if bak is not None:
+        vals = bak if isinstance(bak, list) else [bak]
+        for b in vals:
+            if b < 0 or b > 30:
+                issues.append(f"'llm.summary_retry.backoff' value out of range [0, 30]: {b}")
+
     # weather lat/lon
     weather = _get(config, "weather", {})
     lat = _get(weather, "lat")
@@ -267,12 +311,6 @@ def check_ranges(config: dict):
     mlv = _get(runtime, "max_log_versions")
     if mlv is not None and mlv < 1:
         issues.append(f"'runtime.max_log_versions' must be >= 1: {mlv}")
-
-    # cleanup
-    cleanup = _get(config, "cleanup", {})
-    clv = _get(cleanup, "max_log_versions")
-    if clv is not None and clv < 1:
-        issues.append(f"'cleanup.max_log_versions' must be >= 1: {clv}")
 
     # tagging_config ranges
     tc = _get(config, "tagging_config", {})
@@ -411,17 +449,17 @@ def check_prompts(config: dict):
 # ---------------------------------------------------------------------------
 
 def check_batch_scheduler(config: dict):
-    """Validate LLM_SUMMARY_BATCH_SIZE and LLM_SUMMARY_MAX_CONCURRENCY from config module."""
+    """Validate llm.summary_batch_size and llm.summary_max_concurrency from YAML."""
     issues: list[str] = []
-
-    from daily_brief.config import LLM_SUMMARY_BATCH_SIZE, LLM_SUMMARY_MAX_CONCURRENCY
-
-    if not _is_int(LLM_SUMMARY_BATCH_SIZE) or LLM_SUMMARY_BATCH_SIZE < 1:
-        issues.append(f"'LLM_SUMMARY_BATCH_SIZE' must be an integer >= 1: {LLM_SUMMARY_BATCH_SIZE}")
-
-    if not _is_int(LLM_SUMMARY_MAX_CONCURRENCY) or LLM_SUMMARY_MAX_CONCURRENCY < 1:
-        issues.append(f"'LLM_SUMMARY_MAX_CONCURRENCY' must be an integer >= 1: {LLM_SUMMARY_MAX_CONCURRENCY}")
-
+    llm = _get(config, "llm", {})
+    bs = _get(llm, "summary_batch_size")
+    if bs is not None:
+        if not _is_int(bs) or bs < 1:
+            issues.append(f"'llm.summary_batch_size' must be an integer >= 1: {bs}")
+    mc = _get(llm, "summary_max_concurrency")
+    if mc is not None:
+        if not _is_int(mc) or mc < 1:
+            issues.append(f"'llm.summary_max_concurrency' must be an integer >= 1: {mc}")
     return issues
 
 

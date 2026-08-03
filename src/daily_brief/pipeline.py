@@ -13,7 +13,26 @@ import aiohttp
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 
-from daily_brief.config import *
+from daily_brief.config import (
+    CATEGORIES,
+    CONFIG_YAML,
+    DEFAULT_AGE_LIMIT_HOURS,
+    FRONTMATTER_TAG_SEEDS,
+    LOG_DIR,
+    LLM_MODEL,
+    LLM_SUMMARY_BATCH_SIZE,
+    LLM_SUMMARY_MAX_CONCURRENCY,
+    MAX_LOG_VERSIONS,
+    NEWS_DIR,
+    OLLAMA_HOST,
+    PREFLIGHT_CHECKS_ENABLED,
+    TIMEZONE,
+    USER_AGENT,
+    VERSION,
+    WEATHER_LAT,
+    WEATHER_LON,
+    WEATHER_SECTION_TITLE,
+)
 from daily_brief.sources.rss import format_pub_date
 from daily_brief.sources.article import stage_extract_article
 from daily_brief.sources.weather import fetch_weather

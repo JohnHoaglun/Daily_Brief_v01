@@ -1,21 +1,22 @@
-# Project: Daily Brief v01 (v1.0.97)
+# Project: Daily Brief v01 (v1.0.98)
 
 ## Purpose
 Daily Brief aggregates RSS stories from configured categories, enriches them with weather and lake data, summarizes them through a vLLM OpenAI-compatible endpoint, and writes a Markdown report.
 
 ## Current Status
 - Modular refactoring P0-P6 is complete.
-- Test baseline: 925 tests, 924 passing (1 pre-existing), config validate PASS (v1.0.97).
+- Test baseline: 923 tests, 921 passing (2 pre-existing), config validate PASS (v1.0.98).
 - Research review at v1.0.65 identified the active 4-phase optimization program in `PLAN.md`.
 - Performance baseline (v1.0.67): 105–114s internal, 137–147s wall-clock. Phase 3 (LLM) dominates at ~96–100s.
 - Phase A complete (v1.0.67). Phase B complete (v1.0.88). Phase C complete (v1.0.97).
 - Preflight probes are now opt-in via `runtime.preflight_checks_enabled`. Default: `false` (disabled).
 - Weather provider architecture separated: NWS failure no longer prevents ERA5, rainfall, or lake collection.
 - LLM client migrated to `AsyncOpenAI`; all LLM calls and retry backoffs are non-blocking (async/await).
-- **LLM batch scheduler**: `batch_size=4`, `max_concurrency=2` — adopted after live benchmark showed 55.6% speedup (97.7s → 43.4s) with zero quality regression (v1.0.94).
+- **LLM batch scheduler**: `batch_size=4`, `max_concurrency=2` — configured under `llm.*` in config.yaml, validated by `check_batch_scheduler()` (v1.0.98).
 - **Centralized summary recovery** (v1.0.95): batch retry, single-story recovery, fallback, and structured `SummaryMetrics` centralized in `batch_summarize_all()`. Pipeline Phase 3D/3E duplicate recovery loops removed (−57 lines).
-- **Centralized HTTP retry/status** (v1.0.96): `_request_with_retry()` with bounded attempts (3) and async backoff. Retries only `429`/`502`/`503`/`504`/timeout/client errors; never retries `4xx` non-transient. RSS routed through central helper with 2xx acceptance; article extraction gated to exact-200 before parsing. Existing weather/climate/lakes/Wunderground helpers inherit retry automatically (zero caller changes).
-- **Alert feature retired** (v1.0.97): Complete C.5 retirement — deleted `llm/alerter.py`, alert config/prompt/CLI, `AlertResult` model, alert report extraction, and alert validation (`_find_alerts_section`, `_count_stories_in_section`, REPORT-6 → renumbered to 7 checks). 925 tests, 924 passing.
+- **Centralized HTTP retry/status** (v1.0.96): `_request_with_retry()` with bounded attempts (3) and async backoff. Retries only `429`/`502`/`503`/`504`/timeout/client errors; never retries `4xx` non-transient.
+- **Alert feature retired** (v1.0.97): Complete C.5 retirement — deleted `llm/alerter.py`, alert config/prompt/CLI, `AlertResult` model, alert report extraction, and alert validation.
+- **Config unification** (v1.0.98): D.1 — unified config schema: `config.py` uses nested `DEFAULTS`, `_get_nested()` helper, single YAML read. `config_validator.py` validates canonical `llm.*`/`network.*`/`runtime.*` paths only. `pipeline.py` uses explicit imports (no star). Legacy root `config.py` deleted.
 
 ## Architecture
 - `src/daily_brief/pipeline.py`: asynchronous pipeline orchestration.

@@ -4,6 +4,16 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.98 — D.1 unify config schema, loading, validation (Bug-4/Arch-4)
+- `config.yaml`: removed `runtime_defaults` block; moved LLM retry (`attempts`/`backoff`), batch settings (`summary_batch_size`/`summary_max_concurrency`) under `llm.*`; moved `max_log_versions`/`frontmatter_*` under `runtime.*`; moved `user_agent` under `network.*`; removed duplicate `cleanup.max_log_versions`. Version bumped to 1.0.98.
+- `src/daily_brief/config.py`: rewrote with nested `DEFAULTS` structure, `_get_nested()` canonical helper, single YAML read via `load_config_yaml()`. Removed broken `_deep_get`, `globals().update(locals())`. All module constants derived from canonical YAML paths with defaults.
+- `src/daily_brief/config_validator.py`: updated all 8 check groups to validate canonical `llm.*`, `network.*`, `runtime.*` paths. Removed `cleanup.*` checks. `check_batch_scheduler()` reads YAML directly instead of importing config module constants. Added backoff list support. Removed unused `datetime` import.
+- `src/daily_brief/pipeline.py`: replaced `from daily_brief.config import *` with explicit 18-constant import list.
+- `tests/test_config.py`: removed obsolete `runtime_defaults`/`cleanup` tests; updated `DEFAULTS["llm_model"]` → `DEFAULTS["llm"]["model"]`. 101 tests passing.
+- `tests/test_adoption_plumbing.py`: updated batch scheduler tests to pass YAML dicts instead of mutating config constants.
+- Legacy root `config.py` deleted (stale duplicate, no consumers).
+- 921/923 tests passing (2 pre-existing: `test_startup.py` dir creation, `test_rss_dedup` timezone pollution). Config validate PASS.
+
 ### v1.0.97 — C.5 retire dormant alert feature end-to-end (Bug-2/Bug-3/Bug-9) — Phase C complete
 - `src/daily_brief/llm/alerter.py`: deleted (388 lines). `batch_evaluate_alerts()` and `parse_alert_batch_response()` never invoked — `StoryPipelineState` lacked alert state fields (Bug-2).
 - `tests/test_alerter.py`: deleted (35 tests). No production code retained.

@@ -45,30 +45,18 @@ class TestConfigValidation(unittest.TestCase):
         self.assertEqual(len(issues), 0)
 
     def test_batch_scheduler_invalid_batch_size(self):
-        """Zero batch size is rejected by config validation."""
+        """Zero batch size is rejected by config validation (YAML path)."""
         from daily_brief.config_validator import check_batch_scheduler
-        import daily_brief.config as cfg
-        original = cfg.LLM_SUMMARY_BATCH_SIZE
-        try:
-            cfg.LLM_SUMMARY_BATCH_SIZE = 0
-            issues = check_batch_scheduler({})
-            self.assertGreater(len(issues), 0)
-            self.assertTrue(any("LLM_SUMMARY_BATCH_SIZE" in i for i in issues))
-        finally:
-            cfg.LLM_SUMMARY_BATCH_SIZE = original
+        issues = check_batch_scheduler({"llm": {"summary_batch_size": 0}})
+        self.assertGreater(len(issues), 0)
+        self.assertTrue(any("summary_batch_size" in i for i in issues))
 
     def test_batch_scheduler_invalid_concurrency(self):
-        """Zero max_concurrency is rejected by config validation."""
+        """Zero max_concurrency is rejected by config validation (YAML path)."""
         from daily_brief.config_validator import check_batch_scheduler
-        import daily_brief.config as cfg
-        original = cfg.LLM_SUMMARY_MAX_CONCURRENCY
-        try:
-            cfg.LLM_SUMMARY_MAX_CONCURRENCY = 0
-            issues = check_batch_scheduler({})
-            self.assertGreater(len(issues), 0)
-            self.assertTrue(any("LLM_SUMMARY_MAX_CONCURRENCY" in i for i in issues))
-        finally:
-            cfg.LLM_SUMMARY_MAX_CONCURRENCY = original
+        issues = check_batch_scheduler({"llm": {"summary_max_concurrency": 0}})
+        self.assertGreater(len(issues), 0)
+        self.assertTrue(any("summary_max_concurrency" in i for i in issues))
 
     def test_validate_config_includes_batch_scheduler(self):
         """validate_config runs the batch_scheduler check group."""

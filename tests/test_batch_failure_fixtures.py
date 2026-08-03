@@ -27,7 +27,7 @@ from daily_brief.llm.summarizer import (
 # ---------------------------------------------------------------------------
 
 def _make_story(title, category, snip="Snippet for testing.", context="Article content that is long enough for proper context generation during LLM summary processing."):
-    s = StoryPipelineState(title, "http://x", snip, "2024-01-01", category)
+    s = StoryPipelineState(title=title, link="http://x", snippet=snip, pub_dt="2024-01-01", category=category)
     s.context = context
     s.summary = None
     return s

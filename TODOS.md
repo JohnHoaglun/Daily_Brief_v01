@@ -1,11 +1,11 @@
-# TODO: Daily Brief v01 - v1.0.98
+# TODO: Daily Brief v01 - v1.0.99
 
 ## Status
-Phases A/B/C complete. D.1 completed (v1.0.98). Phase D continues.
+Phases A/B/C complete. D.1 completed (v1.0.98). D.2 completed (v1.0.99). Phase D continues.
 
 ## Verification Gate — Phase D
 - [x] D.1: config validate + one pipeline run proving configured values reach consumers
-- [ ] D.2: `pytest -q` + pipeline run, no story field regressions
+- [x] D.2: `pytest -q` + pipeline run, no story field regressions
 - [ ] D.3: `pytest -q`, import chain intact, no behavioral changes
 - [ ] D.4: parser golden fixtures covering all LLM response formats, coverage ≥90%
 - [ ] D.5: `pytest -q`, tagging computed once per story (verify with timing/probe)
@@ -27,10 +27,8 @@ Phases A/B/C complete. D.1 completed (v1.0.98). Phase D continues.
 - Legacy root `config.py` deleted
 - 921/923 tests passing, config validate PASS
 
-### D.2 `Arch-3` — Adopt one typed story model (Medium)
-Two disparate types in circulation: `models.Story` (missing `snippet`, `pub_dt`, `context`) and `summarizer.StoryPipelineState` (used by pipeline/LLM/article/rendering). Benchmark/corpus scripts import the LLM-layer class.
-**Files:** `src/daily_brief/models.py`, `src/daily_brief/llm/summarizer.py:466-477`, `src/daily_brief/sources/article.py`, `src/daily_brief/rendering/report.py`, `scripts/capture_corpus.py`, `scripts/benchmark_llm_batches.py`
-**Work:** Choose one `Story` dataclass as the internal representation. Normalize field names. Migrate pipeline/LLM/article/rendering/scripts/tests. Keep render-only dicts private.
+### D.2 `Arch-3` — Adopt one typed story model ~~(Medium)~~ **DONE (v1.0.99)**
+**Done:** Promoted `models.Story` to canonical 7-field typed dataclass: `title`, `link`, `snippet`, `category`, `pub_dt`, `context`, `summary`. Replaced `StoryPipelineState` class in `summarizer.py` with alias `StoryPipelineState = Story`. Updated all construction sites (pipeline, capture_corpus, benchmark script, test factories) to use keyword args. Replaced `__slots__` test with dataclass fields check. 921/923 tests passing (2 pre-existing), config validate PASS.
 
 ### D.3 `Dup-1-4` / `Clean-1-3` — Canonicalize duplicate utilities (Medium)
 Exact duplicates remain; HTTP request plumbing is largely resolved by Phase C.3:

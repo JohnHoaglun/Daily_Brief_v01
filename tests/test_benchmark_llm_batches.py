@@ -39,8 +39,8 @@ def _make_story(
     pub_date: str = "2025-01-01",
     context: str = None,
 ):
-    """Create a StoryPipelineState with minimal defaults."""
-    s = StoryPipelineState(title, url, snippet or "", pub_date, category)
+    """Create a StoryPipelineState (Story) with minimal defaults."""
+    s = StoryPipelineState(title=title, link=url, snippet=snippet or "", pub_dt=pub_date, category=category)
     s.context = context if context else f"Context body for {title}. " * 20
     s.summary = None
     return s

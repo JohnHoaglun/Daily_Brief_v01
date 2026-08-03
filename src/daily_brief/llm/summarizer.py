@@ -463,17 +463,9 @@ def parse_batch_summary_response(response, count, story_headlines=None):
     return results
 
 
-class StoryPipelineState:
-    __slots__ = ("title", "link", "snippet", "category", "pub_dt", "context", "summary")
+from daily_brief.models import Story
 
-    def __init__(self, title, link, snippet, pub_dt, category):
-        self.title = title
-        self.link = link
-        self.snippet = snippet
-        self.category = category
-        self.pub_dt = pub_dt
-        self.context = None
-        self.summary = None
+StoryPipelineState = Story
 
 
 def _generate_auto_fallback(title):

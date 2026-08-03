@@ -1,7 +1,8 @@
 """
-Daily Brief v1.0.12 — Models
+Daily Brief v1.0.99 — Models
 =============================
-Dataclasses for the daily brief pipeline.
+Canonical story model (promoted from StoryPipelineState). Weather, lake,
+forecast, and brief output dataclasses.
 """
 
 from __future__ import annotations
@@ -12,15 +13,15 @@ from typing import Optional
 
 @dataclass
 class Story:
-    """Represents a single news story."""
+    """Canonical story model — pipeline work item from RSS through LLM to report."""
 
     title: str = ""
     link: str = ""
-    pubDate: str = ""
-    summary: str = ""
+    snippet: str = ""
     category: str = ""
-    tags: list[str] = field(default_factory=list)
-    source: Optional[str] = None
+    pub_dt: Optional[str] = None
+    context: Optional[str] = None
+    summary: Optional[str] = None
 
 
 @dataclass

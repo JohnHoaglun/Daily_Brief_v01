@@ -331,10 +331,10 @@ class TestParseBatchSummaryResponseEdgeCases(TestCase):
 # ---------------------------------------------------------------------------
 
 class TestStoryPipelineState(TestCase):
-    """StoryPipelineState slots and defaults."""
+    """StoryPipelineState (Story) fields and defaults."""
 
-    def test_default_slots_exist(self):
-        s = StoryPipelineState("Title", "http://x", "Snippet", "2024-01-01", "Tech")
+    def test_default_fields_exist(self):
+        s = StoryPipelineState(title="Title", link="http://x", snippet="Snippet", pub_dt="2024-01-01", category="Tech")
         self.assertEqual(s.title, "Title")
         self.assertEqual(s.link, "http://x")
         self.assertEqual(s.snippet, "Snippet")
@@ -344,21 +344,23 @@ class TestStoryPipelineState(TestCase):
         self.assertIsNone(s.summary)
 
     def test_context_and_summary_default_none(self):
-        s = StoryPipelineState("T", "L", "S", "2024-01-01", "Cat")
+        s = StoryPipelineState(title="T", link="L", snippet="S", pub_dt="2024-01-01", category="Cat")
         self.assertIsNone(s.context)
         self.assertIsNone(s.summary)
 
     def test_all_fields_settable(self):
-        s = StoryPipelineState("T", "L", "S", "2024-01-01", "Cat")
+        s = StoryPipelineState(title="T", link="L", snippet="S", pub_dt="2024-01-01", category="Cat")
         s.context = "New context"
         s.summary = "New summary"
         self.assertEqual(s.context, "New context")
         self.assertEqual(s.summary, "New summary")
 
-    def test_slots_defined(self):
-        s = StoryPipelineState("T", "L", "S", "2024-01-01", "Cat")
-        expected_slots = {"title", "link", "snippet", "category", "pub_dt", "context", "summary"}
-        self.assertEqual(set(StoryPipelineState.__slots__), expected_slots)
+    def test_dataclass_fields(self):
+        from dataclasses import dataclass as dc
+        import dataclasses
+        expected_fields = {"title", "link", "snippet", "category", "pub_dt", "context", "summary"}
+        actual = {f.name for f in dataclasses.fields(StoryPipelineState)}
+        self.assertEqual(actual, expected_fields)
 
 
 # ---------------------------------------------------------------------------

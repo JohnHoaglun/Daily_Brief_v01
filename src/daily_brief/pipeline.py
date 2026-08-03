@@ -202,7 +202,7 @@ async def main():
 
         stories = []
         for title, link, snippet, pub_dt, cat in deduped:
-            s = StoryPipelineState(title, link, snippet, pub_dt, cat)
+            s = StoryPipelineState(title=title, link=link, snippet=snippet, pub_dt=pub_dt, category=cat)
             stories.append(s)
 
         total = len(stories)

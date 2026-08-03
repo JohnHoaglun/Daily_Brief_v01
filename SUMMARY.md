@@ -4,6 +4,16 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.99 — D.2 adopt one typed story model (Arch-3)
+- `src/daily_brief/models.py`: promoted `Story` to canonical 7-field typed dataclass (title, link, snippet, category, pub_dt, context, summary). Removed unused `pubDate`, `tags`, `source`.
+- `src/daily_brief/llm/summarizer.py`: replaced `StoryPipelineState` class (was slotted, 11 lines) with alias `StoryPipelineState = Story` (2 lines).
+- `src/daily_brief/pipeline.py`: updated `StoryPipelineState()` construction to keyword args.
+- `src/daily_brief/__init__.py`: version bumped to 1.0.99.
+- `scripts/capture_corpus.py`: updated construction to keyword args.
+- `tests/test_summarizer.py`: replaced `__slots__` assertions with dataclass fields check; updated construction sites to keyword args.
+- `tests/test_batch_behavior_regression.py`, `tests/test_batch_failure_fixtures.py`, `tests/test_benchmark_llm_batches.py`: updated construction to keyword args.
+- 921/923 tests passing (2 pre-existing), config validate PASS.
+
 ### v1.0.98 — D.1 unify config schema, loading, validation (Bug-4/Arch-4)
 - `config.yaml`: removed `runtime_defaults` block; moved LLM retry (`attempts`/`backoff`), batch settings (`summary_batch_size`/`summary_max_concurrency`) under `llm.*`; moved `max_log_versions`/`frontmatter_*` under `runtime.*`; moved `user_agent` under `network.*`; removed duplicate `cleanup.max_log_versions`. Version bumped to 1.0.98.
 - `src/daily_brief/config.py`: rewrote with nested `DEFAULTS` structure, `_get_nested()` canonical helper, single YAML read via `load_config_yaml()`. Removed broken `_deep_get`, `globals().update(locals())`. All module constants derived from canonical YAML paths with defaults.

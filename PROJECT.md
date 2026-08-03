@@ -1,11 +1,11 @@
-# Project: Daily Brief v01 (v1.0.98)
+# Project: Daily Brief v01 (v1.0.99)
 
 ## Purpose
 Daily Brief aggregates RSS stories from configured categories, enriches them with weather and lake data, summarizes them through a vLLM OpenAI-compatible endpoint, and writes a Markdown report.
 
 ## Current Status
 - Modular refactoring P0-P6 is complete.
-- Test baseline: 923 tests, 921 passing (2 pre-existing), config validate PASS (v1.0.98).
+- Test baseline: 923 tests, 921 passing (2 pre-existing), config validate PASS (v1.0.99).
 - Research review at v1.0.65 identified the active 4-phase optimization program in `PLAN.md`.
 - Performance baseline (v1.0.67): 105–114s internal, 137–147s wall-clock. Phase 3 (LLM) dominates at ~96–100s.
 - Phase A complete (v1.0.67). Phase B complete (v1.0.88). Phase C complete (v1.0.97).
@@ -17,6 +17,7 @@ Daily Brief aggregates RSS stories from configured categories, enriches them wit
 - **Centralized HTTP retry/status** (v1.0.96): `_request_with_retry()` with bounded attempts (3) and async backoff. Retries only `429`/`502`/`503`/`504`/timeout/client errors; never retries `4xx` non-transient.
 - **Alert feature retired** (v1.0.97): Complete C.5 retirement — deleted `llm/alerter.py`, alert config/prompt/CLI, `AlertResult` model, alert report extraction, and alert validation.
 - **Config unification** (v1.0.98): D.1 — unified config schema: `config.py` uses nested `DEFAULTS`, `_get_nested()` helper, single YAML read. `config_validator.py` validates canonical `llm.*`/`network.*`/`runtime.*` paths only. `pipeline.py` uses explicit imports (no star). Legacy root `config.py` deleted.
+- **Canonical story model** (v1.0.99): D.2 — promoted `models.Story` to 7-field typed dataclass (title, link, snippet, category, pub_dt, context, summary). Replaced `StoryPipelineState` with alias. All pipeline, source, rendering, script, and test consumers use keyword construction. Unused `pubDate`, `tags`, `source` fields removed.
 
 ## Architecture
 - `src/daily_brief/pipeline.py`: asynchronous pipeline orchestration.

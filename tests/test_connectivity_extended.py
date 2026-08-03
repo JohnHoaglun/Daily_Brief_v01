@@ -233,7 +233,7 @@ class TestFormatResults(TestCase):
             {"ok": True, "duration_ms": 20, "message": "ok2"},
             {"ok": True, "duration_ms": 30, "message": "ok3"},
         ]
-        output = format_results(results)
+        output = format_results(results, labels=["LLM Host", "RSS Feed", "Weather.gov"])
         self.assertIn("Connectivity Checks:", output)
         self.assertIn("[+] LLM Host", output)
         self.assertIn("[+] RSS Feed", output)

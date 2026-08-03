@@ -53,9 +53,5 @@ Phases A/B/C complete. D.1 completed (v1.0.98). D.2 completed (v1.0.99). D.3 com
 **Files:** `src/daily_brief/sources/weather.py`, `src/daily_brief/rendering/weather_table.py`, `src/daily_brief/__init__.py`, `src/daily_brief/config.py`, `config.yaml`, `tests/test_sources/test_weather_extended.py`
 
 ### D.7 `Rel-5` / `Quality-2/5` / `Arch-5` — Harness, weather errors, logging, probes (Medium)
-- **Harness:** `run_test_harness()` returns `None` for all outcomes. Pipeline always logs "COMPLETED SUCCESSFULLY" afterward regardless.
-- **Weather errors:** `weather["errors"]` kept but never surfaced in pipeline status line or report renderer. Report can show "Unavailable" without error attribution.
-- **Logging:** `pipeline.py` uses custom lock/file/stderr `log()` writer; module logger messages don't land in per-run Markdown log. Some status output goes directly to stderr.
-- **Probes:** `connectivity.run_all_checks()` hardcodes three probes; `run_smoke_test()` has six. Not declarative/configured.
-**Files:** `src/daily_brief/harness.py`, `src/daily_brief/pipeline.py`, `src/daily_brief/sources/weather.py`, `src/daily_brief/rendering/weather_table.py`, `src/daily_brief/connectivity.py`
-**Work:** Make harness return typed pass/warn/fail result. Surface concise weather degradation/errors in log. Route phase logs through standard logging or formalize the run-log sink explicitly. Define one named probe profile/configuration for preflight, CLI, and smoke test.
+**Done (v1.0.104):** Harness — `run_test_harness()` returns `HarnessResult` dataclass (status: PASS/WARN/FAIL/SKIPPED/ERROR, message, exit_code, stdout/stderr lines). Weather errors — `weather["errors"]` surfaced in pipeline log with concise summary. Probes — `run_all_checks()` and `run_smoke_test()` unified via `CHECK_LIST`/`SMOKE_TEST_CHECKS` declarative lists + `_wrapped()` helper with `name` field. 954/956 tests passing.
+**Files:** `src/daily_brief/harness.py`, `src/daily_brief/pipeline.py`, `src/daily_brief/connectivity.py`

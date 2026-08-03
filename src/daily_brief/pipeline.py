@@ -173,13 +173,16 @@ async def main():
                 for k in station_keys
             )
             station_label = "station (partial — fallback applied)" if station_partial else "station"
-            status = "PARTIAL" if station_partial else "OK"
+            weather_errors = weather.get("errors", [])
+            status = "PARTIAL" if (station_partial or weather_errors) else "OK"
             log(
                 f"  Weather {status} -- "
                 f"{len(weather.get('forecast', []))} forecast periods | "
                 f"1 {station_label} record | "
                 f"{len(weather.get('lakes', {}))} lake sources"
             )
+            if weather_errors:
+                log(f"  Weather errors ({len(weather_errors)}): " + "; ".join(weather_errors[:3]))
         else:
             log("  Weather returned empty")
         elapsed = time.monotonic() - t1
@@ -283,10 +286,11 @@ async def main():
         # --- Phase 6: External test harness validation ---
         log("\n[Phase 6] Running test harness...")
         t6 = time.monotonic()
-        run_test_harness(RUN_LOGFILE)
+        harness_result = run_test_harness(RUN_LOGFILE)
         elapsed_6 = time.monotonic() - t6
         PHASE_TIMINGS['Phase 6'] = elapsed_6
         log(f"  Phase 6 completed in {elapsed_6:.2f}s")
+        log(f"  Harness result: {harness_result.status} — {harness_result.message}")
         total_elapsed = time.monotonic() - run_started
         log(f"TOTAL PIPELINE TIME: {total_elapsed:.2f}s")
 

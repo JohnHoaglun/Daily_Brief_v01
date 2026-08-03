@@ -129,48 +129,63 @@ async def check_lakes(session: aiohttp.ClientSession, timeout: float = 5.0) -> d
         return _result(False, f"Lakes source unreachable: {e} ({url})", elapsed_ms)
 
 
+CHECK_LIST = [
+    ("LLM Host", check_llm),
+    ("RSS Feed", check_rss),
+    ("Weather.gov", check_weather),
+]
+
+SMOKE_TEST_CHECKS = [
+    ("LLM Host", check_llm),
+    ("RSS Feed", check_rss),
+    ("Weather.gov", check_weather),
+    ("Open-Meteo", check_openmeteo),
+    ("Wunderground", check_wunderground),
+    ("Lakes", check_lakes),
+]
+
+
+async def _wrapped(name: str, fn, session: aiohttp.ClientSession, timeout: float):
+    """Run a single check with timeout wrapping and name field."""
+    try:
+        res = await asyncio.wait_for(fn(session, timeout), timeout=timeout)
+        res["name"] = name
+        return res
+    except asyncio.TimeoutError:
+        return {"name": name, "ok": False, "message": f"Timeout after {timeout}s", "duration_ms": int(timeout * 1000)}
+    except Exception as e:
+        return {"name": name, "ok": False, "message": str(e), "duration_ms": None}
+
+
 async def run_all_checks(timeout: float = 5.0) -> list[dict]:
-    """Run all connectivity checks in parallel."""
+    """Run standard 3 connectivity checks (LLM, RSS, Weather) in parallel, returning results with name field."""
     async with aiohttp.ClientSession() as session:
-        return await asyncio.gather(
-            check_llm(session, timeout),
-            check_rss(session, timeout),
-            check_weather(session, timeout),
-        )
+        return await asyncio.gather(*[_wrapped(name, fn, session, timeout) for name, fn in CHECK_LIST])
 
 
 async def run_smoke_test(timeout: float = 5.0) -> list[dict]:
-    """Run all 6 connectivity checks in parallel, returning results with name field."""
+    """Run full 6 connectivity checks (including Open-Meteo, Wunderground, Lakes) in parallel."""
     async with aiohttp.ClientSession() as session:
-        check_map = [
-            ("LLM Host", check_llm),
-            ("RSS Feed", check_rss),
-            ("Weather.gov", check_weather),
-            ("Open-Meteo", check_openmeteo),
-            ("Wunderground", check_wunderground),
-            ("Lakes", check_lakes),
-        ]
-
-        async def _wrapped(name: str, fn):
-            try:
-                res = await asyncio.wait_for(fn(session, timeout), timeout=timeout)
-                res["name"] = name
-                return res
-            except asyncio.TimeoutError:
-                return {"name": name, "ok": False, "message": f"Timeout after {timeout}s", "duration_ms": int(timeout * 1000)}
-            except Exception as e:
-                return {"name": name, "ok": False, "message": str(e), "duration_ms": None}
-
-        return await asyncio.gather(*[_wrapped(name, fn) for name, fn in check_map])
+        return await asyncio.gather(*[_wrapped(name, fn, session, timeout) for name, fn in SMOKE_TEST_CHECKS])
 
 
-def format_results(results: list[dict]) -> str:
-    """Console-friendly output for connectivity results."""
+def format_results(results: list[dict], labels: list[str] = None) -> str:
+    """Console-friendly output for connectivity results.
+
+    Uses result["name"] when present; falls back to *labels* list if provided;
+    otherwise falls back to "Check N".
+    """
     lines = ["\nConnectivity Checks:"]
     lines.append("-" * 62)
-    labels = ["LLM Host", "RSS Feed", "Weather.gov"]
     ok_count = 0
-    for label, res in zip(labels, results):
+    total = len(results)
+    label_iter = iter(labels) if labels else None
+    for i, res in enumerate(results):
+        label = (
+            res.get("name")
+            or (next(label_iter, None) if label_iter else None)
+            or f"Check {i + 1}"
+        )
         status = "OK" if res["ok"] else "WARN"
         icon = "+" if res["ok"] else "!"
         if res["ok"]:
@@ -180,8 +195,8 @@ def format_results(results: list[dict]) -> str:
         if not res["ok"]:
             lines.append(f"       {res['message']}")
     lines.append("-" * 62)
-    failed = 3 - ok_count
-    lines.append(f"  Result: {ok_count}/3 passed, {failed} warning(s)")
+    failed = total - ok_count
+    lines.append(f"  Result: {ok_count}/{total} passed, {failed} warning(s)")
     return "\n".join(lines)
 
 

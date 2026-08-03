@@ -99,6 +99,14 @@ def build_markdown(stories, weather, sections_map, ordered_cats, config_kwargs):
     md.append(f"story_count_total: {total_after_dedup}")
     md.append(f"categories: {rendered_cat_count}")
 
+    # Precompute tags for all stories — computed once, reused for frontmatter + body
+    _tag_cache = {}
+    for cn in ordered_cats:
+        cat_stories = sections_map.get(cn, [])
+        for st in cat_stories:
+            if "title" in st and st["title"]:
+                _tag_cache[id(st)] = tag_story_with_keywords(st["title"], cn)
+
     # Create a set to collect all unique tags from story titles
     all_tags = set(FRONTMATTER_TAG_SEEDS or [])
 
@@ -107,8 +115,7 @@ def build_markdown(stories, weather, sections_map, ordered_cats, config_kwargs):
         cat_stories = sections_map.get(cn, [])
         for st in cat_stories:
             if "title" in st and st["title"]:
-                title = st["title"]
-                story_tags = tag_story_with_keywords(title, cn)
+                story_tags = _tag_cache[id(st)]
                 individual_tags = []
                 for tag in story_tags.split():
                     tag = tag.strip()
@@ -154,9 +161,7 @@ def build_markdown(stories, weather, sections_map, ordered_cats, config_kwargs):
                 if st.get("pub_date")
                 else ""
             )
-            tags_md = ""
-            if "title" in st and st["title"]:
-                tags_md = tag_story_with_keywords(st["title"], cn)
+            tags_md = _tag_cache.get(id(st), "")
             md.append("")
             md.append(f"{idx + 1}. {link_md}")
             md.append(st["summary"] + pub_line)

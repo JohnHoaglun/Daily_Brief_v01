@@ -11,6 +11,51 @@ from daily_brief.config import (
 
 logger = logging.getLogger(__name__)
 
+# Precompiled keyword regexes — built once at import time.
+# Maps keyword -> (pattern_str_compiled, pattern2_str_compiled)
+_KEYWORD_REGEXP_CACHE = {}
+
+
+def precompile_tagging():
+    """Precompile all keyword matchers from TAGGING_MAPPINGS and CATEGORY_BOOSTS.
+    Call once at startup after config is loaded (pipeline.py does this).
+    Returns the total number of keywords precompiled.
+    """
+    global _KEYWORD_REGEXP_CACHE
+    keywords = set()
+    mapping = TAGGING_MAPPINGS or {}
+    for tag, kws in mapping.items():
+        for kw in kws:
+            if kw:
+                keywords.add(kw)
+    boosts = CATEGORY_BOOSTS or {}
+    for cat, btags in boosts.items():
+        for bkw in btags:
+            if bkw:
+                keywords.add(bkw)
+    cache = {}
+    for kw in keywords:
+        kw_esc = re.escape(kw)
+        pat1 = re.compile(r"(?<![a-zA-Z])" + kw_esc + r"(?![a-zA-Z])", re.IGNORECASE)
+        pat2 = re.compile(r"(?<![a-zA-Z])" + kw_esc + r"(s|es|ed|ing)(?![a-zA-Z])", re.IGNORECASE)
+        cache[kw] = (pat1, pat2)
+    _KEYWORD_REGEXP_CACHE = cache
+    return len(cache)
+
+
+def _get_compiled_patterns(keyword):
+    """Return (pattern1, pattern2) regex objects for *keyword*.
+    Falls back to runtime compilation if precompilation hasn't run yet.
+    """
+    entry = _KEYWORD_REGEXP_CACHE.get(keyword)
+    if entry:
+        return entry
+    kw_esc = re.escape(keyword)
+    pat1 = re.compile(r"(?<![a-zA-Z])" + kw_esc + r"(?![a-zA-Z])", re.IGNORECASE)
+    pat2 = re.compile(r"(?<![a-zA-Z])" + kw_esc + r"(s|es|ed|ing)(?![a-zA-Z])", re.IGNORECASE)
+    _KEYWORD_REGEXP_CACHE[keyword] = (pat1, pat2)
+    return pat1, pat2
+
 # Words that are always matched away — never count them toward a tag score.
 _STOP_WORDS = {
     "new", "newly", "news", "novel",
@@ -28,15 +73,12 @@ def _word_boundary_match(text, keyword):
     - Possessives: "Houston's" → "houston"
     - Apostrophe loss: "Houstons" → "houston"
     - Stems: "arrested", "arresting", "arrests" → "arrest"
+    Uses precompiled regexes from _KEYWORD_REGEXP_CACHE when available.
     """
-    kw_esc = re.escape(keyword)
-    # Primary: strict word boundary
-    pat = r"(?<![a-zA-Z])" + kw_esc + r"(?![a-zA-Z])"
-    if re.search(pat, text, re.IGNORECASE):
+    pat1, pat2 = _get_compiled_patterns(keyword)
+    if pat1.search(text):
         return True
-    # Suffix variants: +s, +ed, +ing, +es at word boundary
-    pat2 = r"(?<![a-zA-Z])" + kw_esc + r"(s|es|ed|ing)(?![a-zA-Z])"
-    if re.search(pat2, text, re.IGNORECASE):
+    if pat2.search(text):
         return True
     return False
 

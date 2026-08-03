@@ -54,6 +54,7 @@ from daily_brief.rendering.report import (
 from daily_brief.validation import validate_report
 from daily_brief.harness import run_test_harness
 from daily_brief.config_validator import validate_config
+from daily_brief.tagging import precompile_tagging
 
 
 RUN_LOGFILE = None
@@ -108,6 +109,10 @@ async def main():
         for ci in config_issues:
             print(f"CONFIG ERROR: {ci}", file=sys.stderr)
         sys.exit(1)
+
+    # --- Precompile tagging regexes ---
+    n_kw = precompile_tagging()
+    log(f"Precompiled {n_kw} tagging keyword regexes")
 
     # --- Pre-flight connectivity checks (opt-in, warning only, never abort) ---
     if PREFLIGHT_CHECKS_ENABLED:

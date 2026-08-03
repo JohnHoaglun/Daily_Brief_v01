@@ -45,11 +45,8 @@ Phases A/B/C complete. D.1 completed (v1.0.98). D.2 completed (v1.0.99). D.3 com
 **Files:** `tests/fixtures/parser_golden_fixtures.py`, `tests/test_parser_golden.py`
 
 ### D.5 `Quality-4` / `Perf-10` — Tagging precompilation and single computation (Medium)
-- `_word_boundary_match()` compiles two regexes per keyword comparison (`tagging.py:32-40`)
-- `build_markdown()` tags each story twice: once for frontmatter aggregation, once for body rendering
-- Boost semantics ambiguous: `category_boosts` entries are both tag names AND title keywords
-**Files:** `src/daily_brief/tagging.py`, `src/daily_brief/rendering/report.py`
-**Work:** Precompile keyword matchers once after config load. Compute tags once at story creation, reuse for frontmatter and body output. Separate `category_boost_tags` from `category_boost_keywords` in schema if both behaviors are desired.
+**Done (v1.0.102):** `tagging.py` — `precompile_tagging()` builds 410 precompiled regex pairs at startup. `_word_boundary_match()` delegates to precompiled cache (falls back to runtime compile if precompile hasn't run). `pipeline.py` calls `precompile_tagging()` after config validation. `report.py` — single tag computation per story via `id(st)` cache, reused for frontmatter + body (eliminated duplicate `tag_story_with_keywords()` calls). 953/955 tests passing.
+**Files:** `src/daily_brief/tagging.py`, `src/daily_brief/rendering/report.py`, `src/daily_brief/pipeline.py`
 
 ### D.6 `Bug-7` / `Bug-8` / `Bug-11` / `Perf-12` — Weather bugs, version drift, parser loop (Medium)
 - **Bug-7:** `weather.py:107-111` — NWS response `properties.forecast` URL is altered to append `/forecast`, corrupting valid endpoints. Fallback derives from `WEATHER_POINT_URL`, not the resolved point URL. Hardcoded suffix (`config.py:52-54`), YAML's `weather.forecast_suffix` is unused.

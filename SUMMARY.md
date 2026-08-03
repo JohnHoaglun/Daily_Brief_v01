@@ -4,6 +4,12 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.102 — D.5 tagging precompilation and single computation (Quality-4/Perf-10)
+- `src/daily_brief/tagging.py`: `precompile_tagging()` builds 410 precompiled regex pairs from TAGGING_MAPPINGS + CATEGORY_BOOSTS at startup. `_word_boundary_match()` delegates to precompiled cache via `_get_compiled_patterns()`, falls back to runtime compile if precompile hasn't run. `_KEYWORD_REGEXP_CACHE` global shared with callers.
+- `src/daily_brief/pipeline.py`: `precompile_tagging()` called after config validation gate, before preflight checks. Logged keyword count.
+- `src/daily_brief/rendering/report.py`: single tag computation per story via `id(st)` cache in `build_markdown()`. Precompute phase tags all stories once, frontmatter pass extracts unique tags, body pass reuses cached tags — eliminated duplicate `tag_story_with_keywords()` calls (was called twice per story).
+- `src/daily_brief/__init__.py`, `config.py`: version bumped to 1.0.102. Config validate PASS, 953/955 tests passing (2 pre-existing).
+
 ### v1.0.101 — D.4 parser golden fixtures (Quality-3)
 - `tests/fixtures/parser_golden_fixtures.py`: 15 golden fixtures documenting all LLM response formats: canonical STORY_N with headline=summary, reordered STORY_N with fuzzy remapping, STORY_N without equals, numbered lists (1., 2), ### variants, multi-line entries, summary-of headings, plain paragraphs, malformed/partial responses, adjacent swap, sentence trimming, STORY_N colon/dash/space variants, headline overlap skip. Each fixture has response text, headlines, count, expected output, and behavioral notes.
 - `tests/test_parser_golden.py`: 32 test cases — 15 dynamic golden fixture tests + 17 edge cases (None/empty response, count zero, garbage, STORY_N zero-based, numbered variants, bold headers, equal-in-summary, blank summary, pipe-in-content, count exceeds entries, 3-sentence trim, sequential chunking).

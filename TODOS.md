@@ -1,7 +1,7 @@
-# TODO: Daily Brief v01 - v1.0.106
+# TODO: Daily Brief v01 - v1.0.107
 
 ## Status
-Phases A/B/C complete. D.1-D.9 completed. 955/956 passing (1 pre-existing), config validate PASS, pipeline runs successfully.
+Phases A/B/C complete. D.1-D.9 completed. Bug-1 test isolation fixed. 956/956 passing, config validate PASS, pipeline runs successfully.
 
 ## Phase D — Architecture Follow-Up
 

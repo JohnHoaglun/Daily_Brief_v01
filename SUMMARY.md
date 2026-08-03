@@ -4,6 +4,12 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.107 — Test isolation fix: config reload leak
+- `tests/test_config.py`: Added `tearDownClass` to `TestConfigUncoveredBranches` — reloads `daily_brief.config` from real YAML after `importlib.reload` tests. These tests previously used `importlib.reload(cfg_mod)` with mocked `yaml.safe_load` that set `TIMEZONE` to `"UTC"`, permanently leaking module state (`TIMEZONE="UTC"`, `CATEGORIES` with single entry) that caused `test_zoneinfo_uses_configured_timezone` to fail when run after `test_config.py`.
+- `tests/test_sources/test_rss_dedup.py`: `test_zoneinfo_uses_configured_timezone` now explicitly patches `daily_brief.config.TIMEZONE` to `"America/Chicago"` — defensive guard against test ordering dependencies.
+- `src/daily_brief/__init__.py`, `config.py`, `config.yaml`, `PROJECT.md`: version bumped to 1.0.107.
+- 956/956 tests passing (0 pre-existing). Config validate PASS.
+
 ### v1.0.106 — D.9 startup integration test, obsolete test removed (Quality-6)
 - `tests/test_startup_sequence.py`: New `TestStartupSequence` integration test runs real `pipeline.main()` through Phase 4 with deterministic mocks for all external boundaries (weather, RSS, LLM, aiohttp, config). Validates: `run_log_*.md` created, `DailyBrief-*.md` report written, `PHASE_TIMINGS` populated Phases 1-4, `RUN_LOGFILE=None` guard exercised. Uses explicit `pipeline_mod.*` for all assertions to avoid stale import issues.
 - `tests/test_startup.py`: Removed obsolete `TestPipelineCreatesDirs` (patched removed attributes like `llm_summarize`, caused test to crash and leak partially-entered patches — `CATEGORIES=[]`, temp paths — that polluted subsequent tests). Retained passing `TestSetupLoggingCreatesDir`.

@@ -400,6 +400,13 @@ class TestConfigYAMLRoundtrip(TestCase):
 class TestConfigUncoveredBranches(TestCase):
     """Hit uncovered lines in config.py for 100% coverage."""
 
+    @classmethod
+    def tearDownClass(cls):
+        """Restore config module to real YAML state after importlib.reload tests."""
+        import importlib
+        from daily_brief import config as cfg_mod
+        importlib.reload(cfg_mod)
+
     def test_load_malformed_yaml_returns_defaults(self):
         with mock.patch("yaml.safe_load", side_effect=yaml.YAMLError("bad yaml")):
             result = load_config_yaml()

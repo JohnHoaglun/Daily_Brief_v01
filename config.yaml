@@ -1,4 +1,4 @@
-version: 1.0.106
+version: 1.0.107
 llm:
   model: gemma4-e2b
   host: http://192.168.4.52:8007

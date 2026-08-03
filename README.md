@@ -1,4 +1,4 @@
-# Daily Brief v1.0.97
+# Daily Brief v1.0.100
 Automated daily news brief generator that fetches stories from 17 configured categories via Google News RSS, enriches them with weather and lake-level data, summarizes them with AI, and produces a structured Markdown report.
 
 ## Architecture
@@ -12,7 +12,7 @@ Modular codebase in `src/daily_brief/`:
 - **`rendering/`** — weather table generation, Markdown report assembly, output cleanup
 - **`config.py` / `config_validator.py`** — YAML-based configuration, loading, and validation
 - **`categorization.py`** — config-driven keyword tagging, category ordering
-- **`tests/`** — 890 tests (unit, mocked, integration, smoke, post-run validation)
+- **`tests/`** — 923 tests (unit, mocked, integration, smoke, post-run validation; 921 passing)
 
 ## Requirements
 
@@ -36,7 +36,7 @@ All runtime settings in `config.yaml`. Key groups:
 
 | Key | Description | Default |
 |---|---|---|
-| `version` | Pipeline version | `1.0.97` |
+| `version` | Pipeline version | `1.0.100` |
 | `llm.model` | Model for summarization | `gemma4-e2b` |
 | `llm.host` | vLLM API endpoint | `http://192.168.4.52:8007` |
 | `directories.log_dir` | Log output directory | vault `Dev/logs/` |
@@ -75,7 +75,7 @@ src/daily_brief/            # Modular source code
   config_validator.py       # Configuration validation
   tagging.py                # Keyword tagging engine
   categorization.py         # Category ordering
-tests/                      # 890 tests
+tests/                      # 923 tests
 PROJECT.md                  # Architecture and status
 SUMMARY.md                  # Changelog
 TODOS.md                    # Live task board
@@ -90,6 +90,7 @@ reports/                    # Benchmark results and performance data
 - v1.0.95 (C.4): centralized batch retry, single-story recovery, and structured `SummaryMetrics`. Pipeline Phase 3D/3E duplicate recovery loops removed (−57 lines). Transient batch failures now retried as full batches before falling to individual recovery.
 - v1.0.96 (C.3): centralized HTTP retry/status — bounded 3-attempt retry with async backoff for transient failures (502/503/504/429/timeout). RSS routed with 2xx acceptance; article extraction gated to exact-200 before parsing. Weather/climate/lakes/Wunderground inherit retry automatically (zero caller changes).
 - v1.0.97 (C.5): retired the dormant alert feature — removed `llm/alerter.py`, alert config/prompt/CLI, `AlertResult` model, alert report extraction, and alert validation. 925 tests (924 passing, 1 pre-existing), config validate PASS.
+- v1.0.100 (D.3): canonicalized 4 duplicate utility functions — `_safe_sentence_summary`, `_count_sentences`, `build_context`, `_coerce_temperature_f` — consolidated in `utils.py`. 921 tests (2 pre-existing), config validate PASS.
 
 ## Tracking
 

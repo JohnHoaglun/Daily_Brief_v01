@@ -104,6 +104,7 @@ reports/                    # Benchmark results and performance data
 - v1.0.105 (D.8): startup crash fix — `log()` guarded against `RUN_LOGFILE=None` before logfile init. Early logs write stderr only. 954/956 tests (2 pre-existing), config validate PASS.
 - v1.0.106 (D.9): startup integration test — `TestStartupSequence` runs real `pipeline.main()` through Phase 4 with deterministic boundary mocks. Removed obsolete `TestPipelineCreatesDirs`. 955/956 tests (1 pre-existing), config validate PASS.
 - v1.0.107 (Quality-7): fixed `TestConfigUncoveredBranches` module state leak — `importlib.reload` with mocked `yaml.safe_load` left `TIMEZONE="UTC"` and stale categories, causing `test_zoneinfo_uses_configured_timezone` to fail when run after config tests. Added `tearDownClass` to restore real YAML config. 956/956 tests passing (0 pre-existing), config validate PASS.
+- v1.0.108 (Harness): shared log/report version identity — `compute_output_path()` now accepts explicit `file_ver` from the pipeline. Run log and report share the same version number, so Phase 6 harness finds the correct report. 959/959 tests passing (0 pre-existing), config validate PASS, pipeline smoke test harness validates actual report.
 
 ## Tracking
 

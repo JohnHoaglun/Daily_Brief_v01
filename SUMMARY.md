@@ -4,6 +4,14 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.108 — Harness version alignment: shared log/report run identity
+- `src/daily_brief/rendering/report.py`: `compute_output_path()` accepts optional `file_ver` argument. When provided, the report uses that version instead of auto-incrementing from disk.
+- `src/daily_brief/pipeline.py`: Pass `log_ver` to `compute_output_path()` via `file_ver=log_ver`. The report and run log now share the same version number (e.g., `run_log_2026-08-04_v01.md` / `DailyBrief-2026-08-04_v01.md`), so the Phase 6 harness finds the correct report file.
+- `tests/test_report.py`: Added `test_explicit_file_ver_overrides_disk` and `test_explicit_file_ver_with_empty_dir`.
+- `tests/test_pipeline.py`: Added `test_log_report_shared_version_identity` — pipeline-level integration test verifying the log version reaches `compute_output_path` and the harness receives the matching run log.
+- `src/daily_brief/__init__.py`, `config.py`, `config.yaml`, `PROJECT.md`, `PLAN.md`: version bumped to 1.0.108.
+- 959/959 tests passing. Config validate PASS. Pipeline smoke test: harness now validates actual report (was `WARN` due to version mismatch).
+
 ### v1.0.107 — Test isolation fix: config reload leak
 - `tests/test_config.py`: Added `tearDownClass` to `TestConfigUncoveredBranches` — reloads `daily_brief.config` from real YAML after `importlib.reload` tests. These tests previously used `importlib.reload(cfg_mod)` with mocked `yaml.safe_load` that set `TIMEZONE` to `"UTC"`, permanently leaking module state (`TIMEZONE="UTC"`, `CATEGORIES` with single entry) that caused `test_zoneinfo_uses_configured_timezone` to fail when run after `test_config.py`.
 - `tests/test_sources/test_rss_dedup.py`: `test_zoneinfo_uses_configured_timezone` now explicitly patches `daily_brief.config.TIMEZONE` to `"America/Chicago"` — defensive guard against test ordering dependencies.

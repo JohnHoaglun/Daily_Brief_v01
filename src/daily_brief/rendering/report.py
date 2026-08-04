@@ -35,11 +35,16 @@ def build_sections_from_stories(stories, format_pub_date_fn):
     return sections
 
 
-def compute_output_path(output_dir):
+def compute_output_path(output_dir, file_ver=None):
     """Compute next DailyBrief output path with auto-versioning.
+
+    When file_ver is provided (e.g., from the pipeline's allocated log
+    version), the report uses that same number so the log/report pair
+    share a single run identity for the external harness.
 
     Args:
         output_dir: directory to write to
+        file_ver: explicit version number; if None, auto-increment from disk
 
     Returns:
         filepath: full path to output file
@@ -49,14 +54,16 @@ def compute_output_path(output_dir):
     fn_ts = now.strftime("%Y-%m-%d")
 
     os.makedirs(output_dir, exist_ok=True)
-    existing = [f for f in os.listdir(output_dir)
-                if f.startswith('DailyBrief-' + fn_ts) and f.endswith('.md')]
-    max_file_ver = 0
-    for bf in existing:
-        mf = re.search(r'_v(\d+)\.md$', bf)
-        if mf:
-            max_file_ver = max(max_file_ver, int(mf.group(1)))
-    file_ver = max_file_ver + 1
+
+    if file_ver is None:
+        existing = [f for f in os.listdir(output_dir)
+                    if f.startswith('DailyBrief-' + fn_ts) and f.endswith('.md')]
+        max_file_ver = 0
+        for bf in existing:
+            mf = re.search(r'_v(\d+)\.md$', bf)
+            if mf:
+                max_file_ver = max(max_file_ver, int(mf.group(1)))
+        file_ver = max_file_ver + 1
 
     filepath = os.path.join(output_dir, f"DailyBrief-{fn_ts}_v{file_ver:02d}.md")
     return filepath, file_ver

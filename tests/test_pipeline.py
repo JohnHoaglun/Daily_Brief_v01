@@ -377,6 +377,39 @@ class TestPipelineMain(TestCase):
                     passed_session = call[0][1]
                     self.assertIs(passed_session, outer_session)
 
+    def test_log_report_shared_version_identity(self):
+        """Harness contract: log version is passed to compute_output_path so report and log share the same version."""
+        def fake_compute_output_path(output_dir, file_ver=None):
+            self.assertIsNotNone(file_ver, "compute_output_path must be called with explicit file_ver")
+            self.assertIsInstance(file_ver, int)
+            self.assertGreater(file_ver, 0)
+            return ("/tmp/report.md", file_ver)
+
+        def fake_harness(run_logfile):
+            log_basename = os.path.basename(run_logfile)
+            import re
+            m = re.match(r"run_log_\d{4}-\d{2}-\d{2}_v(\d+)\.md$", log_basename)
+            self.assertIsNotNone(m, f"Expected run_log pattern, got: {log_basename}")
+            harness_log_ver = int(m.group(1))
+            cp_calls = mock_cp.call_args_list
+            self.assertEqual(len(cp_calls), 1)
+            call_args = cp_calls[0]
+            report_ver = (call_args[0][1] if len(call_args[0]) > 1
+                         else call_args[1].get("file_ver") if call_args[1] else None)
+            self.assertEqual(report_ver, harness_log_ver,
+                             f"Report version ({report_ver}) must match log version ({harness_log_ver})")
+            from daily_brief.harness import HarnessResult
+            return HarnessResult(status="PASS", message="ok")
+
+        with _pipeline_patches():
+            with patch("daily_brief.pipeline.aiohttp.ClientSession") as mock_session_cls:
+                mock_session_cls.side_effect = [_make_async_cm()]
+                with patch("daily_brief.pipeline.write_report"):
+                    with patch("daily_brief.pipeline.compute_output_path", side_effect=fake_compute_output_path) as mock_cp:
+                        with patch("daily_brief.pipeline.run_test_harness", side_effect=fake_harness):
+                            from daily_brief.pipeline import main as pm
+                            asyncio.get_event_loop().run_until_complete(pm())
+
 
 class TestB7Preflights(TestCase):
     """B.7: preflight checks are opt-in; default is disabled."""

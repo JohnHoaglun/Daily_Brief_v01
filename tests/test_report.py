@@ -179,6 +179,23 @@ class TestComputeOutputPath(TestCase):
             self.assertIn("_v11.md", fp)
             self.assertEqual(ver, 11)
 
+    def test_explicit_file_ver_overrides_disk(self):
+        with tempfile.TemporaryDirectory() as td:
+            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            for v in range(1, 9):
+                with open(os.path.join(td, f"DailyBrief-{today}_v{v:02d}.md"), "w") as f:
+                    f.write("old")
+            fp, ver = compute_output_path(td, file_ver=15)
+            self.assertEqual(fp, os.path.join(td, f"DailyBrief-{today}_v15.md"))
+            self.assertEqual(ver, 15)
+
+    def test_explicit_file_ver_with_empty_dir(self):
+        with tempfile.TemporaryDirectory() as td:
+            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            fp, ver = compute_output_path(td, file_ver=7)
+            self.assertEqual(fp, os.path.join(td, f"DailyBrief-{today}_v07.md"))
+            self.assertEqual(ver, 7)
+
     def test_file_ver_is_int_gte_1(self):
         with tempfile.TemporaryDirectory() as td:
             _, ver = compute_output_path(td)

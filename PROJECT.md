@@ -1,4 +1,4 @@
-# Project: Daily Brief v01 (v1.0.107)
+# Project: Daily Brief v01 (v1.0.108)
 
 ## Purpose
 Daily Brief aggregates RSS stories from configured categories, enriches them with weather and lake data, summarizes them through a vLLM OpenAI-compatible endpoint, and writes a Markdown report.
@@ -22,6 +22,7 @@ Daily Brief aggregates RSS stories from configured categories, enriches them wit
 - **Parser golden fixtures** (v1.0.101): D.4 — added 15 golden fixtures + 17 edge-case tests for `parse_batch_summary_response()` covering all LLM response formats: STORY_N with/without pipe/equals, numbered lists (1., 2), ### variants, plain paragraphs, summary-of headings, fuzzy headline remapping, adjacent swap, sentence trimming. Documents actual parser behavior including edge cases with positional fallback.
 - **Startup crash fix** (v1.0.105): D.8 — `log()` guarded against `RUN_LOGFILE` being `None` before logfile initialization at pipeline start. Early logging writes stderr only until logfile initialized. 954/956 tests passing (2 pre-existing), config validate PASS, pipeline runs successfully.
 - **Test isolation fix** (v1.0.107): Quality-7 — fixed `TestConfigUncoveredBranches` module state leak from `importlib.reload` with mocked `yaml.safe_load` that left `TIMEZONE="UTC"` and stale categories, causing `test_zoneinfo_uses_configured_timezone` to fail when tests ran after config tests. Added `tearDownClass` to restore real YAML config. 956/956 tests passing (0 pre-existing), config validate PASS.
+- **Harness version alignment** (v1.0.108): The run log and report independently allocated versions from separate directories, causing the Phase 6 harness to seek a non-existent report file (e.g., log v12, report v10). Fixed by passing `log_ver` to `compute_output_path()` so log and report share the same version. Added 3 regression tests. 959/959 tests passing, config validate PASS, pipeline smoke test harness validates actual report.
 
 ## Architecture
 - `src/daily_brief/pipeline.py`: asynchronous pipeline orchestration.

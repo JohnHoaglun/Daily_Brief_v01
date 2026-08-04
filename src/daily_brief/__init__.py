@@ -1,5 +1,5 @@
 """
-Daily Brief v1.0.104 — Package Exports
+Daily Brief v1.0.109 — Package Exports
 =======================================
 Public API for the daily_brief package.
 """
@@ -46,7 +46,7 @@ __all__ = [
     "_fetch_json",
     "_fetch_text",
     # Validation
-    "validate_config",
-]
+ "validate_config",
+ ]
 
-__version__ = "1.0.108"
+__version__ = "1.0.109"

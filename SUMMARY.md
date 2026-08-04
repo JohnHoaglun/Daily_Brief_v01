@@ -4,6 +4,14 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.109 — External harness weather-format alignment + widening test fix
+- `tests/Test_validate_run.py::parse_log()`: Updated to parse the current pipeline summary format (`Weather OK -- N forecast periods | ...`) with fallback to legacy debug format.
+- `tests/Test_validate_run.py::parse_output()`: Updated to count 7-column forecast data rows structurally (excluding bold headers and `---` separators), and parse station values from the rendered 2-column station table.
+- `tests/Test_validate_run.py::run_checks()` check 1.3: Updated to validate station values from the rendered report instead of debug log markers.
+- `tests/test_validate_run.py`: New file with 11 unit tests for the harness parsers.
+- `tests/test_sources/test_rss_dedup.py::TestLocalWidening::test_widening_filters_duplicates`: Fixed — mocked `datetime.now` to use test's fixed `NOW` instead of system time.
+- `src/daily_brief/__init__.py`, `config.py`, `config.yaml`, `PROJECT.md`, `PLAN.md`, `README.md`, `TODOS.md`: version bumped to 1.0.109.
+
 ### v1.0.108 — Harness version alignment: shared log/report run identity
 - `src/daily_brief/rendering/report.py`: `compute_output_path()` accepts optional `file_ver` argument. When provided, the report uses that version instead of auto-incrementing from disk.
 - `src/daily_brief/pipeline.py`: Pass `log_ver` to `compute_output_path()` via `file_ver=log_ver`. The report and run log now share the same version number (e.g., `run_log_2026-08-04_v01.md` / `DailyBrief-2026-08-04_v01.md`), so the Phase 6 harness finds the correct report file.

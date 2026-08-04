@@ -142,7 +142,10 @@ def parse_log(text):
     data = {}
 
     # 1.1 / 1.2 — forecast periods / rows
-    m = re.search(r"Weather forecast periods fetched:\s*(\d+)", text)
+    # Try new pipeline summary format first, then fall back to old debug format
+    m = re.search(r"Weather\s+\w+\s*--\s*(\d+)\s+forecast periods", text)
+    if not m:
+        m = re.search(r"Weather forecast periods fetched:\s*(\d+)", text)
     data["forecast_periods"] = int(m.group(1)) if m else None
     m = re.search(r"Weather forecast rows:\s*(\d+)", text)
     data["forecast_rows"] = int(m.group(1)) if m else None
@@ -270,13 +273,42 @@ def parse_output(text):
     # Unavailable string scan (F.3)
     data["unavailable_count"] = len(re.findall(r"Unavailable", body, re.IGNORECASE))
 
-    # Weather table rows (1.2)
-    forecast_rows = re.findall(r"^\|\s*\*\*\w+day.*?\|\s*$", body, re.MULTILINE)
-    data["forecast_row_count"] = len(forecast_rows)
+    # Weather table rows (1.2) — count 7-column data rows in Weather Forecast section
+    weather_section = ""
+    m_ws = re.search(r"## Weather Forecast\n(.*?)(?=\n## |\Z)", body, re.DOTALL)
+    if m_ws:
+        weather_section = m_ws.group(1)
+    n_forecast_rows = 0
+    for line in weather_section.split("\n"):
+        cells = [c.strip() for c in line.split("|") if c.strip()]
+        if line.startswith("|") and len(cells) >= 7 and not all(re.match(r"^-+\s*$", c) for c in cells) and not any("**" in c for c in cells):
+            n_forecast_rows += 1
+    data["forecast_row_count"] = n_forecast_rows
 
     # Climate normal high value rendered (F.4)
     m = re.search(r"Climate Normal High for today \S+\s*\|\s*(\d+)°F", body)
     data["climate_normal_high_rendered"] = int(m.group(1)) if m else None
+
+    # Station values (1.3) — parse 2-column table rows after forecast table within Weather Forecast section
+    station_labels_map = {
+        "Climate Normal High for today": "avg_temp_today",
+        "Average Monthly rainfall": "avg_monthly_rainfall",
+        "Current Monthly rainfall": "current_monthly_rainfall",
+    }
+    data["station_values"] = {}
+    if weather_section:
+        in_station_table = False
+        for line in weather_section.split("\n"):
+            if not line.startswith("|"):
+                in_station_table = False
+                continue
+            cells = [c.strip() for c in line.split("|") if c.strip()]
+            # 2-column data rows in the station table (not separator rows)
+            if len(cells) == 2 and not all(c == "-" for c in cells):
+                for label_prefix, key in station_labels_map.items():
+                    if cells[0].startswith(label_prefix):
+                        data["station_values"][key] = cells[1]
+                        break
 
     # Lake table rows
     lake_rows = re.findall(
@@ -357,12 +389,12 @@ def run_checks(config, log_data, out_data, prev_log_data, prev_out_data):
     if out_data["forecast_row_count"] != 3:
         r.fail("1.2", f"Rendered forecast rows = {out_data['forecast_row_count']} (expected 3)")
 
-    if not log_data["station_complete"]:
-        r.fail("1.3", "Station data incomplete or missing in log (avg_temp_today / avg_monthly_rainfall / current_monthly_rainfall)")
-    else:
-        for val, label in zip(log_data["station_complete"], ["avg_temp_today", "avg_monthly_rainfall", "current_monthly_rainfall"]):
-            if val in ("None", "null", ""):
-                r.fail("1.3", f"Station field '{label}' is {val}")
+    station_vals = out_data.get("station_values", {})
+    bad = {"Unavailable", "Dynamic", "None", ""}
+    for field in ["avg_temp_today", "avg_monthly_rainfall", "current_monthly_rainfall"]:
+        val = station_vals.get(field)
+        if val is None or val in bad:
+            r.fail("1.3", f"Station field '{field}' is {'missing' if val is None else val}")
 
     configured_lakes = set(config.get("weather", {}).get("lake_urls", {}).keys())
     rendered_lakes = {k.lower().replace(" ", "_") for k in out_data["lake_rows"].keys()}

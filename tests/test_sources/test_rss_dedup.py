@@ -504,7 +504,9 @@ class TestLocalWidening(TestCase):
         logs = []
 
         async def _run():
-            return await fetch_and_dedup(session, cats, logs.append)
+            with mock.patch("daily_brief.pipelines.rss_dedup.datetime", wraps=datetime) as dt_mock:
+                dt_mock.now.return_value = NOW
+                return await fetch_and_dedup(session, cats, logs.append)
 
         deduped, stats = asyncio.get_event_loop().run_until_complete(_run())
         dup_titles = [d[0] for d in deduped if d[0] == "Dup Title"]

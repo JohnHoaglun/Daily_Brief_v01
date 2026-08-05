@@ -338,13 +338,6 @@ class TestLocalWidening(TestCase):
         """
         fresh = NOW - timedelta(hours=36)  # within 48h, outside 24h
         too_old = NOW - timedelta(hours=480)  # 20 days old
-        candidates = [
-            _entry(f"Story {i}", pub_dt=too_old)
-            for i in range(5)
-        ]
-        # 6th entry — within 48h
-        candidates.append(_entry("Recovered Story", pub_dt=fresh))
-
         cats = [("CatA", "query a", 10)]
         session = self._make_session({"query a": _rss_xml([
             {"title": f"Story {i}", "pubDate": too_old.strftime("%a, %d %b %Y %H:%M:%S +0000")}
@@ -355,7 +348,9 @@ class TestLocalWidening(TestCase):
         logs = []
 
         async def _run():
-            return await fetch_and_dedup(session, cats, logs.append)
+            with mock.patch("daily_brief.pipelines.rss_dedup.datetime", wraps=datetime) as dt_mock:
+                dt_mock.now.return_value = NOW
+                return await fetch_and_dedup(session, cats, logs.append)
 
         deduped, stats = asyncio.get_event_loop().run_until_complete(_run())
         titles = [d[0] for d in deduped]
@@ -467,7 +462,9 @@ class TestLocalWidening(TestCase):
         logs = []
 
         async def _run():
-            return await fetch_and_dedup(session, cats, logs.append)
+            with mock.patch("daily_brief.pipelines.rss_dedup.datetime", wraps=datetime) as dt_mock:
+                dt_mock.now.return_value = NOW
+                return await fetch_and_dedup(session, cats, logs.append)
 
         deduped, stats = asyncio.get_event_loop().run_until_complete(_run())
         titles = [d[0] for d in deduped]

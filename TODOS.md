@@ -1,7 +1,7 @@
-# TODO: Daily Brief v01 - v1.0.109
+# TODO: Daily Brief v01 - v1.0.110
 
 ## Status
-Phases A/B/C complete. D.1-D.9 completed. External harness weather-format alignment + widening test fix. 959/959 passing, config validate PASS, pipeline runs with harness validating actual report.
+Phases A/B/C complete. D.1-D.9 completed. Tag conflict policy: `international` + `us-focused` no longer conflicts. 970/970 passing, config validate PASS.
 
 ## Phase D — Architecture Follow-Up
 

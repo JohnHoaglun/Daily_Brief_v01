@@ -1,4 +1,4 @@
-# Daily Brief v1.0.109
+# Daily Brief v1.0.110
 Automated daily news brief generator that fetches stories from 17 configured categories via Google News RSS, enriches them with weather and lake-level data, summarizes them with AI, and produces a structured Markdown report.
 
 ## Architecture

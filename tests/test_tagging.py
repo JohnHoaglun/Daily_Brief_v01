@@ -318,29 +318,38 @@ class TestCategoryBoost(TestCase):
 class TestTagConflicts(TestCase):
 
     def test_conflict_resolution_runs_before_min_tags(self):
-        """Conflict resolution fires, but min_tags=3 can restore the loser."""
+        """Conflict resolution fires first; min_tags=3 cannot restore the loser when other tags fill the gap."""
         mappings = {
+            "economy": ["stock", "market", "earnings"],
             "international": ["international", "foreign"],
-            "us-focused": ["united states", "texas"],
+            "local": ["local", "city", "municipal"],
+            "sports": ["nfl", "football"],
         }
-        conflicts = [["international", "us-focused"]]
+        conflicts = [["international", "local"]]
         with _patch_config(mappings=mappings, conflicts=conflicts, boosts={}):
-            result = tag_story_with_keywords("international trade with texas")
-        # Both tags score 2.0 → conflict removes lower (or equal, picks 'a')
-        # But min_tags=3 promotion restores it from scored-backlog
+            result = tag_story_with_keywords(
+                "international trade and local city stock market nfl football"
+            )
+        # Four tags score above threshold. After top-N slice (4 tags),
+        # conflict resolution removes the loser ("international" scores
+        # less than "local"). tag_list has 3 remaining tags, so
+        # min_tags=3 is satisfied and the conflict-removed tag is NOT restored.
         tags = result.split()
-        # Verify function works without error and returns valid tags
-        self.assertGreaterEqual(len(tags), 2)
+        self.assertEqual(len(tags), 3)
         for t in tags:
             self.assertTrue(t.startswith("[[") and t.endswith("]]"))
+        self.assertIn("[[local]]", result)
+        self.assertNotIn("[[international]]", result)
+        self.assertIn("[[economy]]", result)
+        self.assertIn("[[sports]]", result)
 
     def test_no_conflict_with_one_tag(self):
         """Only one tag in conflict pair present → no removal."""
         mappings = {
             "international": ["international"],
-            "us-focused": ["us", "texas"],
+            "local": ["local", "city"],
         }
-        conflicts = [["international", "us-focused"]]
+        conflicts = [["international", "local"]]
         with _patch_config(mappings=mappings, conflicts=conflicts, boosts={}):
             result = tag_story_with_keywords("international news")
         self.assertIn("[[international]]", result)

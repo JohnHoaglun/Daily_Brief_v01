@@ -110,8 +110,8 @@ For every story: extract lowercase significant words (strip stopwords, drop word
 - **FAIL** if any story exceeds 5 tags — indicates the tagging scorer's cap isn't being enforced.
 
 ### 3.7 Tag conflict pairs
-- `config.yaml`'s `tag_conflicts` currently defines two pairs that should never co-occur on the same story: `['international', 'us-focused']` and `['international', 'local']`.
-- For every story, check its tag set against both pairs.
+- `config.yaml`'s `tag_conflicts` currently defines one pair that should never co-occur on the same story: `['international', 'local']`. The `['international', 'us-focused']` pair has been removed — those dimensions describe different aspects of a story and can validly co-occur for U.S. coverage of international events.
+- For every story, check its tag set against the configured conflict pair.
 - **FAIL** if a story has both tags from any conflict pair — indicates the conflict-resolution logic in the tagger isn't being applied.
 
 ### 3.6 Phase 3 timing

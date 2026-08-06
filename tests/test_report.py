@@ -432,6 +432,25 @@ class TestWriteReport(TestCase):
 
     @mock.patch("daily_brief.rendering.report.tag_story_with_keywords")
     @mock.patch("daily_brief.rendering.report.build_weather_markdown")
+    def test_empty_category_counts_in_frontmatter(self, mock_wx, mock_tag):
+        """v1.0.111: empty categories still render a header and must count in frontmatter."""
+        mock_wx.return_value = ["## Weather"]
+        mock_tag.return_value = ""
+        # One populated category + one empty category
+        stories = [_make_story(title="A Story", category="PopulatedCat")]
+        sections = build_sections_from_stories(stories, _format_date)
+        cfg = _config_kwargs({"rendered_cat_count": 2})
+        result = build_markdown(stories, {}, sections, ["PopulatedCat", "EmptyCat"], cfg)
+        joined = "\n".join(result)
+        # Frontmatter should reflect both categories
+        self.assertIn("categories: 2", result)
+        # Both headers should render
+        self.assertIn("## PopulatedCat (1 stories)", result)
+        self.assertIn("## EmptyCat", result)
+        self.assertIn("_No stories found._", result)
+
+    @mock.patch("daily_brief.rendering.report.tag_story_with_keywords")
+    @mock.patch("daily_brief.rendering.report.build_weather_markdown")
     def test_weather_cat_skip_with_tags(self, mock_wx, mock_tag):
         """report.py line 140: weather category with non-empty tags → continue path."""
         mock_wx.return_value = ["## Weather"]

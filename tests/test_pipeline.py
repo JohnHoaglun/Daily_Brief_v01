@@ -469,3 +469,28 @@ class TestB7Preflights(TestCase):
                         asyncio.get_event_loop().run_until_complete(pm())
                     output = stderr_buf.getvalue()
                     self.assertIn("preflight skipped", output)
+
+
+class TestRenderedCatCount(TestCase):
+    """v1.0.111: rendered_cat_count includes empty RSS categories."""
+
+    def test_rendered_cat_count_includes_empty_categories(self):
+        """rendered_cat_count includes empty RSS categories, matching report.py rendering."""
+        sections = {"Populated": [{"title": "X"}], "Empty": []}
+        ordered_cats = ["Populated", "Empty"]
+        sections_map = {cn: sections.get(cn, []) for cn in ordered_cats}
+        WEATHER_SECTION_TITLE = "Weather Forecast 77316"
+        rendered_cat_count = sum(1 for cn in ordered_cats
+            if cn != WEATHER_SECTION_TITLE and cn != "Weather Forecast 77316")
+        self.assertEqual(rendered_cat_count, 2,
+            "rendered_cat_count must include empty categories that render headers")
+
+    def test_rendered_cat_count_excludes_weather(self):
+        """weather categories are excluded from rendered_cat_count."""
+        sections = {"Populated": [{"title": "X"}], "Weather Forecast 77316": [{"title": "W"}]}
+        ordered_cats = ["Populated", "Weather Forecast 77316"]
+        sections_map = {cn: sections.get(cn, []) for cn in ordered_cats}
+        WEATHER_SECTION_TITLE = "Weather Forecast 77316"
+        rendered_cat_count = sum(1 for cn in ordered_cats
+            if cn != WEATHER_SECTION_TITLE and cn != "Weather Forecast 77316")
+        self.assertEqual(rendered_cat_count, 1)

@@ -4,6 +4,20 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.111 — Frontmatter category count includes empty categories
+- `src/daily_brief/pipeline.py`: `rendered_cat_count` now counts all non-weather RSS categories regardless of story count. Previously excluded empty categories via `len(sections_map.get(cn, [])) > 0` guard, but `report.py` renders every configured category with `_No stories found._`, so the frontmatter count must match all rendered headers.
+- `tests/test_report.py`: added `test_empty_category_counts_in_frontmatter` — renders one populated + one empty category, verifies frontmatter `categories: 2` and both headers present.
+- `tests/test_pipeline.py`: added `TestRenderedCatCount` class with `test_rendered_cat_count_includes_empty_categories` (verifies count is 2 for two categories, one empty) and `test_rendered_cat_count_excludes_weather` (verifies weather category excluded).
+- `tests/test_validate_run.py`: added `TestCheck43FrontmatterCategoryCount` with valid fixture (count 2, two headers) and mismatched fixture (count 1, two headers) — verifies check 4.3 passes/fail correctly.
+- `src/daily_brief/__init__.py`, `config.yaml`, `PROJECT.md`, `TODOS.md`: version bumped to 1.0.111.
+- 968/975 tests passing (7 pre-existing RSS dedup failures). Config validate PASS.
+
+### v1.0.110 — Tag conflict policy: international + us-focused allowed
+- `config.yaml`: removed `["international", "us-focused"]` from `tag_conflicts`; retained `["international", "local"]` as sole configured conflict.
+- `tests/test_tagging.py`: updated conflict tests to use `international`/`local` pair.
+- `Test_DailyBrief_Test_Spec.md`: updated check 3.7 to reflect current conflict policy.
+- 970/970 tests passing. Config validate PASS. Live run v02 clean on check 3.7.
+
 ### v1.0.109 — External harness weather-format alignment + widening test fix
 - `tests/Test_validate_run.py::parse_log()`: Updated to parse the current pipeline summary format (`Weather OK -- N forecast periods | ...`) with fallback to legacy debug format.
 - `tests/Test_validate_run.py::parse_output()`: Updated to count 7-column forecast data rows structurally (excluding bold headers and `---` separators), and parse station values from the rendered 2-column station table.

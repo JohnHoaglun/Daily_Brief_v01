@@ -248,8 +248,7 @@ async def main():
         ordered_cats = ordered_categories_for_render([c[0] for c in CATEGORIES if c[1]])
         sections_map = {cn: sections.get(cn, []) for cn in ordered_cats}
         rendered_cat_count = sum(1 for cn in ordered_cats
-            if cn != WEATHER_SECTION_TITLE and cn != "Weather Forecast 77316"
-            and len(sections_map.get(cn, [])) > 0)
+            if cn != WEATHER_SECTION_TITLE and cn != "Weather Forecast 77316")
 
         md = build_markdown(stories, weather, sections_map, ordered_cats, {
             "total_after_dedup": total_after_dedup,

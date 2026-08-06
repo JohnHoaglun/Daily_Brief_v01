@@ -617,8 +617,6 @@ tagging_config:
   score_threshold: 0.3
 tag_conflicts:
 - - international
-  - us-focused
-- - international
   - local
 category_boosts:
   OpenAI News:

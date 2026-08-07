@@ -1,9 +1,9 @@
-# TODO: Daily Brief v01 - v1.0.112
+# TODO: Daily Brief v01 - v1.0.113
 
 ## Status
-v1.0.112: Added summarizer topic-alignment validation — batch and recovery summaries that share zero significant keywords with the headline are rejected and fall back to `\[Auto\]`. Eliminates harness check 3.3 zero-overlap failures. 977/984 passing (7 pre-existing RSS dedup failures), config validate PASS. Live smoke test: WARN (no FAILs).
+v1.0.113: Fixed 7 pre-existing RSS dedup test failures — mock stories were age-filtered because `datetime.now` returned real time instead of test reference date. 984/984 passing (0 pre-existing), config validate PASS. Live smoke test: WARN (zero FAILs, 50.41s, 78 stories).
 
-## Completed (v1.0.107 - v1.0.112)
+## Completed (v1.0.107 - v1.0.113)
 
 ### v1.0.112 — Summarizer topic-alignment guard
 - **Bug:** Batch and individual recovery summaries could pass validation with zero shared keywords between headline and summary, producing grammatically valid but semantically unrelated summaries. Triggered external harness check 3.3 FAIL on live runs.
@@ -33,13 +33,8 @@ v1.0.112: Added summarizer topic-alignment validation — batch and recovery sum
 - **Fix:** `test_config.py` `tearDownClass` reloads config module after reload tests; `test_rss_dedup.py` explicit timezone patch.
 - **Files:** `tests/test_config.py`, `tests/test_sources/test_rss_dedup.py`
 
-## Remaining Pre-existing Failures (7/975)
-All 7 failures are in `test_rss_dedup.py` — pre-existing RSS dedup test failures, not caused by v1.0.111 changes.
+## Remaining Pre-existing Failures (0/984)
+All test failures resolved. 984/984 passing.
 
 ## Blockers
-
-### RSS Dedup Test Suite (7/984 pre-existing failures)
-- All 7 failures are in `tests/test_sources/test_rss_dedup.py` — pre-existing, predates v1.0.112 changes. Root cause under investigation.
-
-### Live Smoke Test — Obsidian Vault Access (RESOLVED v1.0.112)
-- Vault access restored. v1.0.112 live smoke test completed successfully: WARN (zero FAILs, 55.63s, 77 valid stories). Previous v1.0.111 run failed check 3.3 (zero shared keywords).
+- (none)

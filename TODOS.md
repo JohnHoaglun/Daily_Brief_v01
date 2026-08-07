@@ -29,3 +29,12 @@ Phases A/B/C/D complete. v1.0.111: Fixed frontmatter category count mismatch —
 
 ## Remaining Pre-existing Failures (7/975)
 All 7 failures are in `test_rss_dedup.py` — pre-existing RSS dedup test failures, not caused by v1.0.111 changes.
+
+## Blockers
+
+### Live Smoke Test — Obsidian Vault Access Blocked
+- **Error:** `PermissionError: [Errno 1] Operation not permitted` on `os.listdir(LOG_DIR)` at `pipeline.py:140`
+- **Path:** `/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/Dev/logs/`
+- **Details:** macOS returns Errno 1 (not standard Unix permission mask) for directory listing and file reads. Obsidian is running with vault open. Last successful run: 2026-08-06. This is a new restriction, not caused by v1.0.111 code changes. `os.listdir(LOG_DIR)` call existed before my changes.
+- **Workaround:** Run pipeline manually in your terminal after vault access is restored. Or temporarily point `config.yaml` `directories.log_dir`/`news_dir` to a writable path (but revert after smoke test).
+- **Unblock:** Check macOS security settings (System Settings → Privacy & Security), restart Obsidian, or wait for vault sync unlock.

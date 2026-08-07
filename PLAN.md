@@ -99,3 +99,4 @@ Implement config unification (`Bug-4`, `Arch-4`, `Quality-1`, `Quality-7`); one 
 ## Blockers
 - ~~Alert feature disposition is unresolved: restore and render it, or retire it completely.~~ Resolved: retired end-to-end in v1.0.97 (C.5).
 - LLM concurrency is an experiment, not an assumed optimization; it depends on controlled vLLM benchmarking.
+- **v1.0.111 live smoke test** — Obsidian vault access blocked. `PermissionError: [Errno 1]` on `os.listdir(LOG_DIR)` at `pipeline.py:140`. Path: `/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/Dev/logs/`. Last successful run 2026-08-06. macOS Errno 1 (not Unix permission mask). No code change caused this. Unblock: check macOS security/settings, restart Obsidian, or temporarily override `config.yaml` directories for smoke test.

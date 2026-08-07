@@ -1,7 +1,7 @@
-# TODO: Daily Brief v01 - v1.0.114
+# TODO: Daily Brief v01 - v1.0.115
 
 ## Status
-v1.0.114: Full code review completed. Baseline is 984/984 passing, config validate PASS, and live smoke WARN with zero FAILs (50.41s, 78 stories). The backlog below records the review findings before implementation.
+v1.0.115: P0 pipeline exit-code contract implemented. 991/991 passing, config validate PASS, live smoke exit 1 (WARN, 53.86s, 78 stories). The backlog below records the review findings before implementation.
 
 ## Priority 0 - Correct Run Outcomes
 - [ ] Make `pipeline.main()` return an explicit run result or exit code. Update `__main__.py` to exit nonzero for internal report-validation failure and harness `FAIL`/`ERROR`; decide and document the policy for `WARN` and `SKIPPED`. Evidence: `src/daily_brief/pipeline.py:276-297`, `src/daily_brief/__main__.py:39-55`.

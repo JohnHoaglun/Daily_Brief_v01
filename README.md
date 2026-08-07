@@ -1,4 +1,4 @@
-# Daily Brief v1.0.114
+# Daily Brief v1.0.115
 Automated daily news brief generator that fetches stories from 17 configured categories via Google News RSS, enriches them with weather and lake-level data, summarizes them with AI, and produces a structured Markdown report.
 
 ## Architecture
@@ -16,7 +16,7 @@ Modular codebase in `src/daily_brief/`:
 - **`models.py`** — typed data models: `Story`, `HarnessResult`
 - **`utils.py`** — shared utilities: sentence extraction, context building, temperature coercion
 - **`http_client.py`** — centralized HTTP request helpers with retry/backoff
-- **`tests/`** — 984 tests (unit, mocked, integration, smoke, post-run validation; 977 passing, 7 pre-existing RSS dedup failures)
+- **`tests/`** — 991 tests (unit, mocked, integration, smoke, post-run validation; 991 passing)
 
 ## Requirements
 
@@ -79,7 +79,7 @@ src/daily_brief/            # Modular source code
   config_validator.py       # Configuration validation
   tagging.py                # Keyword tagging engine
   categorization.py         # Category ordering
-tests/                      # 984 tests (977 passing, 7 pre-existing RSS dedup)
+tests/                      # 991 tests (991 passing)
 PROJECT.md                  # Architecture and status
 SUMMARY.md                  # Changelog
 TODOS.md                    # Live task board

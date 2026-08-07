@@ -4,6 +4,13 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.115 — Pipeline exit-code contract (P0)
+- `src/daily_brief/pipeline.py`: Added exit code constants (0=SUCCESS, 1=CONFIG/WARN, 2=VALIDATION/FAIL, 3=ERROR/SKIPPED). `main()` now returns explicit integers for all outcomes: config validation failures (1), report validation failures (2), harness PASS (0), WARN (1), FAIL (2), ERROR (3), SKIPPED (3). Replaced internal `sys.exit(1)` with consistent return contract. Changed validation-failure print from `os.environ.get` to `RUN_LOGFILE` (available at that point in execution). Always logs exit code to run log.
+- `src/daily_brief/__main__.py`: `main()` returns `int`, propagates pipeline result via `sys.exit(asyncio.run(main()))`. Process exit code matches harness status.
+- `tests/test_pipeline.py`: Replaced `test_main_config_failure` (patching `sys.exit`) with `test_main_config_failure_exit_code` (checking return value). Added 6 new exit-code tests: `test_main_validation_failure_returns_code`, `test_main_harness_pass_returns_zero`, `test_main_harness_warn_returns_one`, `test_main_harness_fail_returns_two`, `test_main_harness_error_returns_three`, `test_main_harness_skipped_returns_three`. 35/35 pipeline tests.
+- `config.yaml`, `src/daily_brief/__init__.py`, `PROJECT.md`, `README.md`, `TODOS.md`: version bumped to 1.0.115.
+- 991/991 tests passing, config validate PASS, live smoke exit 1 (WARN, zero FAILs, 53.86s, 78 stories).
+
 ### v1.0.114 — Full review backlog
 - `TODOS.md`: Replaced the empty active-task list with the complete prioritized code-review backlog. It covers pipeline exit outcomes, LLM quality and retry behavior, configuration safety, weather degradation, test warning/flakiness debt, parser/rendering/data integrity, performance/backpressure, output lifecycle, packaging/CI, repository hygiene, verification gates, and two product decisions.
 - `config.yaml`, `src/daily_brief/__init__.py`, `PROJECT.md`: version bumped to 1.0.114.

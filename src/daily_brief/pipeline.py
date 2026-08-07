@@ -97,6 +97,12 @@ def _coerce_temperature_f(val):
     return result
 
 
+# Exit codes
+EXIT_CODE_SUCCESS = 0
+EXIT_CODE_CONFIG = 1
+EXIT_CODE_VALIDATION = 2
+EXIT_CODE_HARNESS_ERROR = 3
+
 # -- Main -------------------------------------------------------------------
 
 async def main():
@@ -109,7 +115,7 @@ async def main():
         print(f"\nFATAL: {len(config_issues)} config validation error(s). Aborting.", file=sys.stderr)
         for ci in config_issues:
             print(f"CONFIG ERROR: {ci}", file=sys.stderr)
-        sys.exit(1)
+        return EXIT_CODE_CONFIG
 
     # --- Precompile tagging regexes ---
     n_kw = precompile_tagging()
@@ -280,8 +286,9 @@ async def main():
             log(f"STATUS: FAILED ({len(validation_issues)} issues found)")
             print(f"\n*** RUN FAILED — {len(validation_issues)} validation issues found ***")
             print(f"File: {filepath}")
-            print(f"See run log for details: {os.environ.get('RUN_LOGFILE', 'unknown')}")
-            return
+            print(f"Log: {RUN_LOGFILE}")
+            log("\n=== PIPELINE EXIT CODE: VALIDATION FAILURE ===")
+            return EXIT_CODE_VALIDATION
 
         # --- Phase 6: External test harness validation ---
         log("\n[Phase 6] Running test harness...")
@@ -294,6 +301,18 @@ async def main():
         total_elapsed = time.monotonic() - run_started
         log(f"TOTAL PIPELINE TIME: {total_elapsed:.2f}s")
 
-        log("\n=== PIPELINE COMPLETED SUCCESSFULLY ===")
+        exit_code = {
+            "PASS": EXIT_CODE_SUCCESS,
+            "WARN": EXIT_CODE_CONFIG,
+            "FAIL": EXIT_CODE_VALIDATION,
+            "ERROR": EXIT_CODE_HARNESS_ERROR,
+            "SKIPPED": EXIT_CODE_HARNESS_ERROR,
+        }.get(harness_result.status, EXIT_CODE_HARNESS_ERROR)
+
+        if exit_code == EXIT_CODE_SUCCESS:
+            log("\n=== PIPELINE COMPLETED SUCCESSFULLY ===")
+        else:
+            log(f"\n=== PIPELINE EXIT CODE: {exit_code} ({harness_result.status}) ===")
         print(f"\nDone. File: {filepath}")
         print(f"  Stories: {total_after_dedup} | Time: {elapsed:.1f}s")
+        return exit_code

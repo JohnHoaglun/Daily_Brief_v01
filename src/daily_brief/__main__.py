@@ -36,11 +36,12 @@ def setup_logging(log_dir: str = ".", verbose: bool = False) -> None:
     logging.basicConfig(level=level, handlers=[console, file_handler], force=True)
 
 
-async def main() -> None:
+async def main() -> int:
     """Main entry point for the daily brief pipeline."""
     from daily_brief.pipeline import main as pipeline_main
 
-    await pipeline_main()
+    result = await pipeline_main()
+    return result if result is not None else 0
 
 
 if __name__ == "__main__":
@@ -52,4 +53,4 @@ if __name__ == "__main__":
         sys.exit(exit_code)
 
     setup_logging(log_dir=LOG_DIR)
-    asyncio.run(main())
+    sys.exit(asyncio.run(main()))

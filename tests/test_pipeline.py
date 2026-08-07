@@ -188,15 +188,11 @@ class TestPipelineMain(TestCase):
             setattr(s, k, v)
         return s
 
-    @patch("daily_brief.pipeline.sys.exit", side_effect=SystemExit(1))
     @patch("daily_brief.pipeline.validate_config", return_value=(False, ["error"]))
-    def test_main_config_failure(self, mock_validate, mock_exit):
+    def test_main_config_failure(self, mock_validate):
         from daily_brief.pipeline import main as pm
-        try:
-            asyncio.get_event_loop().run_until_complete(pm())
-        except SystemExit:
-            pass
-        mock_exit.assert_called_with(1)
+        result = asyncio.get_event_loop().run_until_complete(pm())
+        self.assertEqual(result, 1)  # EXIT_CODE_CONFIG = 1
 
     def test_main_full_pipeline(self):
         # Also patch the aiohttp session and write_report
@@ -217,6 +213,92 @@ class TestPipelineMain(TestCase):
                     asyncio.get_event_loop().run_until_complete(pm())
         # Should exit early (return) without calling write_report's full flow
         # The function returns early on validation failure after Phase 5
+
+    def test_main_config_failure_exit_code(self):
+        """P0: config failure returns EXIT_CODE_CONFIG (1)."""
+        from daily_brief.pipeline import EXIT_CODE_CONFIG
+        with patch("daily_brief.pipeline.validate_config", return_value=(False, ["error"])):
+            stderr_capture = io.StringIO()
+            with patch("sys.stderr", stderr_capture):
+                from daily_brief.pipeline import main as pm
+                result = asyncio.get_event_loop().run_until_complete(pm())
+                self.assertEqual(result, EXIT_CODE_CONFIG)
+
+    def test_main_validation_failure_returns_code(self):
+        """P0: report validation failure returns EXIT_CODE_VALIDATION (2)."""
+        from daily_brief.pipeline import EXIT_CODE_VALIDATION
+        with _pipeline_patches(validation_result=(False, ["bad"])):
+            with patch("daily_brief.pipeline.aiohttp.ClientSession") as mock_session:
+                mock_session.side_effect = [_make_async_cm()]
+                with patch("daily_brief.pipeline.write_report"):
+                    from daily_brief.pipeline import main as pm
+                    result = asyncio.get_event_loop().run_until_complete(pm())
+                    self.assertEqual(result, EXIT_CODE_VALIDATION)
+
+    def test_main_harness_pass_returns_zero(self):
+        """P0: harness PASS returns 0."""
+        from daily_brief.harness import HarnessResult
+        hr = HarnessResult(status="PASS", message="ok", exit_code=0)
+        with _pipeline_patches():
+            with patch("daily_brief.pipeline.run_test_harness", return_value=hr):
+                with patch("daily_brief.pipeline.aiohttp.ClientSession") as mock_session:
+                    mock_session.side_effect = [_make_async_cm()]
+                    with patch("daily_brief.pipeline.write_report"):
+                        from daily_brief.pipeline import main as pm
+                        result = asyncio.get_event_loop().run_until_complete(pm())
+                        self.assertEqual(result, 0)
+
+    def test_main_harness_warn_returns_one(self):
+        """P0: harness WARN returns 1."""
+        from daily_brief.harness import HarnessResult
+        hr = HarnessResult(status="WARN", message="2 warnings", exit_code=1)
+        with _pipeline_patches():
+            with patch("daily_brief.pipeline.run_test_harness", return_value=hr):
+                with patch("daily_brief.pipeline.aiohttp.ClientSession") as mock_session:
+                    mock_session.side_effect = [_make_async_cm()]
+                    with patch("daily_brief.pipeline.write_report"):
+                        from daily_brief.pipeline import main as pm
+                        result = asyncio.get_event_loop().run_until_complete(pm())
+                        self.assertEqual(result, 1)
+
+    def test_main_harness_fail_returns_two(self):
+        """P0: harness FAIL returns 2."""
+        from daily_brief.harness import HarnessResult
+        hr = HarnessResult(status="FAIL", message="3 failures", exit_code=2)
+        with _pipeline_patches():
+            with patch("daily_brief.pipeline.run_test_harness", return_value=hr):
+                with patch("daily_brief.pipeline.aiohttp.ClientSession") as mock_session:
+                    mock_session.side_effect = [_make_async_cm()]
+                    with patch("daily_brief.pipeline.write_report"):
+                        from daily_brief.pipeline import main as pm
+                        result = asyncio.get_event_loop().run_until_complete(pm())
+                        self.assertEqual(result, 2)
+
+    def test_main_harness_error_returns_three(self):
+        """P0: harness ERROR returns 3."""
+        from daily_brief.harness import HarnessResult
+        hr = HarnessResult(status="ERROR", message="timeout", exit_code=None)
+        with _pipeline_patches():
+            with patch("daily_brief.pipeline.run_test_harness", return_value=hr):
+                with patch("daily_brief.pipeline.aiohttp.ClientSession") as mock_session:
+                    mock_session.side_effect = [_make_async_cm()]
+                    with patch("daily_brief.pipeline.write_report"):
+                        from daily_brief.pipeline import main as pm
+                        result = asyncio.get_event_loop().run_until_complete(pm())
+                        self.assertEqual(result, 3)
+
+    def test_main_harness_skipped_returns_three(self):
+        """P0: harness SKIPPED returns 3."""
+        from daily_brief.harness import HarnessResult
+        hr = HarnessResult(status="SKIPPED", message="missing script")
+        with _pipeline_patches():
+            with patch("daily_brief.pipeline.run_test_harness", return_value=hr):
+                with patch("daily_brief.pipeline.aiohttp.ClientSession") as mock_session:
+                    mock_session.side_effect = [_make_async_cm()]
+                    with patch("daily_brief.pipeline.write_report"):
+                        from daily_brief.pipeline import main as pm
+                        result = asyncio.get_event_loop().run_until_complete(pm())
+                        self.assertEqual(result, 3)
 
     def test_main_partial_weather(self):
         partial_weather = {

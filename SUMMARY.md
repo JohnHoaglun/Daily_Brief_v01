@@ -4,6 +4,11 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.114 — Full review backlog
+- `TODOS.md`: Replaced the empty active-task list with the complete prioritized code-review backlog. It covers pipeline exit outcomes, LLM quality and retry behavior, configuration safety, weather degradation, test warning/flakiness debt, parser/rendering/data integrity, performance/backpressure, output lifecycle, packaging/CI, repository hygiene, verification gates, and two product decisions.
+- `config.yaml`, `src/daily_brief/__init__.py`, `PROJECT.md`: version bumped to 1.0.114.
+- No production code changed. Review baseline: 984/984 tests passing, config validate PASS, live smoke WARN with zero FAILs (50.41s, 78 stories).
+
 ### v1.0.112 — Summarizer topic-alignment guard
 - `src/daily_brief/llm/summarizer.py`: Added `_has_topic_overlap()`, `_significant_words()`, and `_VALID_SUMMARY_STOPWORDS`. `_is_valid_summary()` now requires at least one significant keyword overlap between headline and summary. Batch path (`_summarize_sub_batch`) explicitly rejects topic-mismatched summaries with log warnings. Individual recovery (`batch_summarize_all`) validates topic overlap before accepting recovery summaries.
 - `tests/test_summarizer.py`: Added `TestHasTopicOverlap` (3 tests), `TestIsValidSummaryTopicMismatch` (2 tests), `TestIsValidSummaryStopWords` (2 tests), `TestBatchTopicMismatchRejection` (2 tests).

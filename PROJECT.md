@@ -1,4 +1,4 @@
-# Project: Daily Brief v01 (v1.0.113)
+# Project: Daily Brief v01 (v1.0.114)
 
 ## Purpose
 Daily Brief aggregates RSS stories from configured categories, enriches them with weather and lake data, summarizes them through a vLLM OpenAI-compatible endpoint, and writes a Markdown report.
@@ -27,6 +27,7 @@ Daily Brief aggregates RSS stories from configured categories, enriches them wit
 - **Frontmatter category count** (v1.0.111): Bug-13 — `rendered_cat_count` in `pipeline.py` excluded empty categories, but `report.py` renders all configured categories with `_No stories found._`. Frontmatter count didn't match section headers, triggering harness check 4.3 failure. Fixed by removing the non-empty guard. 968/975 passing (7 pre-existing), config validate PASS.
 - **Summarizer topic-alignment** (v1.0.112): Batch and recovery summaries that share zero significant keywords with the headline are rejected and fall back to `\[Auto\] <headline>`. Eliminates harness check 3.3 zero-overlap failures on live runs. Added `_has_topic_overlap()` guard to `_is_valid_summary()`, batch path, and individual recovery. 977/984 passing (7 pre-existing), config validate PASS, live smoke test WARN (zero FAILs).
 - **RSS dedup test repair** (v1.0.113): Fixed 7 pre-existing failures in `tests/test_sources/test_rss_dedup.py`. Mock RSS story dates (`Jul 30, 2026`) were age-filtered because `datetime.now()` returned the real current time (~Aug 7). Added `mock.patch("daily_brief.pipelines.rss_dedup.datetime", wraps=datetime)` with `dt_mock.now.return_value = NOW` to 7 integration tests across `TestFetchAndDedup` and `TestLocalWidening`. 984/984 passing, config validate PASS, live smoke test WARN (zero FAILs, 50.41s, 78 stories).
+- **Full code review backlog** (v1.0.114): Recorded prioritized reliability, summary quality, configuration safety, test validity, data integrity, performance, lifecycle, packaging, CI, and repository-hygiene work in `TODOS.md`. No production behavior changed. Baseline remains 984/984 passing, config validate PASS, and live smoke WARN with zero FAILs.
 
 ## Architecture
 - `src/daily_brief/pipeline.py`: asynchronous pipeline orchestration.

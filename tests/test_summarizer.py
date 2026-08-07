@@ -736,6 +736,83 @@ class TestParseBatchSummaryResponseLine431(TestCase):
         self.assertEqual(result, ["", ""])
 
 
+# ---------------------------------------------------------------------------
+# Topic overlap guard (v1.0.112)
+# ---------------------------------------------------------------------------
+
+class TestHasTopicOverlap(TestCase):
+    """_has_topic_overlap detects zero shared significant words."""
+
+    def test_overlap_passes(self):
+        from daily_brief.llm.summarizer import _has_topic_overlap
+        self.assertTrue(
+            _has_topic_overlap(
+                "Houston weather has been repeating for weeks.",
+                "Houston weather has been stuck on repeat — but not for much longer",
+            )
+        )
+
+    def test_overlap_fails_zero_words(self):
+        from daily_brief.llm.summarizer import _has_topic_overlap
+        self.assertFalse(
+            _has_topic_overlap(
+                "average temperatures in the Gulf region could lead to stronger storms",
+                "Stock market crashes as tech companies report record losses",
+            )
+        )
+
+    def test_overlap_passes_one_word(self):
+        from daily_brief.llm.summarizer import _has_topic_overlap
+        self.assertTrue(
+            _has_topic_overlap(
+                "The market rally continued as stocks surged.",
+                "Stocks surge as market rally continues into the week",
+            )
+        )
+
+
+class TestIsValidSummaryTopicMismatch(TestCase):
+    """_is_valid_summary rejects a grammatically valid but topic-mismatched summary."""
+
+    def test_topic_mismatch_rejected(self):
+        from daily_brief.llm.summarizer import _is_valid_summary
+        self.assertFalse(
+            _is_valid_summary(
+                "average temperatures in the Gulf region could lead to stronger storms. Residents should prepare for the return of rain chances this weekend.",
+                "Houston weather has been stuck on repeat — but not for much longer",
+            )
+        )
+
+    def test_topic_match_accepted(self):
+        from daily_brief.llm.summarizer import _is_valid_summary
+        self.assertTrue(
+            _is_valid_summary(
+                "Houston weather has been stuck in a hot pattern for weeks. Conditions are expected to change this weekend with rain chances returning.",
+                "Houston weather has been stuck on repeat — but not for much longer",
+            )
+        )
+
+
+class TestIsValidSummaryStopWords(TestCase):
+    """_significant_words filters stop words correctly for overlap check."""
+
+    def test_stop_words_filtered(self):
+        from daily_brief.llm.summarizer import _significant_words
+        words = _significant_words("The and of is was are be been this that as")
+        self.assertEqual(words, set())
+
+    def test_significant_words_extracted(self):
+        from daily_brief.llm.summarizer import _significant_words
+        words = _significant_words("Houston weather has been stuck on repeat")
+        self.assertIn("houston", words)
+        self.assertIn("weather", words)
+        self.assertIn("repeat", words)
+
+
+# ---------------------------------------------------------------------------
+# Context too short
+# ---------------------------------------------------------------------------
+
 class TestSummarizeContextTooShort(TestCase):
     """Line 502: _summarize returns None when context is too short."""
 
@@ -865,6 +942,75 @@ class TestBatchSummarizeAll(TestCase):
 
         result = asyncio.get_event_loop().run_until_complete(_run())
         self.assertEqual(result.total_stories, 4)
+
+
+class TestBatchTopicMismatchRejection(TestCase):
+    """v1.0.112: topic-mismatched summaries are rejected in batch path."""
+
+    def _make_story(self, title, category, context=None, snippet=None):
+        from daily_brief.llm.summarizer import StoryPipelineState
+        s = StoryPipelineState(title, "http://x", snippet or "", "2024-01-01", category)
+        s.context = context or f"Context for {title}." * 5
+        s.summary = None
+        return s
+
+    def test_batch_rejects_topic_mismatch(self):
+        """Batch summary with zero shared keywords with headline is rejected → fallback to [Auto]."""
+        from daily_brief.llm.summarizer import batch_summarize_all
+
+        stories = [
+            self._make_story("Houston weather has been stuck on repeat — but not for much longer", "Weather"),
+        ]
+
+        async def side_effect(**kwargs):
+            # LLM returns a topic-mismatched summary
+            r = mock.MagicMock()
+            r.choices = [mock.MagicMock(message=mock.MagicMock(
+                content="STORY_0 | temperatures gulf=average temperatures in the Gulf region could lead to stronger storms. Residents should prepare for the return of rain chances this weekend."
+            ))]
+            return r
+
+        client = mock.MagicMock()
+        client.chat_completions_create = AsyncMock(side_effect=side_effect)
+
+        async def _run():
+            with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_ATTEMPTS", 1):
+                with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_BACKOFF", []):
+                    with mock.patch("asyncio.sleep", new_callable=AsyncMock, return_value=None):
+                        return await batch_summarize_all(client, stories, batch_size=1)
+
+        result = asyncio.get_event_loop().run_until_complete(_run())
+        # Topic-mismatched summary should be rejected; fall back to [Auto]
+        self.assertTrue(stories[0].summary.startswith("[Auto]"))
+
+    def test_batch_accepts_topic_aligned(self):
+        """Batch summary with shared keywords is accepted normally."""
+        from daily_brief.llm.summarizer import batch_summarize_all
+
+        stories = [
+            self._make_story("Houston weather has been stuck on repeat", "Weather"),
+        ]
+
+        async def side_effect(**kwargs):
+            r = mock.MagicMock()
+            r.choices = [mock.MagicMock(message=mock.MagicMock(
+                content="STORY_0 | Houston weather repeat=Houston weather has been stuck in a hot pattern for weeks. Conditions are expected to change this weekend with rain chances returning."
+            ))]
+            return r
+
+        client = mock.MagicMock()
+        client.chat_completions_create = AsyncMock(side_effect=side_effect)
+
+        async def _run():
+            with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_ATTEMPTS", 1):
+                with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_BACKOFF", []):
+                    with mock.patch("asyncio.sleep", new_callable=AsyncMock, return_value=None):
+                        return await batch_summarize_all(client, stories, batch_size=1)
+
+        result = asyncio.get_event_loop().run_until_complete(_run())
+        # Topic-aligned summary should be accepted
+        self.assertFalse(stories[0].summary.startswith("[Auto]"))
+        self.assertNotEqual(stories[0].summary, "")
 
 
 class TestBatchSchedulerControls(TestCase):

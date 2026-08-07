@@ -528,6 +528,33 @@ async def _summarize(client, context, title=None, min_chars=LLM_SUMMARY_TRIM_MIN
 
 
 
+_VALID_SUMMARY_STOPWORDS = {
+    "the", "a", "an", "and", "or", "but", "of", "to", "in", "on", "for",
+    "with", "at", "by", "from", "is", "are", "was", "were", "be", "been",
+    "this", "that", "these", "those", "as", "it", "its", "into", "after",
+    "over", "amid", "than", "their", "his", "her", "has", "have", "had",
+    "will", "would", "could", "should", "about", "which", "who", "what",
+    "says", "said", "new", "more", "not", "also", "some", "such", "each",
+}
+
+
+def _significant_words(text):
+    """Extract significant words (4+ chars, not stop words) from text."""
+    return {w for w in re.findall(r"[a-zA-Z']+", text.lower())
+            if len(w) > 3 and w not in _VALID_SUMMARY_STOPWORDS}
+
+
+def _has_topic_overlap(summary, headline):
+    """Check if summary shares at least one significant word with the headline.
+
+    Prevents topic-mismatched summaries from passing validation when the LLM
+    produces a grammatically valid but semantically unrelated summary.
+    """
+    hw = _significant_words(headline)
+    sw = _significant_words(summary)
+    return bool(hw & sw)
+
+
 def _is_valid_summary(summary, headline):
     """Check if a summary passes basic validation."""
     if not summary or not summary.strip():
@@ -539,6 +566,8 @@ def _is_valid_summary(summary, headline):
     if normalized == headline_norm or normalized.startswith(headline_norm + "."):
         return False
     if _count_sentences(summary) < 2:
+        return False
+    if not _has_topic_overlap(summary, headline):
         return False
     return True
 
@@ -607,6 +636,10 @@ async def _summarize_sub_batch(client, cat_name, sub_batch, *, semaphore=None, b
                 continue
             if _is_boilerplate(summary):
                 logger.warning(f"BOILERPLACE DETECTED for story {idx} ({headline}): '{summary[:80]}...' — marking for fallback")
+                s.summary = ""
+                continue
+            if not _has_topic_overlap(summary, headline):
+                logger.warning(f"TOPIC MISMATCH for story {idx} ({headline}): summary shares zero keywords — marking for fallback")
                 s.summary = ""
                 continue
             if _is_valid_summary(summary, headline):
@@ -723,7 +756,11 @@ async def batch_summarize_all(client, stories, session=None, *, batch_size: int 
         for s in needs_recovery:
             context = build_context(s, preview_chars=LLM_CONTEXT_PREVIEW_CHARS)
             retry = await _summarize(client, context, title=s.title)
-            if retry and not _is_boilerplate(retry) and not _is_refusal(retry) and retry != "[Summary Unavailable]":
+            if (retry
+                and not _is_boilerplate(retry)
+                and not _is_refusal(retry)
+                and retry != "[Summary Unavailable]"
+                and _has_topic_overlap(retry, s.title)):
                 s.summary = retry
                 recovery_count += 1
             elif not s.summary or not s.summary.strip():

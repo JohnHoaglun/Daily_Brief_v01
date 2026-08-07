@@ -95,16 +95,17 @@ class TestTransientBatchException(TestCase):
                 raise Exception("Connection refused")
             else:
                 single_calls[0] += 1
+                title_hint = "market rally"  # keyword overlap with both story headlines
                 return _make_mock_response(
-                    "Recovery summary with concrete facts about this financial story. "
+                    f"Recovery summary with concrete facts about the {title_hint} story. "
                     "Analysts reported measurable gains across the sector today."
                 )
 
         # Also patch _summarize to use the same side_effect for its internal LLM call
         async def mock_summarize(client, ctx, title=None, **skwargs):
             single_calls[0] += 1
-            return "Recovery summary with concrete facts about this financial story. " \
-                   "Analysts reported measurable gains across the sector today."
+            return (f"Recovery summary with concrete facts about the {title} story. "
+                    "Analysts reported measurable gains across the sector today.")
 
         client = MagicMock()
         client.chat_completions_create = AsyncMock(side_effect=side_effect)

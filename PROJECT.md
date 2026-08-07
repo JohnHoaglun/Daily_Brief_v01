@@ -1,4 +1,4 @@
-# Project: Daily Brief v01 (v1.0.111)
+# Project: Daily Brief v01 (v1.0.112)
 
 ## Purpose
 Daily Brief aggregates RSS stories from configured categories, enriches them with weather and lake data, summarizes them through a vLLM OpenAI-compatible endpoint, and writes a Markdown report.
@@ -24,6 +24,8 @@ Daily Brief aggregates RSS stories from configured categories, enriches them wit
 - **Test isolation fix** (v1.0.107): Quality-7 — fixed `TestConfigUncoveredBranches` module state leak from `importlib.reload` with mocked `yaml.safe_load` that left `TIMEZONE="UTC"` and stale categories, causing `test_zoneinfo_uses_configured_timezone` to fail when tests ran after config tests. Added `tearDownClass` to restore real YAML config. 956/956 tests passing (0 pre-existing), config validate PASS.
 - **Harness version alignment** (v1.0.108): The run log and report independently allocated versions from separate directories, causing the Phase 6 harness to seek a non-existent report file (e.g., log v12, report v10). Fixed by passing `log_ver` to `compute_output_path()` so log and report share the same version. Added 3 regression tests. 959/959 tests passing, config validate PASS, pipeline smoke test harness validates actual report.
 - **Tag conflict policy fix** (v1.0.110): Removed `["international", "us-focused"]` from `tag_conflicts`. `international` + `us-focused` is now allowed — they describe different dimensions and can validly co-occur. `["international", "local"]` remains the sole conflict pair. Updated test conflicts, spec doc, and unit tests to reflect the new policy. 970/970 tests passing.
+- **Frontmatter category count** (v1.0.111): Bug-13 — `rendered_cat_count` in `pipeline.py` excluded empty categories, but `report.py` renders all configured categories with `_No stories found._`. Frontmatter count didn't match section headers, triggering harness check 4.3 failure. Fixed by removing the non-empty guard. 968/975 passing (7 pre-existing), config validate PASS.
+- **Summarizer topic-alignment** (v1.0.112): Batch and recovery summaries that share zero significant keywords with the headline are rejected and fall back to `\[Auto\] <headline>`. Eliminates harness check 3.3 zero-overlap failures on live runs. Added `_has_topic_overlap()` guard to `_is_valid_summary()`, batch path, and individual recovery. 977/984 passing (7 pre-existing), config validate PASS, live smoke test WARN (zero FAILs).
 
 ## Architecture
 - `src/daily_brief/pipeline.py`: asynchronous pipeline orchestration.

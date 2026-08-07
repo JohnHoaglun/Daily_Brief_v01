@@ -311,7 +311,7 @@ class TestBatchBoilerplateDetection(TestCase):
         async def run():
             with _retry_patches()[0], _retry_patches()[1], _retry_patches()[2]:
                 with mock.patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock,
-                        return_value="Valid recovery. Two sentences here for the story."):
+                        return_value="Valid recovery for the Alpha boil testing. Two sentences here for the story."):
                     await batch_summarize_all(client, stories, batch_size=1)
 
         asyncio.get_event_loop().run_until_complete(run())

@@ -4,6 +4,14 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.112 — Summarizer topic-alignment guard
+- `src/daily_brief/llm/summarizer.py`: Added `_has_topic_overlap()`, `_significant_words()`, and `_VALID_SUMMARY_STOPWORDS`. `_is_valid_summary()` now requires at least one significant keyword overlap between headline and summary. Batch path (`_summarize_sub_batch`) explicitly rejects topic-mismatched summaries with log warnings. Individual recovery (`batch_summarize_all`) validates topic overlap before accepting recovery summaries.
+- `tests/test_summarizer.py`: Added `TestHasTopicOverlap` (3 tests), `TestIsValidSummaryTopicMismatch` (2 tests), `TestIsValidSummaryStopWords` (2 tests), `TestBatchTopicMismatchRejection` (2 tests).
+- `tests/test_batch_behavior_regression.py`: Updated boilerplate test recovery text to include headline keyword overlap.
+- `tests/test_batch_failure_fixtures.py`: Updated recovery mock to return headline-overlapping text.
+- `config.yaml`, `PROJECT.md`, `TODOS.md`, `__init__.py`: version bumped to 1.0.112.
+- 977/984 tests passing (7 pre-existing RSS dedup failures). Config validate PASS. Live smoke test: WARN (zero FAILs, 55.63s).
+
 ### v1.0.111 — Frontmatter category count includes empty categories
 - `src/daily_brief/pipeline.py`: `rendered_cat_count` now counts all non-weather RSS categories regardless of story count. Previously excluded empty categories via `len(sections_map.get(cn, [])) > 0` guard, but `report.py` renders every configured category with `_No stories found._`, so the frontmatter count must match all rendered headers.
 - `tests/test_report.py`: added `test_empty_category_counts_in_frontmatter` — renders one populated + one empty category, verifies frontmatter `categories: 2` and both headers present.

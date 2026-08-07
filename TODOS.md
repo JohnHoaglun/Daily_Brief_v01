@@ -1,9 +1,15 @@
-# TODO: Daily Brief v01 - v1.0.111
+# TODO: Daily Brief v01 - v1.0.112
 
 ## Status
-Phases A/B/C/D complete. v1.0.111: Fixed frontmatter category count mismatch — empty categories now counted. 968/975 passing (7 pre-existing RSS dedup failures), config validate PASS.
+v1.0.112: Added summarizer topic-alignment validation — batch and recovery summaries that share zero significant keywords with the headline are rejected and fall back to `\[Auto\]`. Eliminates harness check 3.3 zero-overlap failures. 977/984 passing (7 pre-existing RSS dedup failures), config validate PASS. Live smoke test: WARN (no FAILs).
 
-## Completed (v1.0.107 - v1.0.111)
+## Completed (v1.0.107 - v1.0.112)
+
+### v1.0.112 — Summarizer topic-alignment guard
+- **Bug:** Batch and individual recovery summaries could pass validation with zero shared keywords between headline and summary, producing grammatically valid but semantically unrelated summaries. Triggered external harness check 3.3 FAIL on live runs.
+- **Fix:** Added `_has_topic_overlap()` check to `_is_valid_summary()` (line 531), explicit rejection log in batch path (`_summarize_sub_batch` line 638), and `_has_topic_overlap()` gate in individual recovery (`batch_summarize_all` line 739). Topic-mismatched summaries now fall through to `\[Auto\] <headline>` fallback.
+- **Tests:** 7 new unit tests across `test_summarizer.py`: `TestHasTopicOverlap` (3), `TestIsValidSummaryTopicMismatch` (2), `TestIsValidSummaryStopWords` (2). 2 batch-level tests: `TestBatchTopicMismatchRejection` (2).
+- **Files:** `src/daily_brief/llm/summarizer.py`, `tests/test_summarizer.py`, `tests/test_batch_behavior_regression.py`, `tests/test_batch_failure_fixtures.py`
 
 ### v1.0.111 — Frontmatter category count alignment
 - **Bug:** `rendered_cat_count` in `pipeline.py` excluded empty categories, but `report.py` renders all configured categories with `_No stories found._` — frontmatter count didn't match rendered headers, triggering harness check 4.3 failure.
@@ -32,9 +38,8 @@ All 7 failures are in `test_rss_dedup.py` — pre-existing RSS dedup test failur
 
 ## Blockers
 
-### Live Smoke Test — Obsidian Vault Access Blocked
-- **Error:** `PermissionError: [Errno 1] Operation not permitted` on `os.listdir(LOG_DIR)` at `pipeline.py:140`
-- **Path:** `/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/Dev/logs/`
-- **Details:** macOS returns Errno 1 (not standard Unix permission mask) for directory listing and file reads. Obsidian is running with vault open. Last successful run: 2026-08-06. This is a new restriction, not caused by v1.0.111 code changes. `os.listdir(LOG_DIR)` call existed before my changes.
-- **Workaround:** Run pipeline manually in your terminal after vault access is restored. Or temporarily point `config.yaml` `directories.log_dir`/`news_dir` to a writable path (but revert after smoke test).
-- **Unblock:** Check macOS security settings (System Settings → Privacy & Security), restart Obsidian, or wait for vault sync unlock.
+### RSS Dedup Test Suite (7/984 pre-existing failures)
+- All 7 failures are in `tests/test_sources/test_rss_dedup.py` — pre-existing, predates v1.0.112 changes. Root cause under investigation.
+
+### Live Smoke Test — Obsidian Vault Access (RESOLVED v1.0.112)
+- Vault access restored. v1.0.112 live smoke test completed successfully: WARN (zero FAILs, 55.63s, 77 valid stories). Previous v1.0.111 run failed check 3.3 (zero shared keywords).

@@ -1,5 +1,5 @@
 """
-Daily Brief v1.0.111 — Package Exports
+Daily Brief v1.0.112 — Package Exports
 =======================================
 Public API for the daily_brief package.
 """

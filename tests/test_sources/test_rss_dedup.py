@@ -190,7 +190,9 @@ class TestFetchAndDedup(TestCase):
         logs = []
 
         async def _run():
-            return await fetch_and_dedup(session, cats, logs.append)
+            with mock.patch("daily_brief.pipelines.rss_dedup.datetime", wraps=datetime) as dt_mock:
+                dt_mock.now.return_value = NOW
+                return await fetch_and_dedup(session, cats, logs.append)
 
         deduped, stats = asyncio.get_event_loop().run_until_complete(_run())
         self.assertGreater(len(deduped), 0)
@@ -220,7 +222,9 @@ class TestFetchAndDedup(TestCase):
         logs = []
 
         async def _run():
-            return await fetch_and_dedup(session, cats, logs.append)
+            with mock.patch("daily_brief.pipelines.rss_dedup.datetime", wraps=datetime) as dt_mock:
+                dt_mock.now.return_value = NOW
+                return await fetch_and_dedup(session, cats, logs.append)
 
         deduped, stats = asyncio.get_event_loop().run_until_complete(_run())
         titles = [d[0] for d in deduped]
@@ -239,7 +243,9 @@ class TestFetchAndDedup(TestCase):
         logs = []
 
         async def _run():
-            return await fetch_and_dedup(session, cats, logs.append)
+            with mock.patch("daily_brief.pipelines.rss_dedup.datetime", wraps=datetime) as dt_mock:
+                dt_mock.now.return_value = NOW
+                return await fetch_and_dedup(session, cats, logs.append)
 
         deduped, stats = asyncio.get_event_loop().run_until_complete(_run())
         dup_titles = [d[0] for d in deduped if d[0] == "Dup Story - Source"]
@@ -255,7 +261,9 @@ class TestFetchAndDedup(TestCase):
         logs = []
 
         async def _run():
-            return await fetch_and_dedup(session, cats, logs.append)
+            with mock.patch("daily_brief.pipelines.rss_dedup.datetime", wraps=datetime) as dt_mock:
+                dt_mock.now.return_value = NOW
+                return await fetch_and_dedup(session, cats, logs.append)
 
         deduped, stats = asyncio.get_event_loop().run_until_complete(_run())
         self.assertIn("total_before", stats)
@@ -411,7 +419,9 @@ class TestLocalWidening(TestCase):
         logs = []
 
         async def _run():
-            return await fetch_and_dedup(session, cats, logs.append)
+            with mock.patch("daily_brief.pipelines.rss_dedup.datetime", wraps=datetime) as dt_mock:
+                dt_mock.now.return_value = NOW
+                return await fetch_and_dedup(session, cats, logs.append)
 
         deduped, stats = asyncio.get_event_loop().run_until_complete(_run())
         categories = [d[4] for d in deduped]
@@ -432,7 +442,9 @@ class TestLocalWidening(TestCase):
         logs = []
 
         async def _run():
-            return await fetch_and_dedup(session, cats, logs.append)
+            with mock.patch("daily_brief.pipelines.rss_dedup.datetime", wraps=datetime) as dt_mock:
+                dt_mock.now.return_value = NOW
+                return await fetch_and_dedup(session, cats, logs.append)
 
         deduped, stats = asyncio.get_event_loop().run_until_complete(_run())
         dup_entries = [d for d in deduped if d[0] == "Dup Story"]
@@ -448,7 +460,9 @@ class TestLocalWidening(TestCase):
         logs = []
 
         async def _run():
-            return await fetch_and_dedup(session, cats, logs.append)
+            with mock.patch("daily_brief.pipelines.rss_dedup.datetime", wraps=datetime) as dt_mock:
+                dt_mock.now.return_value = NOW
+                return await fetch_and_dedup(session, cats, logs.append)
 
         deduped, stats = asyncio.get_event_loop().run_until_complete(_run())
         cat_entries = [d for d in deduped if d[4] == "CatA"]
@@ -560,7 +574,9 @@ class TestLocalWidening(TestCase):
         logs = []
 
         async def _run():
-            return await fetch_and_dedup(FailingSession(), cats, logs.append)
+            with mock.patch("daily_brief.pipelines.rss_dedup.datetime", wraps=datetime) as dt_mock:
+                dt_mock.now.return_value = NOW
+                return await fetch_and_dedup(FailingSession(), cats, logs.append)
 
         deduped, stats = asyncio.get_event_loop().run_until_complete(_run())
         titles = [d[0] for d in deduped]

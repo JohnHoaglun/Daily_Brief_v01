@@ -4,6 +4,13 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.116 — Summary recovery correctness (P1)
+- `src/daily_brief/llm/summarizer.py`: Extended `_is_valid_summary()` as the canonical quality gate for batch and individual LLM recovery — added `_is_refusal` rejection and internal fallback-marker rejection (`[Auto]`, `[Summary Unavailable]`). Replaced the weaker inline recovery predicate (`not _is_boilerplate and not _is_refusal and != "[Summary Unavailable]" and _has_topic_overlap`) with the canonical `_is_valid_summary(retry, s.title)`. Deterministic `[Auto] <headline>` output no longer incorrectly increments `individual_recovered` metrics.
+- `tests/test_summarizer.py`: Added `TestIsValidSummaryExtended` (11 tests) for one-sentence rejection, headline echo (+period) rejection, refusal (with headline keyword overlap), `[Auto]` marker, `[Summary Unavailable]`, boilerplate, empty/None, and valid two-sentence pass.
+- `tests/test_batch_failure_fixtures.py`: Added 8 recovery regression tests to `TestInvalidSingleRecovery`: one-sentence recovery → `[Auto]`; headline echo → `[Auto]`; headline + period → `[Auto]`; refusal → `[Auto]`; refusal with headline words → `[Auto]`; no topic overlap → `[Auto]`; `[Auto]` generated summary auto fallback not counted as recovery; valid recovery still accepted.
+- `config.yaml`, `src/daily_brief/__init__.py`, `PROJECT.md`, `README.md`, `TODOS.md`: version bumped to 1.0.116.
+- 1009/1009 tests passing, config validate PASS, live smoke exit 1 (WARN, zero FAILs, 52.68s, 76 stories).
+
 ### v1.0.115 — Pipeline exit-code contract (P0)
 - `src/daily_brief/pipeline.py`: Added exit code constants (0=SUCCESS, 1=CONFIG/WARN, 2=VALIDATION/FAIL, 3=ERROR/SKIPPED). `main()` now returns explicit integers for all outcomes: config validation failures (1), report validation failures (2), harness PASS (0), WARN (1), FAIL (2), ERROR (3), SKIPPED (3). Replaced internal `sys.exit(1)` with consistent return contract. Changed validation-failure print from `os.environ.get` to `RUN_LOGFILE` (available at that point in execution). Always logs exit code to run log.
 - `src/daily_brief/__main__.py`: `main()` returns `int`, propagates pipeline result via `sys.exit(asyncio.run(main()))`. Process exit code matches harness status.

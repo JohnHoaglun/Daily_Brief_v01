@@ -556,18 +556,26 @@ def _has_topic_overlap(summary, headline):
 
 
 def _is_valid_summary(summary, headline):
-    """Check if a summary passes basic validation."""
+    """Check if a summary passes basic validation.
+
+    Canonical quality gate used by both batch and individual LLM recovery.
+    """
     if not summary or not summary.strip():
         return False
-    if _is_boilerplate(summary):
+    stripped = summary.strip()
+    if _is_refusal(stripped):
         return False
-    normalized = re.sub(r"\s+", " ", summary).strip().lower()
+    if _is_boilerplate(stripped):
+        return False
+    if stripped.startswith("[Auto]") or stripped.startswith("[Summary Unavailable]"):
+        return False
+    normalized = re.sub(r"\s+", " ", stripped).strip().lower()
     headline_norm = re.sub(r"\s+", " ", headline).strip().lower()
     if normalized == headline_norm or normalized.startswith(headline_norm + "."):
         return False
-    if _count_sentences(summary) < 2:
+    if _count_sentences(stripped) < 2:
         return False
-    if not _has_topic_overlap(summary, headline):
+    if not _has_topic_overlap(stripped, headline):
         return False
     return True
 
@@ -756,11 +764,7 @@ async def batch_summarize_all(client, stories, session=None, *, batch_size: int 
         for s in needs_recovery:
             context = build_context(s, preview_chars=LLM_CONTEXT_PREVIEW_CHARS)
             retry = await _summarize(client, context, title=s.title)
-            if (retry
-                and not _is_boilerplate(retry)
-                and not _is_refusal(retry)
-                and retry != "[Summary Unavailable]"
-                and _has_topic_overlap(retry, s.title)):
+            if _is_valid_summary(retry, s.title):
                 s.summary = retry
                 recovery_count += 1
             elif not s.summary or not s.summary.strip():

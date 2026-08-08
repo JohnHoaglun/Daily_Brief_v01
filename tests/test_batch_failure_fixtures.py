@@ -341,6 +341,183 @@ class TestInvalidSingleRecovery(TestCase):
         for s in stories:
             self.assertNotIn("[Auto]", s.summary, f"Story {s.title} should not be [Auto], got: {s.summary}")
 
+    def test_recovery_one_sentence_rejected(self):
+        """Batch fails; recovery returns a one-sentence response.
+        Verify: falls through to [Auto] fallback, not counted as recovered."""
+        stories = [
+            _make_story("Kappa Finance Credit Default Crisis", "Finance"),
+        ]
+
+        async def side_effect(**kwargs):
+            raise Exception("Batch error")
+
+        client = MagicMock()
+        client.chat_completions_create = AsyncMock(side_effect=side_effect)
+
+        async def mock_summarize(client, ctx, title=None, **kwargs):
+            return "Credit defaults are rising across the sector as borrowers struggle with payments."
+
+        async def run():
+            patches = _retry_patches()
+            with patches[0], patches[1], patches[2]:
+                with patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, side_effect=mock_summarize):
+                    await batch_summarize_all(client, stories, batch_size=2)
+
+        _run(run())
+        self.assertTrue(stories[0].summary.startswith("[Auto]"), f"Expected [Auto], got: {stories[0].summary}")
+
+    def test_recovery_headline_echo_rejected(self):
+        """Batch fails; recovery returns the exact headline.
+        Verify: falls through to [Auto] fallback."""
+        stories = [
+            _make_story("Lambda Finance Stock Buyback Program", "Finance"),
+        ]
+
+        async def side_effect(**kwargs):
+            raise Exception("Batch error")
+
+        client = MagicMock()
+        client.chat_completions_create = AsyncMock(side_effect=side_effect)
+
+        async def mock_summarize(client, ctx, title=None, **kwargs):
+            return "Lambda Finance Stock Buyback Program"
+
+        async def run():
+            patches = _retry_patches()
+            with patches[0], patches[1], patches[2]:
+                with patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, side_effect=mock_summarize):
+                    await batch_summarize_all(client, stories, batch_size=2)
+
+        _run(run())
+        self.assertTrue(stories[0].summary.startswith("[Auto]"), f"Expected [Auto], got: {stories[0].summary}")
+
+    def test_recovery_headline_plus_period_rejected(self):
+        """Batch fails; recovery returns headline plus period.
+        Verify: falls through to [Auto] fallback."""
+        stories = [
+            _make_story("Mu Finance Crypto Exchange Shutdown", "Finance"),
+        ]
+
+        async def side_effect(**kwargs):
+            raise Exception("Batch error")
+
+        client = MagicMock()
+        client.chat_completions_create = AsyncMock(side_effect=side_effect)
+
+        async def mock_summarize(client, ctx, title=None, **kwargs):
+            return "Mu Finance Crypto Exchange Shutdown."
+
+        async def run():
+            patches = _retry_patches()
+            with patches[0], patches[1], patches[2]:
+                with patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, side_effect=mock_summarize):
+                    await batch_summarize_all(client, stories, batch_size=2)
+
+        _run(run())
+        self.assertTrue(stories[0].summary.startswith("[Auto]"), f"Expected [Auto], got: {stories[0].summary}")
+
+    def test_recovery_refusal_rejected(self):
+        """Batch fails; recovery returns refusal text.
+        Verify: falls through to [Auto] fallback."""
+        stories = [
+            _make_story("Nu Finance Bond Yield Spike Event", "Finance"),
+        ]
+
+        async def side_effect(**kwargs):
+            raise Exception("Batch error")
+
+        client = MagicMock()
+        client.chat_completions_create = AsyncMock(side_effect=side_effect)
+
+        async def mock_summarize(client, ctx, title=None, **kwargs):
+            return "I cannot summarize the Bond Yield article. I don't have access to the full content."
+
+        async def run():
+            patches = _retry_patches()
+            with patches[0], patches[1], patches[2]:
+                with patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, side_effect=mock_summarize):
+                    await batch_summarize_all(client, stories, batch_size=2)
+
+        _run(run())
+        self.assertTrue(stories[0].summary.startswith("[Auto]"), f"Expected [Auto], got: {stories[0].summary}")
+
+    def test_recovery_refusal_with_headline_words_rejected(self):
+        """Batch fails; recovery returns a two-sentence refusal containing headline keywords.
+        Verify: [Auto] fallback via canonical _is_valid_summary, not counted as recovery."""
+        stories = [
+            _make_story("Xi Finance Stock Market Volatility Event", "Finance"),
+        ]
+
+        async def side_effect(**kwargs):
+            raise Exception("Batch error")
+
+        client = MagicMock()
+        client.chat_completions_create = AsyncMock(side_effect=side_effect)
+
+        async def mock_summarize(client, ctx, title=None, **kwargs):
+            return "I cannot summarize the Stock Market Volatility article. I don't have access today."
+
+        async def run():
+            patches = _retry_patches()
+            with patches[0], patches[1], patches[2]:
+                with patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, side_effect=mock_summarize):
+                    await batch_summarize_all(client, stories, batch_size=2)
+
+        _run(run())
+        self.assertTrue(stories[0].summary.startswith("[Auto]"), f"Expected [Auto], got: {stories[0].summary}")
+
+    def test_recovery_no_topic_overlap_rejected(self):
+        """Batch fails; recovery returns valid text but no keyword overlap with headline.
+        Verify: falls through to [Auto] fallback."""
+        stories = [
+            _make_story("Omicron Finance Credit Default Risk", "Finance"),
+        ]
+
+        async def side_effect(**kwargs):
+            raise Exception("Batch error")
+
+        client = MagicMock()
+        client.chat_completions_create = AsyncMock(side_effect=side_effect)
+
+        async def mock_summarize(client, ctx, title=None, **kwargs):
+            return "The weather in Houston has been unusually hot this season. Residents should stay cool today."
+
+        async def run():
+            patches = _retry_patches()
+            with patches[0], patches[1], patches[2]:
+                with patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, side_effect=mock_summarize):
+                    await batch_summarize_all(client, stories, batch_size=2)
+
+        _run(run())
+        self.assertTrue(stories[0].summary.startswith("[Auto]"), f"Expected [Auto], got: {stories[0].summary}")
+
+    def test_recovery_auto_fallback_not_counted_as_recovered(self):
+        """Batch fails; _summarize returns a generated [Auto] headline fallback.
+        Verify: [Auto] marker in story, auto_fallbacks incremented, not counted as recovery."""
+        stories = [
+            _make_story("Pi Finance Derivative Pricing Change", "Finance"),
+        ]
+
+        async def side_effect(**kwargs):
+            raise Exception("Batch error")
+
+        client = MagicMock()
+        client.chat_completions_create = AsyncMock(side_effect=side_effect)
+
+        async def mock_summarize(client, ctx, title=None, **kwargs):
+            return "[Auto] Pi Finance Derivative Pricing Change"
+
+        async def run():
+            patches = _retry_patches()
+            with patches[0], patches[1], patches[2]:
+                with patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, side_effect=mock_summarize):
+                    return await batch_summarize_all(client, stories, batch_size=2)
+
+        metrics = _run(run())
+        self.assertTrue(stories[0].summary.startswith("[Auto]"))
+        self.assertEqual(metrics.auto_fallbacks, 1)
+        self.assertEqual(metrics.individual_recovered, 0)
+
     def test_recovery_fails_validation(self):
         """Batch fails; _summarize returns text that fails recovery validation
         (is boilerplate). Verify: falls through to [Auto]."""

@@ -20,6 +20,8 @@ from daily_brief.llm.summarizer import (
     _generate_auto_fallback,
     build_context,
     _summarize,
+    _has_topic_overlap,
+    _is_valid_summary,
 )
 
 
@@ -807,6 +809,88 @@ class TestIsValidSummaryStopWords(TestCase):
         self.assertIn("houston", words)
         self.assertIn("weather", words)
         self.assertIn("repeat", words)
+
+
+class TestIsValidSummaryExtended(TestCase):
+    """_is_valid_summary extended gates: one sentence, headline echo, refusal, fallback markers."""
+
+    def test_one_sentence_rejected(self):
+        self.assertFalse(
+            _is_valid_summary(
+                "Houston weather will change this weekend.",
+                "Houston weather has been stuck on repeat",
+            )
+        )
+
+    def test_headline_exact_echo_rejected(self):
+        self.assertFalse(
+            _is_valid_summary(
+                "Houston weather update",
+                "Houston weather update",
+            )
+        )
+
+    def test_headline_plus_period_rejected(self):
+        self.assertFalse(
+            _is_valid_summary(
+                "Houston weather update. The summary adds nothing new.",
+                "Houston weather update",
+            )
+        )
+
+    def test_refusal_rejected(self):
+        self.assertFalse(
+            _is_valid_summary(
+                "I cannot summarize this article. I did not have access to the full content.",
+                "Houston weather has been stuck on repeat",
+            )
+        )
+
+    def test_refusal_with_headline_words_rejected(self):
+        self.assertFalse(
+            _is_valid_summary(
+                "I cannot summarize this article about Houston weather. I did not have access.",
+                "Houston weather has been stuck on repeat",
+            )
+        )
+
+    def test_auto_fallback_marker_rejected(self):
+        self.assertFalse(
+            _is_valid_summary(
+                "[Auto] Houston weather repeats through the weekend",
+                "Houston weather has been stuck on repeat",
+            )
+        )
+
+    def test_summary_unavailable_rejected(self):
+        self.assertFalse(
+            _is_valid_summary(
+                "[Summary Unavailable]",
+                "Houston weather has been stuck on repeat",
+            )
+        )
+
+    def test_valid_two_sentence_passes(self):
+        self.assertTrue(
+            _is_valid_summary(
+                "Houston weather has been stuck in a hot pattern. Conditions are expected to change this weekend.",
+                "Houston weather has been stuck on repeat",
+            )
+        )
+
+    def test_empty_summary_rejected(self):
+        self.assertFalse(_is_valid_summary("", "Any headline"))
+
+    def test_none_summary_rejected(self):
+        self.assertFalse(_is_valid_summary(None, "Any headline"))
+
+    def test_boilerplate_rejected(self):
+        self.assertFalse(
+            _is_valid_summary(
+                "This article discusses the implications of the new policy in detail. Further analysis is required.",
+                "Houston weather has been stuck on repeat",
+            )
+        )
 
 
 # ---------------------------------------------------------------------------

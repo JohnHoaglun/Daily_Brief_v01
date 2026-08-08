@@ -1,11 +1,25 @@
-# TODO: Daily Brief v01 - v1.0.115
+# TODO: Daily Brief v01 - v1.0.116
 
 ## Status
-v1.0.115: P0 pipeline exit-code contract implemented. 991/991 passing, config validate PASS, live smoke exit 1 (WARN, 53.86s, 78 stories). The backlog below records the review findings before implementation.
+v1.0.116: P0 exit-code contract and P1 summary-recovery correctness implemented. 1009/1009 passing, config validate PASS, live smoke exit 1 (WARN, 52.68s, 76 stories).
 
 ## Priority 0 - Correct Run Outcomes
-- [ ] Make `pipeline.main()` return an explicit run result or exit code. Update `__main__.py` to exit nonzero for internal report-validation failure and harness `FAIL`/`ERROR`; decide and document the policy for `WARN` and `SKIPPED`. Evidence: `src/daily_brief/pipeline.py:276-297`, `src/daily_brief/__main__.py:39-55`.
-- [ ] Add process-level tests for validation failure and each harness status. Verify the live runner does not log successful completion when the process status is failing.
+- [x] Make `pipeline.main()` return an explicit run result or exit code. Update `__main__.py` to exit nonzero for internal report-validation failure and harness `FAIL`/`ERROR`; decide and document the policy for `WARN` and `SKIPPED`. Evidence: `src/daily_brief/pipeline.py:276-297`, `src/daily_brief/__main__.py:39-55`.
+  - Completed v1.0.115. Exit codes: 0=PASS, 1=WARN/CONFIG, 2=FAIL/VALIDATION, 3=ERROR/SKIPPED.
+- [x] Add process-level tests for validation failure and each harness status. Verify the live runner does not log successful completion when the process status is failing.
+  - Completed v1.0.115. 7 new tests in `tests/test_pipeline.py`. Live smoke confirmed exit 1 (WARN).
+
+## Priority 1 - LLM Reliability And Summary Correctness
+- [x] Make individual recovery use the canonical summary-quality predicate. It currently bypasses sentence-count, headline repetition, and stricter topic-alignment checks. Evidence: `src/daily_brief/llm/summarizer.py:558-572,645,759-765`; report validation: `src/daily_brief/validation.py:251-278`.
+  - Completed v1.0.116. `_is_valid_summary()` now the sole gate for batch and recovery. Added refusal/fallback marker rejection.
+- [ ] Add recovery tests for one-sentence output, headline repetition, refusal output, and weak keyword overlap.
+  - Completed v1.0.116. 8 new recovery regression tests in `tests/test_batch_failure_fixtures.py`.
+- [ ] Establish one bounded LLM retry owner. Explicitly configure SDK retries, retain a bounded application retry policy, and add a total recovery deadline. Current SDK, application, batch, and serial recovery retries can multiply endpoint-outage latency. Evidence: `src/daily_brief/llm/client.py:19-21`, `src/daily_brief/llm/summarizer.py:486-527,714-758`.
+- [ ] Recover unresolved stories under a conservative configurable concurrency limit instead of serially. Add tests that assert request count, deadline, and maximum concurrency during an endpoint outage.
+- [ ] Do not count deterministic `[Auto] <headline>` fallbacks as successful individual LLM recoveries. Evidence: `src/daily_brief/llm/summarizer.py:526-527,759-765,780-781`.
+  - Completed v1.0.116 via canonical gate — `[Auto]` output rejected by `_is_valid_summary()`, not counted as `individual_recovered`.
+- [ ] Add `LLMClient.aclose()` and close the owned AsyncOpenAI transport in pipeline and benchmark `try/finally` paths. Evidence: `src/daily_brief/llm/client.py:19-25`, `src/daily_brief/pipeline.py:129-130`.
+- [ ] Use `time.monotonic()` for LLM timings. Evidence: `src/daily_brief/llm/summarizer.py:488-497,600-620`.
 
 ## Priority 1 - LLM Reliability And Summary Correctness
 - [ ] Make individual recovery use the canonical summary-quality predicate. It currently bypasses sentence-count, headline repetition, and stricter topic-alignment checks. Evidence: `src/daily_brief/llm/summarizer.py:558-572,645,759-765`; report validation: `src/daily_brief/validation.py:251-278`.
@@ -23,6 +37,7 @@ v1.0.115: P0 pipeline exit-code contract implemented. 991/991 passing, config va
 - [ ] Add pipeline tests for weather `None`, empty weather, malformed station values, malformed lake values, and invalid numeric YAML startup behavior.
 
 ## Priority 1 - Test Validity And Warning Debt
+- [ ] Fix test warning: replace `_is_valid_summary` topic-alignment check — add recovery tests. (Completed v1.0.116.)
 - [ ] Fix the unawaited coroutine test warning by mocking `_cmd_check_connectivity_impl` with `AsyncMock`, not `asyncio.run`. Evidence: `tests/test_cli.py:135-145`, `src/daily_brief/cli.py:159-160`.
 - [ ] Replace all project uses of deprecated `asyncio.coroutine` test mocks with `AsyncMock` or async stubs. The suite currently emits 145+ deprecation warnings. Representative files: `tests/test_sources/test_climate.py`, `test_lakes.py`, `test_weather.py`, `test_weather_extended.py`, `test_weather_provider_isolation.py`.
 - [ ] Remove external network requests from the default test suite. Fully mock `tests/test_smoke_test.py:265-274`; move genuine connectivity checks to opt-in integration coverage.

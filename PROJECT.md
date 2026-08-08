@@ -1,4 +1,4 @@
-# Project: Daily Brief v01 (v1.0.115)
+# Project: Daily Brief v01 (v1.0.116)
 
 ## Purpose
 Daily Brief aggregates RSS stories from configured categories, enriches them with weather and lake data, summarizes them through a vLLM OpenAI-compatible endpoint, and writes a Markdown report.
@@ -29,6 +29,7 @@ Daily Brief aggregates RSS stories from configured categories, enriches them wit
 - **RSS dedup test repair** (v1.0.113): Fixed 7 pre-existing failures in `tests/test_sources/test_rss_dedup.py`. Mock RSS story dates (`Jul 30, 2026`) were age-filtered because `datetime.now()` returned the real current time (~Aug 7). Added `mock.patch("daily_brief.pipelines.rss_dedup.datetime", wraps=datetime)` with `dt_mock.now.return_value = NOW` to 7 integration tests across `TestFetchAndDedup` and `TestLocalWidening`. 984/984 passing, config validate PASS, live smoke test WARN (zero FAILs, 50.41s, 78 stories).
 - **Full code review backlog** (v1.0.114): Recorded prioritized reliability, summary quality, configuration safety, test validity, data integrity, performance, lifecycle, packaging, CI, and repository-hygiene work in `TODOS.md`. No production behavior changed. Baseline remains 984/984 passing, config validate PASS, and live smoke WARN with zero FAILs.
 - **Pipeline exit-code contract** (v1.0.115): `pipeline.main()` returns explicit integer exit codes for all outcomes: 0=SUCCESS(PASS), 1=WARNING(WARN/CONFIG), 2=FAILURE(FAIL/VALIDATION), 3=ERROR(ERROR/SKIPPED). Replaced internal `sys.exit(1)` with consistent return contract. `__main__.py` propagates via `sys.exit(asyncio.run(main()))`. Added 7 new tests. 991/991 passing, config validate PASS, live smoke exit 1 (WARN).
+- **Summary recovery correctness** (v1.0.116): Extended `_is_valid_summary()` as the sole quality gate for batch and individual LLM recovery — now also rejects refused output and internal fallback markers ([Auto], [Summary Unavailable]). Individual recovery uses `_is_valid_summary(retry, s.title)` instead of a weaker inline condition. [Auto] headline output no longer incorrectly increments `individual_recovered`. 20 new tests (11 unit, 9 recovery integration). 1009/1009 passing, config validate PASS, live smoke exit 1 (WARN, 52.68s, 76 stories).
 
 ## Architecture
 - `src/daily_brief/pipeline.py`: asynchronous pipeline orchestration.

@@ -1,6 +1,7 @@
 """
 Tests for src/daily_brief/cli.py — parser building, run(), and subcommands.
 """
+import asyncio
 import os
 import sys
 import io
@@ -9,6 +10,7 @@ from unittest import TestCase, mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
+from unittest.mock import AsyncMock
 from daily_brief.cli import build_parser, run, cmd_validate, cmd_show, cmd_list_categories, cmd_list_lakes, cmd_show_prompt, cmd_check_connectivity
 
 
@@ -130,19 +132,28 @@ class TestCmdShowPrompt(TestCase):
 class TestCmdCheckConnectivity(TestCase):
     """B.7: check-connectivity dispatch and exit semantics."""
 
+    def _run_on_existing_loop(self, coro):
+        """Run a coroutine on whatever event loop already exists."""
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            return loop.create_task(coro)
+        return loop.run_until_complete(coro)
+
     def test_check_connectivity_all_pass(self):
         """Returns 0 when all probes report ok."""
-        with mock.patch("asyncio.run", new=lambda *a, **k: 0):
-            with mock.patch("builtins.print"):
+        with mock.patch("daily_brief.cli._cmd_check_connectivity_impl", new_callable=AsyncMock, return_value=0) as mock_impl:
+            with mock.patch("asyncio.run", side_effect=self._run_on_existing_loop):
                 rv = cmd_check_connectivity()
-            self.assertEqual(rv, 0)
+        mock_impl.assert_awaited_once()
+        self.assertEqual(rv, 0)
 
     def test_check_connectivity_any_fail(self):
         """Returns 1 when any probe fails."""
-        with mock.patch("asyncio.run", new=lambda *a, **k: 1):
-            with mock.patch("builtins.print"):
+        with mock.patch("daily_brief.cli._cmd_check_connectivity_impl", new_callable=AsyncMock, return_value=1) as mock_impl:
+            with mock.patch("asyncio.run", side_effect=self._run_on_existing_loop):
                 rv = cmd_check_connectivity()
-            self.assertEqual(rv, 1)
+        mock_impl.assert_awaited_once()
+        self.assertEqual(rv, 1)
 
     def test_run_dispatch_check_connectivity(self):
         """run() dispatches config check-connectivity to cmd_check_connectivity."""

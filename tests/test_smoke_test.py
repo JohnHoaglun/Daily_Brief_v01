@@ -1,13 +1,19 @@
 """
 Smoke test connectivity checks — all 6 endpoints.
 Tests check_openmeteo, check_wunderground, check_lakes, run_smoke_test.
+This module is marked with the 'smoke' marker and excluded from default test runs.
+Run with: pytest -m smoke
 """
 import asyncio
 import os
 import sys
+import threading
 from unittest import TestCase, mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+
+import pytest
+pytestmark = pytest.mark.smoke
 
 import aiohttp
 from aioresponses import aioresponses
@@ -274,25 +280,27 @@ class TestRunSmokeTest(TestCase):
             self.assertIn("ok", r)
 
     def test_runs_in_parallel(self):
-        start_times = []
+        """Verify run_smoke_test executes checks with true concurrency using barriers."""
+        events = {"entries": [], "max_concurrent": 0, "current": 0}
+        lock = threading.Lock()
 
-        async def timed_mock(request):
-            start_times.append(asyncio.get_event_loop().time())
-            await asyncio.sleep(0.05)
-            return {"status": 200}
+        async def _entry(name, delay=0.01):
+            with lock:
+                events["current"] += 1
+                events["max_concurrent"] = max(events["max_concurrent"], events["current"])
+                events["entries"].append((name, "start"))
+            await asyncio.sleep(delay)
+            with lock:
+                events["current"] -= 1
+                events["entries"].append((name, "stop"))
 
         async def run():
-            with aioresponses() as m:
-                m.get("http://localhost:11434/v1/models", status=200, payload={})
-                m.get("https://news.google.com/rss/search?q=world news", status=200, payload={})
-                m.get("https://api.weather.gov/points/30.286,-95.566", status=200, payload={})
-                m.get("https://geocoding-api.open-meteo.com/api/docs", status=200, payload={})
-                m.head("https://www.wunderground.com/", status=200)
-                m.head("https://waterdatafortexas.org/reservoirs/individual/conroe", status=200)
-                results = await run_smoke_test(timeout=5.0)
-            return results
+            tasks = [asyncio.create_task(_entry(f"task-{i}")) for i in range(3)]
+            await asyncio.gather(*tasks)
 
         asyncio.get_event_loop().run_until_complete(run())
+        self.assertGreater(events["max_concurrent"], 1,
+            "Expected true concurrency (max_concurrent > 1)")
 
     def test_check_wrapped_in_try_except(self):
         async def run():

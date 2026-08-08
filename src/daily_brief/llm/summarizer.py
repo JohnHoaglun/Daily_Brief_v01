@@ -485,7 +485,7 @@ async def _summarize(client, context, title=None, min_chars=LLM_SUMMARY_TRIM_MIN
 
     for attempt in range(max_attempts):
         try:
-            t0 = time.time()
+            t0 = time.monotonic()
             r = await client.chat_completions_create(
                 model=LLM_MODEL,
                 messages=[
@@ -494,7 +494,7 @@ async def _summarize(client, context, title=None, min_chars=LLM_SUMMARY_TRIM_MIN
                 ],
                 **LLM_SUMMARY_OPTIONS
             )
-            logger.debug(f"{'STRICT ' if strict else ''}SUMMARIZE: {time.time() - t0:.2f}s")
+            logger.debug(f"{'STRICT ' if strict else ''}SUMMARIZE: {time.monotonic() - t0:.2f}s")
             summary_text = r.choices[0].message.content or ""
             summary_text = " ".join([ln.strip() for ln in str(summary_text).splitlines() if ln.strip()])
             if not summary_text.strip():
@@ -605,7 +605,7 @@ async def _summarize_sub_batch(client, cat_name, sub_batch, *, semaphore=None, b
     batch_text = "\n---\n\n".join(context_lines)
 
     try:
-        t0 = time.time()
+        t0 = time.monotonic()
         if semaphore:
             async with semaphore:
                 r = await client.chat_completions_create(
@@ -625,7 +625,7 @@ async def _summarize_sub_batch(client, cat_name, sub_batch, *, semaphore=None, b
                 ],
                 **LLM_SUMMARY_OPTIONS
             )
-        elapsed = time.time() - t0
+        elapsed = time.monotonic() - t0
         sub_batch_label = f"{cat_name} (batch {len(sub_batch)})"
         logger.debug(f"BATCH SUMMARIZE ({sub_batch_label}): {elapsed:.1f}s")
 
@@ -665,7 +665,7 @@ async def _summarize_sub_batch(client, cat_name, sub_batch, *, semaphore=None, b
     return {'success': valid_count > 0, 'valid_count': valid_count, 'failed': valid_count == 0}
 
 
-async def batch_summarize_all(client, stories, session=None, *, batch_size: int = 3, max_concurrency: int = 1):
+async def batch_summarize_all(client, stories, session=None, *, batch_size: int = 3, max_concurrency: int = 1, recovery_max_concurrency: int = 2, recovery_deadline_s: float = 0.0):
     """Async batch summarization with batch retry, individual recovery, fallback, and structured metrics.
 
     Args:
@@ -756,19 +756,66 @@ async def batch_summarize_all(client, stories, session=None, *, batch_size: int 
             original_index = failed_indices[idx]
             batch_results[original_index] = result
 
-    # Phase 3: Individual recovery for unresolved stories
+    # Phase 3: Individual recovery for unresolved stories with bounded concurrency
     needs_recovery = [s for s in stories if not s.summary or not s.summary.strip()]
     recovery_count = 0
+    recovery_started = 0
 
     if needs_recovery:
-        for s in needs_recovery:
+        deadline_ts = time.monotonic() + recovery_deadline_s if recovery_deadline_s > 0 else None
+
+        async def _recover_one(s):
+            nonlocal recovery_count, recovery_started
+            recovery_started += 1
+            if deadline_ts is not None and time.monotonic() >= deadline_ts:
+                return  # Past deadline, skip
             context = build_context(s, preview_chars=LLM_CONTEXT_PREVIEW_CHARS)
-            retry = await _summarize(client, context, title=s.title)
+            try:
+                coro = _summarize(client, context, title=s.title)
+                if deadline_ts is not None:
+                    remaining = deadline_ts - time.monotonic()
+                    if remaining <= 0:
+                        return
+                    try:
+                        retry = await asyncio.wait_for(coro, timeout=remaining)
+                    except asyncio.TimeoutError:
+                        return
+                else:
+                    retry = await coro
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                return
             if _is_valid_summary(retry, s.title):
                 s.summary = retry
                 recovery_count += 1
             elif not s.summary or not s.summary.strip():
                 s.summary = _generate_auto_fallback(s.title)
+
+        sem = asyncio.Semaphore(recovery_max_concurrency)
+
+        async def _sem_wrapped(s):
+            async with sem:
+                await _recover_one(s)
+
+        tasks = [asyncio.create_task(_sem_wrapped(s)) for s in needs_recovery]
+
+        try:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        except Exception as e:
+            logger.warning(f"RECOVERY GATHER ERROR: {e}")
+
+        # Cancel all tasks if deadline is now past
+        if deadline_ts is not None and time.monotonic() >= deadline_ts:
+            logger.warning(f"[RECOVERY DEADLINE] exhausted after {recovery_deadline_s}s -- cancelling remaining work")
+            for t in tasks:
+                if not t.done():
+                    t.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            # Assign [Auto] to stories still unresolved after cancellation
+            for s in needs_recovery:
+                if not s.summary or not s.summary.strip():
+                    s.summary = _generate_auto_fallback(s.title)
 
     # Phase 4: Count final outcomes
     auto_fallbacks = 0
@@ -786,7 +833,7 @@ async def batch_summarize_all(client, stories, session=None, *, batch_size: int 
         else:
             final_valid += 1
 
-    metrics.individual_recovery_attempts = len(needs_recovery)
+    metrics.individual_recovery_attempts = recovery_started
     metrics.individual_recovered = recovery_count
     metrics.auto_fallbacks = auto_fallbacks
     metrics.unavailable_summaries = unavailable

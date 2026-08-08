@@ -19,9 +19,6 @@ import yaml
 
 from daily_brief.config import (
     CONFIG_YAML,
-    CATEGORIES_RAW,
-    WEATHER_LAKE_URLS,
-    PROMPTS,
 )
 from daily_brief.config_validator import validate_config
 
@@ -114,7 +111,7 @@ def cmd_show() -> int:
 
 
 def cmd_list_categories() -> int:
-    cats = CATEGORIES_RAW
+    cats = CONFIG_YAML.get("categories", {}) if isinstance(CONFIG_YAML, dict) else {}
     if not cats:
         print("No categories defined.")
         return 0
@@ -128,7 +125,8 @@ def cmd_list_categories() -> int:
 
 
 def cmd_list_lakes() -> int:
-    lakes = WEATHER_LAKE_URLS or {}
+    weather = CONFIG_YAML.get("weather", {}) if isinstance(CONFIG_YAML, dict) else {}
+    lakes = weather.get("lake_urls", {}) if isinstance(weather, dict) else {}
     if not lakes:
         print("No lake URLs defined.")
         return 0
@@ -140,7 +138,8 @@ def cmd_list_lakes() -> int:
 
 
 def cmd_show_prompt(name: str) -> int:
-    val = PROMPTS.get(name)
+    prompts = CONFIG_YAML.get("prompts", {}) if isinstance(CONFIG_YAML, dict) else {}
+    val = prompts.get(name) if isinstance(prompts, dict) else None
     if not val:
         print(f"Prompt '{name}' is not defined in config.", file=sys.stderr)
         return 1

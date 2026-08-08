@@ -7,6 +7,7 @@ import os
 import sys
 from datetime import datetime, timedelta, timezone
 from unittest import TestCase, mock
+from unittest.mock import AsyncMock
 from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
@@ -34,15 +35,14 @@ class TestNwsFailureIndependentCollection(TestCase):
     async def _run_nws_fail(self):
         async def raise_dns(*a, **k):
             raise ConnectionError("DNS failure")
-        mock_fetch = asyncio.coroutine(mock.MagicMock(side_effect=raise_dns))
-        with mock.patch("daily_brief.sources.weather._fetch_json", mock_fetch):
+        with mock.patch("daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=raise_dns)):
             with mock.patch("daily_brief.sources.weather.get_reference_datetime", return_value=self.today):
                 with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high",
-                                new_callable=lambda: asyncio.coroutine(mock.MagicMock(return_value=91))):
+                                new=AsyncMock(return_value=91)):
                     with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall",
-                                    new_callable=lambda: asyncio.coroutine(mock.MagicMock(
+                                    new=AsyncMock(
                                         return_value={"avg_monthly_rainfall": 3.2, "current_monthly_rainfall": 2.1}
-                                    ))):
+                                    )):
                         with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
                             return await fetch_weather(None, 30.286, -95.566)
 
@@ -79,15 +79,15 @@ class TestIndividualProviderFailures(TestCase):
 
     async def _run(self, climate_result=None, rain_result=None, raise_climate=False, raise_rain=False):
         if raise_climate:
-            climate_coro = asyncio.coroutine(mock.MagicMock(side_effect=RuntimeError("Climate error")))
+            climate_coro = AsyncMock(side_effect=RuntimeError("Climate error"))
         else:
-            climate_coro = asyncio.coroutine(mock.MagicMock(return_value=climate_result))
-            
+            climate_coro = AsyncMock(return_value=climate_result)
+
         if raise_rain:
-            rain_coro = asyncio.coroutine(mock.MagicMock(side_effect=RuntimeError("Rain error")))
+            rain_coro = AsyncMock(side_effect=RuntimeError("Rain error"))
         else:
-            rain_coro = asyncio.coroutine(mock.MagicMock(return_value=rain_result))
-            
+            rain_coro = AsyncMock(return_value=rain_result)
+
         point = {"properties": {"forecast": "https://example.com/forecast"}}
         forecast = {"properties": {"periods": [
             {"number": 1, "isDaytime": True,
@@ -119,8 +119,7 @@ class TestIndividualProviderFailures(TestCase):
             side_effect.cc += 1
             return point if side_effect.cc == 1 else forecast
 
-        mock_fetch = asyncio.coroutine(mock.MagicMock(side_effect=side_effect))
-        with mock.patch("daily_brief.sources.weather._fetch_json", mock_fetch):
+        with mock.patch("daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=side_effect)):
             with mock.patch("daily_brief.sources.weather.get_reference_datetime", return_value=self.today):
                 with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", climate_coro):
                     with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall", rain_coro):
@@ -414,8 +413,7 @@ class TestNwsParsingUnchanged(TestCase):
                 return {"properties": {"forecast": "https://example.com/forecast"}}
             return {"properties": {"periods": []}}
 
-        mock_fetch = asyncio.coroutine(mock.MagicMock(side_effect=capture))
-        with mock.patch("daily_brief.sources.weather._fetch_json", mock_fetch):
+        with mock.patch("daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=capture)):
             result = asyncio.get_event_loop().run_until_complete(
                 fetch_nws_forecast(None, 30.286, -95.566, today)
             )

@@ -1288,3 +1288,107 @@ class TestBatchSchedulerControls(TestCase):
         # News stories should have valid summary
         self.assertIn("News summary", stories[2].summary)
         self.assertIn("News summary", stories[3].summary)
+
+
+# ---------------------------------------------------------------------------
+# Monotonic timing verification
+# ---------------------------------------------------------------------------
+
+class TestLLMMonotonicTiming(TestCase):
+    """Verify that LLM duration measurements use time.monotonic() instead of time.time()."""
+
+    def test_no_time_time_in_summarize(self):
+        """Source-level check: time.time() is not used in _summarize for duration measurement."""
+        import inspect
+        from daily_brief.llm.summarizer import _summarize
+        source = inspect.getsource(_summarize)
+        self.assertNotIn("time.time()", source,
+            "_summarize should use time.monotonic(), not time.time()")
+
+    def test_no_time_time_in_summarize_sub_batch(self):
+        """Source-level check: time.time() is not used in _summarize_sub_batch for duration measurement."""
+        import inspect
+        from daily_brief.llm.summarizer import _summarize_sub_batch
+        source = inspect.getsource(_summarize_sub_batch)
+        self.assertNotIn("time.time()", source,
+            "_summarize_sub_batch should use time.monotonic(), not time.time()")
+
+    def test_monotonic_used_in_summarize(self):
+        """Verify time.monotonic() is used in _summarize."""
+        import inspect
+        from daily_brief.llm.summarizer import _summarize
+        source = inspect.getsource(_summarize)
+        self.assertIn("time.monotonic()", source,
+            "_summarize should use time.monotonic()")
+
+    def test_monotonic_used_in_summarize_sub_batch(self):
+        """Verify time.monotonic() is used in _summarize_sub_batch."""
+        import inspect
+        from daily_brief.llm.summarizer import _summarize_sub_batch
+        source = inspect.getsource(_summarize_sub_batch)
+        self.assertIn("time.monotonic()", source,
+            "_summarize_sub_batch should use time.monotonic()")
+
+
+class TestMonotonicDurationNonNegative(TestCase):
+    """Verify that monotonic duration measurements are non-negative."""
+
+    def _make_client(self, response_text):
+        client = mock.MagicMock()
+        msg = mock.MagicMock()
+        msg.content = response_text
+        msg.message = msg
+        choice = mock.MagicMock()
+        choice.message = msg
+        choice.choices = [choice]
+        client.chat_completions_create = AsyncMock(return_value=choice)
+        return client
+
+    def test_monotonic_duration_non_negative(self):
+        """Patch time.monotonic to return controlled values and verify logged durations are non-negative."""
+        import logging
+        durations = []
+
+        class DurationHandler(logging.Handler):
+            def emit(self, record):
+                msg = record.getMessage()
+                if "SUMMARIZE:" in msg:
+                    # Extract duration from "SUMMARIZE: 0.50s" format
+                    for part in msg.split():
+                        if part.endswith("s"):
+                            try:
+                                dur = float(part.rstrip("s"))
+                                durations.append(dur)
+                            except ValueError:
+                                pass
+
+        test_handler = DurationHandler()
+        import daily_brief.llm.summarizer as smod
+        old_logger = smod.logger
+        old_logger.addHandler(test_handler)
+        old_level = old_logger.level
+        old_logger.setLevel(logging.DEBUG)
+
+        try:
+            mock_values = [100.0, 100.5, 200.0, 200.5]  # Two calls, t0 and t1
+            mock_counter = [0]
+            def mock_monotonic():
+                val = mock_values[min(mock_counter[0], len(mock_values) - 1)]
+                mock_counter[0] += 1
+                return val
+
+            client = self._make_client("The Fed raised rates by 0.25 percent Wednesday.")
+
+            async def _run():
+                with mock.patch("daily_brief.llm.summarizer.time.monotonic", side_effect=mock_monotonic):
+                    return await _summarize(client, "Some context text that is long enough to be meaningful for the LLM to process and summarize properly.", title="Test", min_chars=0)
+
+            asyncio.get_event_loop().run_until_complete(_run())
+        finally:
+            old_logger.removeHandler(test_handler)
+            old_logger.setLevel(old_level)
+
+        # All logged durations should be non-negative
+        for dur in durations:
+            self.assertGreaterEqual(dur, 0.0,
+                f"Duration {dur} is negative — monotonic timing may be broken")

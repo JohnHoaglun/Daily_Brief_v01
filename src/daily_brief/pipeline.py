@@ -37,6 +37,37 @@ from daily_brief.sources.rss import format_pub_date
 from daily_brief.sources.article import stage_extract_article
 from daily_brief.sources.weather import fetch_weather
 from daily_brief.categorization import ordered_categories_for_render
+from typing import Dict, Optional
+
+
+def _normalize_weather_for_rendering(weather_data) -> Optional[Dict]:
+    """Normalize weather data for safe rendering. Handles None, scalars, missing keys."""
+    if weather_data is None:
+        return {
+            "forecast": [
+                {"date": "N/A", "day": "N/A", "night": "N/A", "high": "N/A", "low": "N/A", "precip": "N/A", "wind": "N/A"}
+            ] * 3,
+            "station": {},
+            "lakes": {},
+        }
+    if not isinstance(weather_data, dict):
+        return {
+            "forecast": [
+                {"date": "N/A", "day": "N/A", "night": "N/A", "high": "N/A", "low": "N/A", "precip": "N/A", "wind": "N/A"}
+            ] * 3,
+            "station": {},
+            "lakes": {},
+        }
+    result = dict(weather_data)
+    if "forecast" not in result or not isinstance(result.get("forecast"), list):
+        result["forecast"] = [
+            {"date": "N/A", "day": "N/A", "night": "N/A", "high": "N/A", "low": "N/A", "precip": "N/A", "wind": "N/A"}
+        ] * 3
+    if "station" not in result or not isinstance(result.get("station"), dict):
+        result["station"] = {}
+    if "lakes" not in result or not isinstance(result.get("lakes"), dict):
+        result["lakes"] = {}
+    return result
 from daily_brief.pipelines.rss_dedup import fetch_and_dedup
 from daily_brief.llm import create_llm_client
 from daily_brief.llm.summarizer import (
@@ -256,7 +287,8 @@ async def main():
         rendered_cat_count = sum(1 for cn in ordered_cats
             if cn != WEATHER_SECTION_TITLE and cn != "Weather Forecast 77316")
 
-        md = build_markdown(stories, weather, sections_map, ordered_cats, {
+        safe_weather = _normalize_weather_for_rendering(weather)
+        md = build_markdown(stories, safe_weather, sections_map, ordered_cats, {
             "total_after_dedup": total_after_dedup,
             "rendered_cat_count": rendered_cat_count,
             "DEFAULT_CONTENT_AGE_WINDOW_HOURS": DEFAULT_CONTENT_AGE_WINDOW_HOURS,

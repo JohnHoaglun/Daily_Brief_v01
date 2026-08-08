@@ -546,6 +546,209 @@ class TestInvalidSingleRecovery(TestCase):
         for s in stories:
             self.assertTrue(s.summary.startswith("[Auto]"), f"Expected [Auto] for {s.title}, got: {s.summary}")
 
+    def test_recovery_concurrency_2_barrier(self):
+        """Batch fails. _summarize mocked with async barrier events.
+        Assert two recovery calls can enter before the first returns.
+        Assert peak concurrent recovery calls equal recovery_max_concurrency."""
+        stories = [
+            _make_story("RecoverA Finance Market Rally Stocks", "Finance"),
+            _make_story("RecoverB Finance Bond Yield Surge", "Finance"),
+            _make_story("RecoverC Finance IPO Launch Filing", "Finance"),
+        ]
+
+        # Events for barrier synchronization — no reliance on asyncio.sleep patching
+        second_entered = asyncio.Event()
+        first_release = asyncio.Event()
+        all_release = asyncio.Event()
+        active = [0]
+        max_active = [0]
+
+        async def side_effect(**kwargs):
+            raise Exception("Batch error")
+
+        async def mock_summarize(client, ctx, title=None, **kwargs):
+            active[0] += 1
+            max_active[0] = max(max_active[0], active[0])
+            if max_active[0] >= 2:
+                second_entered.set()
+            if not first_release.is_set():
+                await first_release.wait()
+            await all_release.wait()
+            active[0] -= 1
+            return f"Recovery summary for the {title} event with significant market impact. " \
+                   "Analysts reported measurable changes in the sector today."
+
+        client = MagicMock()
+        client.chat_completions_create = AsyncMock(side_effect=side_effect)
+
+        async def run():
+            # NOTE: do NOT patch asyncio.sleep — it prevents task interleaving.
+            # Patch only the retry config.
+            with patch("daily_brief.config.LLM_SUMMARY_RETRY_ATTEMPTS", 1):
+                with patch("daily_brief.config.LLM_SUMMARY_RETRY_BACKOFF", []):
+                    with patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, side_effect=mock_summarize):
+                        result_task = asyncio.create_task(
+                            batch_summarize_all(
+                                client, stories, batch_size=3, recovery_max_concurrency=2
+                            )
+                        )
+                        # Wait for the second task to enter the mock
+                        await second_entered.wait()
+                        self.assertGreaterEqual(max_active[0], 2)
+                        self.assertLessEqual(max_active[0], 2)
+                        first_release.set()
+                        await asyncio.sleep(0)
+                        all_release.set()
+                        await result_task
+
+        _run(run())
+        self.assertGreaterEqual(max_active[0], 2,
+            f"Expected at least 2 concurrent recovery calls, got peak {max_active[0]}")
+        self.assertLessEqual(max_active[0], 2,
+            f"Expected at most 2 concurrent recovery calls (max_concurrency=2), got peak {max_active[0]}")
+
+    def test_recovery_concurrency_1_serial(self):
+        """recovery_max_concurrency=1. Verify only one recovery call is active at a time
+        using an active-count counter via barrier events."""
+        stories = [
+            _make_story("SerialA Finance Interest Rate Decision", "Finance"),
+            _make_story("SerialB Finance Bank Merger Deal", "Finance"),
+        ]
+
+        active = [0]
+        max_active = [0]
+        gate = asyncio.Event()
+
+        async def side_effect(**kwargs):
+            raise Exception("Batch error")
+
+        async def mock_summarize(client, ctx, title=None, **kwargs):
+            active[0] += 1
+            max_active[0] = max(max_active[0], active[0])
+            await gate.wait()
+            active[0] -= 1
+            return f"Recovery summary for the {title} event with important details. " \
+                   "Market analysts provided detailed analysis of the situation."
+
+        client = MagicMock()
+        client.chat_completions_create = AsyncMock(side_effect=side_effect)
+
+        async def poll_and_release():
+            for _ in range(200):
+                if active[0] >= 1:
+                    await asyncio.sleep(0)
+                    # Second task should NOT be active concurrently
+                    if active[0] <= 1:
+                        gate.set()
+                        await asyncio.sleep(0)
+                        gate.set()  # Release second task
+                        return
+                await asyncio.sleep(0)
+            gate.set()
+            await asyncio.sleep(0)
+            gate.set()
+
+        async def run():
+            patches = _retry_patches()
+            with patches[0], patches[1], patches[2]:
+                with patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, side_effect=mock_summarize):
+                    poll_task = asyncio.create_task(poll_and_release())
+                    recovery_task = asyncio.create_task(
+                        batch_summarize_all(
+                            client, stories, batch_size=2, recovery_max_concurrency=1
+                        )
+                    )
+                    await recovery_task
+                    await poll_task
+
+        _run(run())
+        self.assertEqual(max_active[0], 1,
+            f"Expected only 1 concurrent recovery call (max_concurrency=1), got peak {max_active[0]}")
+
+    def test_recovery_deadline_prevents_queue(self):
+        """Batch fails. _summarize mocked with slow delays.
+        Recovery deadline recovery_deadline_s=0.01.
+        Assert that recovery attempts are bounded. Stories past the deadline get [Auto]."""
+        stories = [
+            _make_story("DeadlineA Finance Market Rally", "Finance"),
+            _make_story("DeadlineB Finance Bond Yield", "Finance"),
+            _make_story("DeadlineC Finance IPO Filing", "Finance"),
+        ]
+
+        async def side_effect(**kwargs):
+            raise Exception("Batch error")
+
+        mono_counter = [0]
+        def mock_monotonic():
+            # Each call advances time by 1 second — well past 0.01 deadline
+            mono_counter[0] += 1
+            return float(mono_counter[0])
+
+        async def mock_summarize(client, ctx, title=None, **kwargs):
+            # Even without sleep, the pre-dispatch gate checks monotonic time
+            # and will skip if past deadline
+            return f"Recovery summary for the {title} with important facts. " \
+                   "Analysts reported significant findings in their analysis."
+
+        client = MagicMock()
+        client.chat_completions_create = AsyncMock(side_effect=side_effect)
+
+        async def run():
+            patches = _retry_patches()
+            with patches[0], patches[1], patches[2]:
+                with patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, side_effect=mock_summarize):
+                    with patch("daily_brief.llm.summarizer.time.monotonic", side_effect=mock_monotonic):
+                        return await batch_summarize_all(
+                            client, stories, batch_size=3,
+                            recovery_max_concurrency=2,
+                            recovery_deadline_s=0.01
+                        )
+
+        metrics = _run(run())
+        # With time advancing past 0.01 on the first monotonic call,
+        # all recovery tasks should hit the pre-dispatch deadline gate → [Auto]
+        auto_count = sum(1 for s in stories if s.summary and s.summary.startswith("[Auto]"))
+        self.assertGreater(auto_count, 0,
+            f"Expected some [Auto] fallbacks due to deadline, all stories: {[s.summary[:30] for s in stories]}")
+
+    def test_recovery_auto_fallback_on_all_fail(self):
+        """All batch calls fail. _summarize returns valid recovery text.
+        Assert individual_recovered equals the number of recovered stories and
+        auto_fallbacks equals zero."""
+        stories = [
+            _make_story("AllRecoverA Finance Market Rally Stocks", "Finance"),
+            _make_story("AllRecoverB Finance Bond Yield Surge", "Finance"),
+        ]
+
+        async def side_effect(**kwargs):
+            raise Exception("Batch error")
+
+        async def mock_summarize(client, ctx, title=None, **kwargs):
+            if "RecoverA" in str(title):
+                return "The financial market rallied with strong gains across major indices today. " \
+                       "Analysts reported record trading volume in the tech sector."
+            elif "RecoverB" in str(title):
+                return "Bond yields surged to their highest level in six months on auction results. " \
+                       "Traders adjusted portfolios to account for the rate change."
+            return None
+
+        client = MagicMock()
+        client.chat_completions_create = AsyncMock(side_effect=side_effect)
+
+        async def run():
+            patches = _retry_patches()
+            with patches[0], patches[1], patches[2]:
+                with patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, side_effect=mock_summarize):
+                    return await batch_summarize_all(client, stories, batch_size=2)
+
+        metrics = _run(run())
+        for s in stories:
+            self.assertNotIn("[Auto]", s.summary, f"Story {s.title} should not be [Auto], got: {s.summary}")
+        self.assertEqual(metrics.individual_recovered, 2,
+            f"Expected 2 recovered, got {metrics.individual_recovered}")
+        self.assertEqual(metrics.auto_fallbacks, 0,
+            f"Expected 0 auto_fallbacks, got {metrics.auto_fallbacks}")
+
 
 # ---------------------------------------------------------------------------
 # 5. TestExhaustedRecovery

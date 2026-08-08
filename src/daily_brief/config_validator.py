@@ -53,8 +53,8 @@ def _is_bool(v: Any) -> bool:
     return isinstance(v, bool)
 
 
-def _looks_like_url(v: str) -> bool:
-    return v.startswith("http://") or v.startswith("https://")
+def _looks_like_url(v: Any) -> bool:
+    return isinstance(v, str) and (v.startswith("http://") or v.startswith("https://"))
 
 
 # ---------------------------------------------------------------------------
@@ -125,14 +125,14 @@ def check_types(config: dict):
 
     # version
     v = config.get("version")
-    if not _is_str(v):
+    if not _is_non_empty_str(v):
         issues.append("'version' must be a non-empty string")
 
     # llm
     llm = _get(config, "llm", {})
-    if not _is_str(_get(llm, "model")):
+    if not _is_non_empty_str(_get(llm, "model")):
         issues.append("'llm.model' must be a non-empty string")
-    if not _is_str(_get(llm, "host")):
+    if not _is_non_empty_str(_get(llm, "host")):
         issues.append("'llm.host' must be a non-empty string")
     for opt in ("summary_options",):
         temp = _get(llm, f"{opt}.temperature")
@@ -164,13 +164,13 @@ def check_types(config: dict):
 
     # network
     netw = _get(config, "network", {})
-    if not _is_str(_get(netw, "user_agent")):
+    if not _is_non_empty_str(_get(netw, "user_agent")):
         issues.append("'network.user_agent' must be a non-empty string")
 
     # directories
     dirs = _get(config, "directories", {})
     for d in ("log_dir", "news_dir"):
-        if not _is_str(_get(dirs, d)):
+        if not _is_non_empty_str(_get(dirs, d)):
             issues.append(f"'directories.{d}' must be a non-empty string")
 
     # weather
@@ -178,18 +178,18 @@ def check_types(config: dict):
     lat = _get(weather, "lat")
     lon = _get(weather, "lon")
     if lat is not None and not _is_float(lat):
-        issues.append("'weather.lat' must be a number")
+        issues.append("'weather.lat' must be a float")
     if lon is not None and not _is_float(lon):
-        issues.append("'weather.lon' must be a number")
-    if not _is_str(_get(weather, "wunderground_station_id")):
-        issues.append("'weather.wunderground_station_id' must be a string")
+        issues.append("'weather.lon' must be a float")
+    if not _is_non_empty_str(_get(weather, "wunderground_station_id")):
+        issues.append("'weather.wunderground_station_id' must be a non-empty string")
 
     # rss
     rss = _get(config, "rss", {})
-    if not _is_str(_get(rss, "base_url")):
-        issues.append("'rss.base_url' must be a string")
-    if not _is_str(_get(rss, "params")):
-        issues.append("'rss.params' must be a string")
+    if not _is_non_empty_str(_get(rss, "base_url")):
+        issues.append("'rss.base_url' must be a non-empty string")
+    if not _is_non_empty_str(_get(rss, "params")):
+        issues.append("'rss.params' must be a non-empty string")
     for int_k in ("default_age_limit_hours", "dedupe_window_hours"):
         val = _get(rss, int_k)
         if val is not None and not _is_int(val):
@@ -197,8 +197,8 @@ def check_types(config: dict):
 
     # runtime
     runtime = _get(config, "runtime", {})
-    if not _is_str(_get(runtime, "timezone")):
-        issues.append("'runtime.timezone' must be a string")
+    if not _is_non_empty_str(_get(runtime, "timezone")):
+        issues.append("'runtime.timezone' must be a non-empty string")
     ts = _get(runtime, "thread_pool_size")
     if ts is not None and not _is_int(ts):
         issues.append("'runtime.thread_pool_size' must be an integer")
@@ -241,6 +241,18 @@ def check_types(config: dict):
 def check_ranges(config: dict):
     issues: list[str] = []
 
+    def require_numeric(path: str, value: Any) -> bool:
+        if value is not None and not _is_float(value):
+            issues.append(f"'{path}' must be a number")
+            return False
+        return value is not None
+
+    def require_int(path: str, value: Any) -> bool:
+        if value is not None and not _is_int(value):
+            issues.append(f"'{path}' must be an integer")
+            return False
+        return value is not None
+
     # version  — must match X.Y.Z
     v = config.get("version", "")
     if _is_str(v) and not re.fullmatch(r"\d+\.\d+\.\d+", v.strip()):
@@ -255,73 +267,73 @@ def check_ranges(config: dict):
     llm = _get(config, "llm", {})
     for opt in ("summary_options",):
         temp = _get(llm, f"{opt}.temperature")
-        if temp is not None:
+        if require_numeric(f"llm.{opt}.temperature", temp):
             if temp < 0 or temp > 2:
                 issues.append(f"'llm.{opt}.temperature' out of range [0, 2]: {temp}")
         top_p = _get(llm, f"{opt}.top_p")
-        if top_p is not None:
+        if require_numeric(f"llm.{opt}.top_p", top_p):
             if top_p < 0 or top_p > 1:
                 issues.append(f"'llm.{opt}.top_p' out of range [0, 1]: {top_p}")
 
     # llm char counts > 0
     for ck in ("context_preview_chars", "summary_context_chars", "summary_trim_min_chars"):
         val = _get(llm, ck)
-        if val is not None and val <= 0:
+        if require_int(f"llm.{ck}", val) and val <= 0:
             issues.append(f"'llm.{ck}' must be > 0: {val}")
 
     # llm batch/concurrency >= 1
     for bk in ("summary_batch_size", "summary_max_concurrency"):
         val = _get(llm, bk)
-        if val is not None and val < 1:
+        if require_int(f"llm.{bk}", val) and val < 1:
             issues.append(f"'llm.{bk}' must be >= 1: {val}")
 
     # llm summary_retry
     retry = _get(llm, "summary_retry", {})
     att = _get(retry, "attempts")
-    if att is not None and att < 1:
+    if require_int("llm.summary_retry.attempts", att) and att < 1:
         issues.append(f"'llm.summary_retry.attempts' must be >= 1: {att}")
     bak = _get(retry, "backoff")
     if bak is not None:
         vals = bak if isinstance(bak, list) else [bak]
         for b in vals:
-            if b < 0 or b > 30:
+            if require_numeric("llm.summary_retry.backoff", b) and (b < 0 or b > 30):
                 issues.append(f"'llm.summary_retry.backoff' value out of range [0, 30]: {b}")
 
     # weather lat/lon
     weather = _get(config, "weather", {})
     lat = _get(weather, "lat")
     lon = _get(weather, "lon")
-    if lat is not None and (lat < -90 or lat > 90):
+    if require_numeric("weather.lat", lat) and (lat < -90 or lat > 90):
         issues.append(f"'weather.lat' out of range [-90, 90]: {lat}")
-    if lon is not None and (lon < -180 or lon > 180):
+    if require_numeric("weather.lon", lon) and (lon < -180 or lon > 180):
         issues.append(f"'weather.lon' out of range [-180, 180]: {lon}")
 
     # rss hours
     rss = _get(config, "rss", {})
     for hk in ("default_age_limit_hours", "dedupe_window_hours"):
         val = _get(rss, hk)
-        if val is not None and (val <= 0 or val > 168):
+        if require_int(f"rss.{hk}", val) and (val <= 0 or val > 168):
             issues.append(f"'rss.{hk}' should be in (0, 168]: {val}")
 
     # runtime
     runtime = _get(config, "runtime", {})
     ts = _get(runtime, "thread_pool_size")
-    if ts is not None and ts < 1:
+    if require_int("runtime.thread_pool_size", ts) and ts < 1:
         issues.append(f"'runtime.thread_pool_size' must be >= 1: {ts}")
     mlv = _get(runtime, "max_log_versions")
-    if mlv is not None and mlv < 1:
+    if require_int("runtime.max_log_versions", mlv) and mlv < 1:
         issues.append(f"'runtime.max_log_versions' must be >= 1: {mlv}")
 
     # tagging_config ranges
     tc = _get(config, "tagging_config", {})
     mt = _get(tc, "max_tags")
-    if mt is not None and mt < 1:
+    if require_int("tagging_config.max_tags", mt) and mt < 1:
         issues.append(f"'tagging_config.max_tags' must be >= 1: {mt}")
     sc = _get(tc, "score_cap")
-    if sc is not None and sc <= 0:
+    if require_numeric("tagging_config.score_cap", sc) and sc <= 0:
         issues.append(f"'tagging_config.score_cap' must be > 0: {sc}")
     st = _get(tc, "score_threshold")
-    if st is not None and (st < 0 or st > 1):
+    if require_numeric("tagging_config.score_threshold", st) and (st < 0 or st > 1):
         issues.append(f"'tagging_config.score_threshold' must be in [0, 1]: {st}")
 
     # tagging_mappings — all values must be non-empty lists
@@ -436,7 +448,7 @@ def check_prompts(config: dict):
 
     for pname in ("summary", "summary_strict", "system_batch"):
         val = prompts.get(pname)
-        if not _is_str(val):
+        if not _is_non_empty_str(val):
             issues.append(f"'prompts.{pname}' must be a non-empty string")
         elif len(val.strip()) < 20:
             issues.append(f"'prompts.{pname}' is too short ({len(val)} chars, min 20)")
@@ -480,7 +492,7 @@ def check_timezone_and_paths(config: dict):
     dirs = _get(config, "directories", {})
     for dk in ("log_dir", "news_dir"):
         val = _get(dirs, dk)
-        if val and not val.startswith("/"):
+        if isinstance(val, str) and val and not val.startswith("/"):
             issues.append(f"'directories.{dk}' should be an absolute path: '{val}'")
 
     return issues

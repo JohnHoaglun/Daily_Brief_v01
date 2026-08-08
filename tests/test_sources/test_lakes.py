@@ -7,6 +7,7 @@ import os
 import sys
 from datetime import datetime, timedelta
 from unittest import TestCase, mock
+from unittest.mock import AsyncMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 
@@ -52,8 +53,7 @@ class TestExtractLakeValueLabelMatching(TestCase):
     """Table row label matching — happy paths."""
 
     async def _run(self, html):
-        mock_fetch = asyncio.coroutine(mock.MagicMock(return_value=html))
-        with mock.patch("daily_brief.sources.lakes._fetch_text", mock_fetch):
+        with mock.patch("daily_brief.sources.lakes._fetch_text", new=AsyncMock(return_value=html)):
             return await _extract_lake_value(None, "lake1", "http://example.com", REF)
 
     def test_today_label(self):
@@ -113,13 +113,11 @@ class TestExtractLakeValueNoneResults(TestCase):
     """Edge cases: empty html, short rows, bad percents."""
 
     async def _run(self, html):
-        mock_fetch = asyncio.coroutine(mock.MagicMock(return_value=html))
-        with mock.patch("daily_brief.sources.lakes._fetch_text", mock_fetch):
+        with mock.patch("daily_brief.sources.lakes._fetch_text", new=AsyncMock(return_value=html)):
             return await _extract_lake_value(None, "lake1", "http://example.com", REF)
 
     def test_no_html_returns_all_none(self):
-        mock_fetch = asyncio.coroutine(mock.MagicMock(return_value=None))
-        with mock.patch("daily_brief.sources.lakes._fetch_text", mock_fetch):
+        with mock.patch("daily_brief.sources.lakes._fetch_text", new=AsyncMock(return_value=None)):
             result = asyncio.get_event_loop().run_until_complete(self._run(None))
         self.assertIsNone(result["today"])
         self.assertIsNone(result["one_week_ago"])
@@ -144,8 +142,7 @@ class TestExtractLakeValueDateFallback(TestCase):
     """Date-based matching when label matching doesn't fill a slot."""
 
     async def _run(self, html):
-        mock_fetch = asyncio.coroutine(mock.MagicMock(return_value=html))
-        with mock.patch("daily_brief.sources.lakes._fetch_text", mock_fetch):
+        with mock.patch("daily_brief.sources.lakes._fetch_text", new=AsyncMock(return_value=html)):
             return await _extract_lake_value(None, "lake1", "http://example.com", REF)
 
     def test_exact_date_match_today(self):
@@ -191,8 +188,7 @@ class TestExtractLakeValueRegexFallback(TestCase):
     """Legacy regex fallback when table parsing leaves None values."""
 
     async def _run(self, html):
-        mock_fetch = asyncio.coroutine(mock.MagicMock(return_value=html))
-        with mock.patch("daily_brief.sources.lakes._fetch_text", mock_fetch):
+        with mock.patch("daily_brief.sources.lakes._fetch_text", new=AsyncMock(return_value=html)):
             return await _extract_lake_value(None, "lake1", "http://example.com", REF)
 
     def test_regex_fills_all_none(self):

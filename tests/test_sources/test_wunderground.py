@@ -7,6 +7,7 @@ import os
 import sys
 from datetime import datetime
 from unittest import TestCase, mock
+from unittest.mock import AsyncMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 
@@ -154,7 +155,7 @@ class TestFetchStationMonthlyRainfall(TestCase):
             def mock_parse_climate(html, date):
                 return {"avg_monthly_rainfall": 3.0, "current_monthly_rainfall": 4.1}
 
-            with mock.patch("daily_brief.sources.wunderground._fetch_text", new_callable=lambda: asyncio.coroutine(mock.MagicMock(side_effect=mock_fetch_text))):
+            with mock.patch("daily_brief.sources.wunderground._fetch_text", new=AsyncMock(side_effect=mock_fetch_text)):
                 with mock.patch("daily_brief.sources.wunderground._parse_climate_summary", mock_parse_climate):
                     result = await _fetch_station_monthly_rainfall(None, ref)
 
@@ -178,7 +179,7 @@ class TestFetchStationMonthlyRainfall(TestCase):
             def mock_parse_climate(html, date):
                 return {"avg_monthly_rainfall": 2.0, "current_monthly_rainfall": 3.5}
 
-            with mock.patch("daily_brief.sources.wunderground._fetch_text", new_callable=lambda: asyncio.coroutine(mock.MagicMock(side_effect=mock_fetch_text))):
+            with mock.patch("daily_brief.sources.wunderground._fetch_text", new=AsyncMock(side_effect=mock_fetch_text)):
                 with mock.patch("daily_brief.sources.wunderground._parse_climate_summary", mock_parse_climate):
                     result = await _fetch_station_monthly_rainfall(None, ref)
 
@@ -197,7 +198,7 @@ class TestFetchStationMonthlyRainfall(TestCase):
                     return "<html><body>Summary March 1, 2026 - March 10, 2026 Precipitation 1.2 in</body></html>"
                 return None
 
-            with mock.patch("daily_brief.sources.wunderground._fetch_text", new_callable=lambda: asyncio.coroutine(mock.MagicMock(side_effect=mock_fetch_text))):
+            with mock.patch("daily_brief.sources.wunderground._fetch_text", new=AsyncMock(side_effect=mock_fetch_text)):
                 result = await _fetch_station_monthly_rainfall(None, ref)
 
             self.assertIsNotNone(result["current_monthly_rainfall"])
@@ -219,7 +220,7 @@ class TestFetchStationMonthlyRainfall(TestCase):
             def mock_parse_climate(html, date):
                 return {"avg_monthly_rainfall": 99.0, "current_monthly_rainfall": 50.0}
 
-            with mock.patch("daily_brief.sources.wunderground._fetch_text", new_callable=lambda: asyncio.coroutine(mock.MagicMock(side_effect=mock_fetch_text))):
+            with mock.patch("daily_brief.sources.wunderground._fetch_text", new=AsyncMock(side_effect=mock_fetch_text)):
                 with mock.patch("daily_brief.sources.wunderground._parse_climate_summary", mock_parse_climate):
                     result = await _fetch_station_monthly_rainfall(None, ref)
 

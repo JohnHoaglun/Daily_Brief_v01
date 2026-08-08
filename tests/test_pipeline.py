@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from daily_brief.pipeline import _coerce_temperature_f, log
+from daily_brief.pipeline import _coerce_temperature_f, log, _normalize_weather_for_rendering
 
 
 # ---------------------------------------------------------------------------
@@ -576,3 +576,89 @@ class TestRenderedCatCount(TestCase):
         rendered_cat_count = sum(1 for cn in ordered_cats
             if cn != WEATHER_SECTION_TITLE and cn != "Weather Forecast 77316")
         self.assertEqual(rendered_cat_count, 1)
+
+
+# ---------------------------------------------------------------------------
+# Weather normalization
+# ---------------------------------------------------------------------------
+
+class TestNormalizeWeatherForRendering(TestCase):
+    """_normalize_weather_for_rendering produces safe dicts for rendering."""
+
+    def test_none_input(self):
+        result = _normalize_weather_for_rendering(None)
+        self.assertIsInstance(result, dict)
+        self.assertIn("forecast", result)
+        self.assertEqual(len(result["forecast"]), 3)
+        self.assertIn("N/A", result["forecast"][0]["date"])
+
+    def test_scalar_string_input(self):
+        result = _normalize_weather_for_rendering("error")
+        self.assertIsInstance(result, dict)
+        self.assertIn("forecast", result)
+        self.assertEqual(len(result["forecast"]), 3)
+
+    def test_scalar_int_input(self):
+        result = _normalize_weather_for_rendering(42)
+        self.assertIsInstance(result, dict)
+        self.assertIn("forecast", result)
+
+    def test_list_input(self):
+        result = _normalize_weather_for_rendering([])
+        self.assertIsInstance(result, dict)
+        self.assertIn("forecast", result)
+
+    def test_empty_dict_input(self):
+        result = _normalize_weather_for_rendering({})
+        self.assertIsInstance(result, dict)
+        self.assertIn("forecast", result)
+        self.assertIn("station", result)
+        self.assertIn("lakes", result)
+
+    def test_valid_weather_preserved(self):
+        inp = {
+            "forecast": [{"period": 1}],
+            "station": {"avg_temp_today": "75"},
+            "lakes": {"conroe": {"today": "78%"}},
+        }
+        result = _normalize_weather_for_rendering(inp)
+        self.assertIs(result["forecast"], inp["forecast"])
+        self.assertIs(result["station"], inp["station"])
+        self.assertIs(result["lakes"], inp["lakes"])
+
+    def test_missing_station_filled(self):
+        result = _normalize_weather_for_rendering({"forecast": [{"period": 1}]})
+        self.assertIn("station", result)
+        self.assertEqual(result["station"], {})
+
+    def test_missing_lakes_filled(self):
+        result = _normalize_weather_for_rendering({"forecast": [{"period": 1}]})
+        self.assertIn("lakes", result)
+        self.assertEqual(result["lakes"], {})
+
+    def test_none_station_filled(self):
+        result = _normalize_weather_for_rendering({"forecast": [], "station": None})
+        self.assertIn("station", result)
+        self.assertIsInstance(result["station"], dict)
+
+    def test_none_lakes_filled(self):
+        result = _normalize_weather_for_rendering({"forecast": [], "lakes": None})
+        self.assertIn("lakes", result)
+        self.assertIsInstance(result["lakes"], dict)
+
+    def test_none_forecast_becomes_degraded(self):
+        result = _normalize_weather_for_rendering({"forecast": None, "station": {}, "lakes": {}})
+        self.assertIn("forecast", result)
+        self.assertIsInstance(result["forecast"], list)
+        self.assertEqual(len(result["forecast"]), 3)
+        self.assertEqual(result["forecast"][0]["date"], "N/A")
+
+    def test_weather_pipe_none_input(self):
+        """Pipeline normalization with None input produces valid renderer input."""
+        result = _normalize_weather_for_rendering(None)
+        self.assertIsInstance(result, dict)
+        self.assertIn("forecast", result)
+        self.assertIn("station", result)
+        self.assertIn("lakes", result)
+        for row in result["forecast"]:
+            self.assertIn("N/A", row.values())

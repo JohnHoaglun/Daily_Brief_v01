@@ -7,6 +7,7 @@ import os
 import sys
 from datetime import datetime, timezone
 from unittest import TestCase, mock
+from unittest.mock import AsyncMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 
@@ -33,10 +34,7 @@ class TestFetchClimateNormalHigh(TestCase):
         return {"other": True}
 
     async def _run(self, era5_result, lat=30.1, lon=-95.3):
-        mock_fn = asyncio.coroutine(
-            mock.MagicMock(return_value=era5_result)
-        )
-        with mock.patch("daily_brief.sources.climate._fetch_json", mock_fn):
+        with mock.patch("daily_brief.sources.climate._fetch_json", new=AsyncMock(return_value=era5_result)):
             return await _fetch_climate_normal_high(mock.MagicMock(), lat, lon)
 
     def test_happy_path_rounds_temp(self):
@@ -78,8 +76,7 @@ class TestFetchClimateNormalHigh(TestCase):
     def test_fetch_exception(self):
         async def failing(*a, **k):
             raise ConnectionError("DNS failure")
-        mock_fn = asyncio.coroutine(mock.MagicMock(side_effect=failing))
-        with mock.patch("daily_brief.sources.climate._fetch_json", mock_fn):
+        with mock.patch("daily_brief.sources.climate._fetch_json", new=AsyncMock(side_effect=failing)):
             result = asyncio.get_event_loop().run_until_complete(
                 _fetch_climate_normal_high(mock.MagicMock(), 30.286, -95.566)
             )
@@ -90,8 +87,7 @@ class TestFetchClimateNormalHigh(TestCase):
         async def capture(session, url, **k):
             urls.append(url)
             return self._era5_resp(85.0)
-        mock_fn = asyncio.coroutine(mock.MagicMock(side_effect=capture))
-        with mock.patch("daily_brief.sources.climate._fetch_json", mock_fn):
+        with mock.patch("daily_brief.sources.climate._fetch_json", new=AsyncMock(side_effect=capture)):
             result = asyncio.get_event_loop().run_until_complete(
                 _fetch_climate_normal_high(mock.MagicMock(), 30.286, -95.566)
             )
@@ -105,8 +101,7 @@ class TestFetchClimateNormalHigh(TestCase):
         async def capture(session, url, **k):
             urls.append(url)
             return self._era5_resp(90.0)
-        mock_fn = asyncio.coroutine(mock.MagicMock(side_effect=capture))
-        with mock.patch("daily_brief.sources.climate._fetch_json", mock_fn):
+        with mock.patch("daily_brief.sources.climate._fetch_json", new=AsyncMock(side_effect=capture)):
             asyncio.get_event_loop().run_until_complete(
                 _fetch_climate_normal_high(mock.MagicMock(), 30.286, -95.566)
             )

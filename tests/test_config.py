@@ -4,6 +4,7 @@ Tier 1 unit tests for config loading, type checks, defaults, and validation.
 import copy
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import textwrap
@@ -18,6 +19,8 @@ from daily_brief.config import (
     _get_nested,
     BASE_DIR,
     DEFAULTS,
+    build_runtime_config,
+    load_raw_config,
     load_config_yaml,
     LLM_MODEL,
     OLLAMA_HOST,
@@ -198,8 +201,7 @@ class TestConfigDefaults(TestCase):
             from daily_brief import config as cfg_mod
             result = cfg_mod.load_config_yaml()
             self.assertIsInstance(result, dict)
-            self.assertGreater(len(result), 0)
-            self.assertIn("version", result)
+            self.assertEqual(result, {})
 
 
 # ---------------------------------------------------------------------------
@@ -410,7 +412,7 @@ class TestConfigUncoveredBranches(TestCase):
     def test_load_malformed_yaml_returns_defaults(self):
         with mock.patch("yaml.safe_load", side_effect=yaml.YAMLError("bad yaml")):
             result = load_config_yaml()
-            self.assertEqual(result, DEFAULTS)
+            self.assertEqual(result, {})
 
     def test_category_age_limits_with_category_settings(self):
         mock_data = {
@@ -854,3 +856,98 @@ class TestPreflightChecksEnabled(TestCase):
             cfg["runtime"].pop("preflight_checks_enabled", None)
         issues = check_types(cfg)
         self.assertFalse(any("preflight_checks_enabled" in i for i in issues))
+
+
+class TestRawConfigSafety(TestCase):
+    """Raw YAML loading and validation remain safe for malformed values."""
+
+    def test_raw_loader_returns_valid_dict(self):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as fh:
+            fh.write("version: 1.2.3\nllm:\n  model: test\n")
+            path = fh.name
+        try:
+            self.assertEqual(load_raw_config(path), {"version": "1.2.3", "llm": {"model": "test"}})
+        finally:
+            os.unlink(path)
+
+    def test_raw_loader_returns_empty_for_missing_empty_and_malformed_files(self):
+        self.assertEqual(load_raw_config("/path/that/does/not/exist.yaml"), {})
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as fh:
+            empty_path = fh.name
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as fh:
+            fh.write("bad: [unterminated")
+            malformed_path = fh.name
+        try:
+            self.assertEqual(load_raw_config(empty_path), {})
+            self.assertEqual(load_raw_config(malformed_path), {})
+        finally:
+            os.unlink(empty_path)
+            os.unlink(malformed_path)
+
+    def test_runtime_builder_preserves_valid_runtime_values(self):
+        raw = _get_cfg()
+        runtime = build_runtime_config(raw)
+        self.assertEqual(runtime["WEATHER_LAT"], WEATHER_LAT)
+        self.assertEqual(runtime["CATEGORIES"], CATEGORIES)
+        self.assertEqual(runtime["WEATHER_LAKE_URLS"], WEATHER_LAKE_URLS)
+
+    def test_invalid_numeric_values_produce_type_errors_without_crashing(self):
+        cfg = _get_cfg()
+        cfg["weather"]["lat"] = "north"
+        cfg["llm"]["summary_retry"]["attempts"] = "two"
+        cfg["runtime"]["max_log_versions"] = "five"
+        passed, issues = validate_config(cfg)
+        text = "\n".join(issues)
+        self.assertFalse(passed)
+        self.assertIn("weather.lat' must be a float", text)
+        self.assertIn("llm.summary_retry.attempts' must be an integer", text)
+        self.assertIn("runtime.max_log_versions' must be an integer", text)
+
+    def test_blank_required_strings_and_invalid_url_type_are_reported(self):
+        cfg = _get_cfg()
+        cfg["version"] = "  "
+        cfg["llm"]["model"] = ""
+        cfg["llm"]["host"] = 123
+        passed, issues = validate_config(cfg)
+        text = "\n".join(issues)
+        self.assertFalse(passed)
+        self.assertIn("version' must be a non-empty string", text)
+        self.assertIn("llm.model' must be a non-empty string", text)
+        self.assertIn("llm.host", text)
+
+    def test_multiple_malformed_values_return_all_diagnostics(self):
+        cfg = _get_cfg()
+        cfg["weather"]["lat"] = "north"
+        cfg["weather"]["lon"] = "west"
+        cfg["llm"]["summary_options"]["top_p"] = "high"
+        cfg["llm"]["summary_retry"]["attempts"] = "two"
+        cfg["runtime"]["max_log_versions"] = "five"
+        passed, issues = validate_config(cfg)
+        text = "\n".join(issues)
+        self.assertFalse(passed)
+        for field in ("weather.lat", "weather.lon", "top_p", "summary_retry.attempts", "max_log_versions"):
+            self.assertIn(field, text)
+
+    def test_cli_validate_invalid_numeric_yaml_exits_without_traceback(self):
+        cfg = _get_cfg()
+        cfg["weather"]["lat"] = "north"
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as fh:
+            yaml.safe_dump(cfg, fh)
+            config_path = fh.name
+        try:
+            env = os.environ.copy()
+            env["DAILY_BRIEF_CONFIG"] = config_path
+            env["PYTHONPATH"] = str(Path(__file__).resolve().parent.parent / "src")
+            result = subprocess.run(
+                [sys.executable, "-m", "daily_brief", "config", "validate"],
+                cwd=Path(__file__).resolve().parent.parent,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+        finally:
+            os.unlink(config_path)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("weather.lat", result.stdout)
+        self.assertNotIn("Traceback", result.stderr)

@@ -108,8 +108,8 @@ class TestEmptyForecast(TestCase):
 
     def test_missing_forecast_key_fallback(self):
         result = build_weather_markdown({})
-        dynamic_lines = [l for l in result if "| Dynamic |" in l]
-        self.assertEqual(len(dynamic_lines), 3)
+        degraded_lines = [l for l in result if "| Unavailable |" in l]
+        self.assertGreater(len(degraded_lines), 2)
 
 
 # ---------------------------------------------------------------------------
@@ -315,3 +315,131 @@ class TestLakeConfig(TestCase):
             self.assertIsNotNone(lake_header_idx)
             lake_data_lines = [result[i] for i in range(lake_header_idx, len(result)) if result[i].startswith("| L")]
             self.assertEqual(len(lake_data_lines), 0)
+
+
+# ---------------------------------------------------------------------------
+# 11. Renderer resilience: None / scalar / list / missing keys
+# ---------------------------------------------------------------------------
+
+class TestWeatherResilienceNone(TestCase):
+    """build_weather_markdown handles None without crashing."""
+
+    def test_weather_table_none_data(self):
+        result = build_weather_markdown(None)
+        self.assertIsInstance(result, list)
+        joined = "\n".join(result)
+        self.assertIn("---", result)
+        forecast_table_lines = [l for l in result if l.startswith("| ") and "**Date**" not in l and "---" not in l.split("|")[1]]
+        self.assertGreater(len(forecast_table_lines), 0)
+
+    def test_weather_table_scalar_string(self):
+        result = build_weather_markdown("error")
+        self.assertIsInstance(result, list)
+        joined = "\n".join(result)
+        self.assertIn("Unavailable", joined)
+
+    def test_weather_table_scalar_int(self):
+        result = build_weather_markdown(42)
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+
+    def test_weather_table_empty_dict(self):
+        result = build_weather_markdown({})
+        self.assertIsInstance(result, list)
+        joined = "\n".join(result)
+        self.assertIn("Unavailable", joined)
+
+    def test_weather_table_list_data(self):
+        result = build_weather_markdown([])
+        self.assertIsInstance(result, list)
+        joined = "\n".join(result)
+        self.assertIn("Unavailable", joined)
+
+    def test_weather_table_missing_forecast(self):
+        """Missing forecast key (only has station/lakes) renders degraded rows."""
+        result = build_weather_markdown({"station": {"avg_temp_today": "80"}, "lakes": {}})
+        self.assertIsInstance(result, list)
+        joined = "\n".join(result)
+        self.assertIn("Unavailable", joined)
+
+    def test_weather_table_missing_station(self):
+        """Missing station key renders with Unavailable station values."""
+        result = build_weather_markdown({"forecast": []})
+        joined = "\n".join(result)
+        self.assertIn("Unavailable", joined)
+
+    def test_weather_table_missing_lakes(self):
+        """Missing lakes key renders without crashing."""
+        result = build_weather_markdown({"forecast": [{"date": "Mon", "day": "Sunny", "night": "Clear", "high": "85", "low": "68", "precip": "0%", "wind": "5 mph"}]})
+        self.assertIsInstance(result, list)
+        self.assertTrue(any("---" in l for l in result))
+
+    def test_weather_table_none_forecast_in_dict(self):
+        """forecast=None inside dict is normalized to degraded rows."""
+        result = build_weather_markdown({"forecast": None})
+        self.assertIsInstance(result, list)
+        joined = "\n".join(result)
+        self.assertIn("Unavailable", joined)
+
+    def test_weather_table_non_dict_station(self):
+        """station as non-dict is normalized to empty dict."""
+        result = build_weather_markdown({"forecast": [], "station": "bad"})
+        self.assertIsInstance(result, list)
+        joined = "\n".join(result)
+        self.assertIn("Unavailable", joined)
+
+
+# ---------------------------------------------------------------------------
+# 12. Weather normalization function (exposed from weather_table)
+# ---------------------------------------------------------------------------
+
+class TestNormalizeWeather(TestCase):
+    """_normalize_weather produces safe dicts for all degraded inputs."""
+
+    def setUp(self):
+        from daily_brief.rendering.weather_table import _normalize_weather
+        self.normalize = _normalize_weather
+
+    def test_normalize_none(self):
+        result = self.normalize(None)
+        self.assertIsInstance(result, dict)
+        self.assertIn("forecast", result)
+        self.assertEqual(len(result["forecast"]), 3)
+
+    def test_normalize_scalar(self):
+        result = self.normalize("error")
+        self.assertIsInstance(result, dict)
+        self.assertIn("forecast", result)
+
+    def test_normalize_list(self):
+        result = self.normalize([])
+        self.assertIsInstance(result, dict)
+        self.assertIn("forecast", result)
+
+    def test_normalize_empty_dict(self):
+        result = self.normalize({})
+        self.assertIsInstance(result, dict)
+        self.assertIn("forecast", result)
+        self.assertIn("station", result)
+        self.assertIn("lakes", result)
+
+    def test_normalize_missing_station(self):
+        result = self.normalize({"forecast": []})
+        self.assertIn("station", result)
+        self.assertIsInstance(result["station"], dict)
+
+    def test_normalize_missing_lakes(self):
+        result = self.normalize({"forecast": []})
+        self.assertIn("lakes", result)
+        self.assertIsInstance(result["lakes"], dict)
+
+    def test_normalize_valid_data_unchanged(self):
+        inp = {
+            "forecast": [{"date": "Mon", "day": "Sunny", "night": "Clear", "high": "90", "low": "70", "precip": "0%", "wind": "5"}],
+            "station": {"avg_temp_today": "88"},
+            "lakes": {"conroe": {"today": "78%"}},
+        }
+        result = self.normalize(inp)
+        self.assertIs(result["forecast"], inp["forecast"])
+        self.assertIs(result["station"], inp["station"])
+        self.assertIs(result["lakes"], inp["lakes"])

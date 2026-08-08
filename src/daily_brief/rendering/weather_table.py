@@ -6,7 +6,28 @@ from daily_brief.config import WEATHER_SECTION_TITLE, WEATHER_LABELS, WEATHER_LA
 logger = logging.getLogger(__name__)
 
 
+_DEGRADED_ROW = {
+    "date": "N/A", "day": "N/A", "night": "N/A",
+    "high": "N/A", "low": "N/A", "precip": "N/A", "wind": "N/A",
+}
+
+
+def _normalize_weather(weather):
+    """Return a weather dict safe for rendering. Fills missing structure with N/A defaults."""
+    if not isinstance(weather, dict):
+        return {"forecast": [_DEGRADED_ROW] * 3}
+    result = dict(weather)
+    if "forecast" not in result or not isinstance(result.get("forecast"), list):
+        result["forecast"] = [_DEGRADED_ROW] * 3
+    if "station" not in result or not isinstance(result.get("station"), dict):
+        result["station"] = {}
+    if "lakes" not in result or not isinstance(result.get("lakes"), dict):
+        result["lakes"] = {}
+    return result
+
+
 def build_weather_markdown(weather):
+    weather = _normalize_weather(weather)
     rows = weather.get("forecast", [])
     if not rows:
         rows = [

@@ -4,6 +4,27 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.117 — Full P1 reliability/config/test-validity release
+- `src/daily_brief/config.py`: Split config into three layers — `load_raw_config()` (safe YAML loader), legacy `load_config_yaml()` (backward-compatible), `build_runtime_config()` (typed coercion). Invalid numeric YAML now returns `{}` instead of crashing on import.
+- `src/daily_brief/config_validator.py`: Tightened all validators — non-empty string for required fields, type guards before numeric comparisons, safe URL/path checks. Malformed values produce diagnostic errors instead of `TypeError` crashes.
+- `src/daily_brief/cli.py`: Moved config-derived constant imports from module level into CLI command functions. `config validate` and `show-prompt` run safely without triggering import-time YAML coercion.
+- `src/daily_brief/__main__.py`: Deferred `LOG_DIR` import until after CLI dispatch so `config validate` runs before config-dependent globals are evaluated.
+- `src/daily_brief/llm/client.py`: Added `max_retries` parameter (default 0) to `LLMClient` constructor and `AsyncOpenAI`. Added idempotent `aclose()` lifecycle method. `create_llm_client()` forwards `max_retries`.
+- `src/daily_brief/llm/summarizer.py`: Replaced serial Phase 3 recovery with bounded concurrent recovery (`asyncio.Semaphore`, default `recovery_max_concurrency=2`). Added pre-dispatch recovery deadline gate and `asyncio.wait_for` in-flight cancellation via `CancelledError`. Replaced `time.time()` with `time.monotonic()` in LLM duration measurements.
+- `src/daily_brief/pipeline.py`: Added `_normalize_weather_for_rendering()` — normalizes `None`, scalar, list, and missing-key weather data to safe defaults before renderer.
+- `src/daily_brief/rendering/weather_table.py`: Added `_DEGRADED_ROW` constant and `_normalize_weather()` — handles `None`, scalars, lists, missing `forecast`/`station`/`lakes` keys with safe "N/A" defaults.
+- `tests/test_config.py`: 103 tests — raw loader behavior (4), validator safety (13), subprocess CLI validation (3).
+- `tests/test_batch_failure_fixtures.py`: 8 new recovery tests — concurrency barrier (2), serial (1), deadline (1), all-recover (1), timing (3).
+- `tests/test_llm_client.py`: 6 new tests — max_retries default (2), aclose idempotency (2), factory forwarding (2).
+- `tests/test_summarizer.py`: 5 new monotonic timing tests — source check, non-negative duration.
+- `tests/test_cli.py`: Fixed unawaited coroutine warning — `AsyncMock` for `_cmd_check_connectivity_impl`, `_run_on_existing_loop` helper.
+- `tests/test_pipeline.py`: 12 new weather normalization tests, barrier-based concurrency assertion.
+- `tests/test_smoke_test.py`: `pytestmark = pytest.mark.smoke` — excluded from default suite.
+- `tests/test_weather_table.py`: 17 new weather resilience tests — `None`, scalars, lists, empty dicts, missing keys, valid passthrough.
+- `tests/test_sources/*.py`: Migrated 63 `asyncio.coroutine(mock.MagicMock(...))` patterns to `AsyncMock` across 6 test files. 0 remaining uses.
+- `pytest.ini`: Added `addopts = -m "not smoke"` and `filterwarnings` for `RuntimeWarning` and `DeprecationWarning` as errors on `daily_brief` module.
+- 1039/1039 tests passing (21 smoke deselected). Config validate PASS. 0 warnings.
+
 ### v1.0.116 — Summary recovery correctness (P1)
 - `src/daily_brief/llm/summarizer.py`: Extended `_is_valid_summary()` as the canonical quality gate for batch and individual LLM recovery — added `_is_refusal` rejection and internal fallback-marker rejection (`[Auto]`, `[Summary Unavailable]`). Replaced the weaker inline recovery predicate (`not _is_boilerplate and not _is_refusal and != "[Summary Unavailable]" and _has_topic_overlap`) with the canonical `_is_valid_summary(retry, s.title)`. Deterministic `[Auto] <headline>` output no longer incorrectly increments `individual_recovered` metrics.
 - `tests/test_summarizer.py`: Added `TestIsValidSummaryExtended` (11 tests) for one-sentence rejection, headline echo (+period) rejection, refusal (with headline keyword overlap), `[Auto]` marker, `[Summary Unavailable]`, boilerplate, empty/None, and valid two-sentence pass.

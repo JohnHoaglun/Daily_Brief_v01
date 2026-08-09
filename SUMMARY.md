@@ -4,6 +4,15 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.126 — Phase 6 harness fix: tag conflict invariant + diagnostics
+- **Tag conflict fix** (`tagging.py`): `tag_story_with_keywords()` now tracks `conflict_losers` set — tags removed during conflict resolution cannot be re-added by the minimum-tag promotion loop. Fixes check 3.7 live FAIL where `international` + `local` conflict was undone by promotion. Fewer than 3 tags acceptable when conflicts prevent reaching 3.
+- **Phase 6 diagnostics** (`pipeline.py`): `run_test_harness()` findings now persisted to run log — each `HarnessResult.stdout_lines` entry logged as `[Harness]` prefix, each `stderr_lines` as `[Harness err]`. Previously only `Harness result: FAIL — exit code 2` was written; detailed check items were lost on in-memory `HarnessResult`.
+- **Tests**: 4 new `test_tagging.py` tests (`TestConflictMinimumTagPromotion`), 2 new `test_pipeline.py` tests (`TestHarnessDiagnostics`), 2 new `test_harness.py` tests (`TestHarnessPreservesOutput`). 514/518 passing (4 pre-existing concurrency contract, Wave 4 pending).
+- **Live smoke**: WARN, zero FAILs, 79 stories, 56.99s. Retained v08 artifact still has check 3.7 FAIL (generated pre-fix, as expected).
+- **Files changed**: 8 files — 5 production (tagging.py, pipeline.py, config.py, __init__.py, harness.py), 3 test (test_tagging.py, test_pipeline.py, test_harness.py).
+- **Version alignment**: All 21 version markers updated (README, PROJECT, TODOS, config.yaml, config.py, versions_locations, 15 module docstrings).
+- **11 files changed, 221 insertions(+), 4 deletions(-)**
+---
 ### v1.0.125 — Wave 1: Reliability fixes (parser, rendering, RSS, climate)
 - **Parser assignment** (`summarizer.py`): First-wins dedup semantics — `reserved_empty_slots` and `skipped_fuzzy_match` prevent duplicate fuzzy matches from overwriting assigned slots or stealing positional fallback targets. Adjacent swap detection works correctly after headline matching. 17/17 contract tests passing.
 - **Rendering safety** (`report.py`, `weather_table.py`, `utils.py`): `[Tag]` bracket slicing uses `[1:-1]` (was `[2:-2]`); `[[Tag]]` uses `[2:-2]`. Pipe characters in weather table cells escaped as `&#124;` to prevent Markdown table column breaks. Newlines in story titles and summaries normalized to spaces. 29/29 contract tests passing.

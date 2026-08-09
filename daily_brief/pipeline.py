@@ -330,6 +330,10 @@ async def main():
         PHASE_TIMINGS['Phase 6'] = elapsed_6
         log(f"  Phase 6 completed in {elapsed_6:.2f}s")
         log(f"  Harness result: {harness_result.status} — {harness_result.message}")
+        for line in harness_result.stdout_lines:
+            log(f"  [Harness] {line}")
+        for line in harness_result.stderr_lines:
+            log(f"  [Harness err] {line}")
         total_elapsed = time.monotonic() - run_started
         log(f"TOTAL PIPELINE TIME: {total_elapsed:.2f}s")
 

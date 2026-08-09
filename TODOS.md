@@ -1,11 +1,10 @@
-# TODO: Daily Brief v01 - v1.0.125
+# TODO: Daily Brief v01 - v1.0.126
 
 ## Status
-v1.0.125: Wave 1 reliability fixes — parser assignment, rendering safety, RSS identity, climate. 506/510 passing (4 concurrency contract failures, Wave 4 pending). **KNOWN ISSUE** documented below.
+v1.0.126: Phase 6 harness fix — tag conflict invariant (international+local re-add on min-tag promotion), Phase 6 diagnostics (harness stdout/stderr persisted to run log). 514/518 passing (4 concurrency contract failures, Wave 4 pending). Known issue resolved.
 
 ## Known Issues
-### **Live harness FAIL on v1.0.125 (2026-08-09 20:22:27)**
-Pipeline exit code 2 (FAIL) from Phase 6 test harness. Report generated successfully (79 stories, `DailyBrief-2026-08-09_v08.md`), Phases 1-5 passed. Harness result: `FAIL — exit code 2`. Root cause unknown — report content appeared OK. Needs investigation: run `python3 dashboard_pipeline.py` manually and capture the harness output from Phase 6 to identify which specific tests failed.
+- None active. v1.0.125 live harness FAIL (exit code 2, check 3.7 tag conflict) resolved in v1.0.126 via `tagging.py` fix. Confirmed by live smoke v09 (79 stories, 56.99s, WARN, zero FAILs).
 
 ## Wave 4 - Concurrency Contract (acceptance criteria established)
 - [x] Wave 0: Create `tests/test_concurrency_contract.py` with concurrency, output lifecycle, and pipeline ownership fixtures. 13 tests, 4 failing (documenting bugs). Completed v1.0.123.
@@ -20,6 +19,12 @@ Pipeline exit code 2 (FAIL) from Phase 6 test harness. Report generated successf
 - [x] Rendering safety: bracket slicing, pipe escaping, newline normalization
 - [x] RSS identity: NFKD, no truncation, no suffix stripping
 - [x] Climate reference date, `_fetch_json` type widening, hardcoded 77316 removal
+
+## Phase 6 Fix — Harness Correctness (v1.0.126)
+- [x] Fix tag conflict invariant: minimum-tag promotion cannot restore a tag rejected by `tag_conflicts`.
+  - Completed v1.0.126. `tagging.py` tracks `conflict_losers` set after conflict resolution. Minimum-tag promotion loop excludes conflict losers. 4 new regression tests, 0 regressions.
+- [x] Persist Phase 6 harness findings in the run log.
+  - Completed v1.0.126. `pipeline.py` writes each `HarnessResult.stdout_lines`/`stderr_lines` entry prefixed with `[Harness]`/`[Harness err]`. 4 new tests (2 pipeline diagnostics, 2 harness output preservation).
 
 ## Priority 0 - Correct Run Outcomes
 - [x] Make `pipeline.main()` return an explicit run result or exit code. Update `__main__.py` to exit nonzero for internal report-validation failure and harness `FAIL`/`ERROR`; decide and document the policy for `WARN` and `SKIPPED`. Evidence: `daily_brief/pipeline.py:276-297`, `daily_brief/__main__.py:39-55`.

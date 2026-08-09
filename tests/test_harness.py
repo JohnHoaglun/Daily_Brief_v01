@@ -106,5 +106,43 @@ class TestHarnessExceptions(TestCase):
                 self.assertTrue(any("not found" in c.lower() for c in calls))
 
 
+class TestHarnessPreservesOutput(TestCase):
+    """HarnessResult preserves stdout_lines and stderr_lines from subprocess."""
+
+    def _mock_script_dir(self):
+        d = tempfile.mkdtemp()
+        config = os.path.join(d, "config.yaml")
+        with open(config, "w") as f:
+            f.write("{}")
+        return d
+
+    def test_preserves_stdout_stderr_lines(self):
+        d = self._mock_script_dir()
+        mock_result = mock.Mock()
+        mock_result.returncode = 2
+        mock_result.stdout = "  - [3.7] finding A\n  another finding B\n"
+        mock_result.stderr = "stderr line 1\nstderr line 2\n"
+
+        with mock.patch("subprocess.run", return_value=mock_result):
+            result = run_test_harness("/tmp/run_log_2026-07-29_v01.md", script_dir=d)
+            self.assertEqual(result.status, "FAIL")
+            self.assertEqual(result.exit_code, 2)
+            self.assertEqual(result.stdout_lines, ["- [3.7] finding A", "  another finding B"])
+            self.assertEqual(result.stderr_lines, ["stderr line 1", "stderr line 2"])
+
+    def test_empty_output_yields_empty_lists(self):
+        d = self._mock_script_dir()
+        mock_result = mock.Mock()
+        mock_result.returncode = 0
+        mock_result.stdout = ""
+        mock_result.stderr = ""
+
+        with mock.patch("subprocess.run", return_value=mock_result):
+            result = run_test_harness("/tmp/run_log_2026-07-29_v01.md", script_dir=d)
+            self.assertEqual(result.stdout_lines, [])
+            self.assertEqual(result.stderr_lines, [])
+
+
 if __name__ == "__main__":
+    import unittest
     unittest.main()

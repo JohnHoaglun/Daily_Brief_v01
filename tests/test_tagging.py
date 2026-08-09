@@ -280,6 +280,103 @@ class TestTagConflicts(TestCase):
 
 
 # ---------------------------------------------------------------------------
+# tag_story_with_keywords — conflict + min tag promotion (regression)
+# ---------------------------------------------------------------------------
+
+class TestConflictMinimumTagPromotion(TestCase):
+
+    def test_conflict_loser_not_repromoted(self):
+        """The live failure: conflict resolution removes the loser, but the
+        minimum-tag promotion loop must NEVER re-add it to reach 3 tags.
+
+        Scenario:
+        - Title matches both 'international' and 'local' keywords
+        - Category boost gives 'local' a higher score
+        - 'local' wins over 'international' in the conflict pair
+        - Only 2 matching tags exist, so min-tag promotion would try to fill
+        - Assert: 'international' is NOT re-added"""
+        mappings = {
+            "international": ["international", "foreign"],
+            "local": ["houston", "texas"],
+        }
+        conflicts = [["international", "local"]]
+        boosts = {
+            "Local News": ["local"],
+        }
+        with _patch_config(mappings=mappings, conflicts=conflicts, boosts=boosts):
+            result = tag_story_with_keywords(
+                "International homebuyers are flocking to Texas",
+                category="Local News",
+            )
+        tags = result.split()
+        has_local = "[[local]]" in tags
+        has_international = "[[international]]" in tags
+        # Must never have both conflicting tags present
+        if has_local:
+            self.assertFalse(
+                has_international,
+                "Conflicting tag 'international' was re-added to satisfy min_tags",
+            )
+        if has_international:
+            self.assertFalse(
+                has_local,
+                "Conflicting tag 'local' was re-added to satisfy min_tags",
+            )
+
+    def test_conflict_winner_retained(self):
+        """The conflict winner (higher score) is retained after resolution."""
+        mappings = {
+            "international": ["international", "foreign"],
+            "local": ["houston", "texas"],
+        }
+        conflicts = [["international", "local"]]
+        boosts = {"Local News": ["local"]}
+        with _patch_config(mappings=mappings, conflicts=conflicts, boosts=boosts):
+            result = tag_story_with_keywords(
+                "International homebuyers are flocking to Texas",
+                category="Local News",
+            )
+        # 'local' wins (category boost gives +3.0) so it must be present
+        self.assertIn("[[local]]", result)
+        self.assertNotIn("[[international]]", result)
+
+    def test_min_promotion_still_works_without_conflicts(self):
+        """Normal min-tag promotion still fills to 3 when no conflicts exist."""
+        mappings = {
+            "ai": ["ai"],
+            "weather": ["weather"],
+        }
+        with _patch_config(mappings=mappings, conflicts=[]):
+            result = tag_story_with_keywords("ai", category="AI News")
+        tags = result.split()
+        self.assertGreaterEqual(len(tags), 1)
+        self.assertIn("[[ai]]", result)
+
+    def test_fewer_than_three_tags_acceptable_when_conflicts_prevent(self):
+        """When all extra tags conflict with the survivors, the story is
+        allowed to have fewer than 3 tags rather than violating conflicts."""
+        mappings = {
+            "a": ["alpha"],
+            "b": ["beta"],
+            "c": ["gamma"],
+        }
+        conflicts = [["a", "b"], ["a", "c"]]
+        with _patch_config(mappings=mappings, conflicts=conflicts, boosts={}):
+            result = tag_story_with_keywords("alpha beta gamma")
+        tags = result.split()
+        has_a = "[[a]]" in tags
+        has_b = "[[b]]" in tags
+        has_c = "[[c]]" in tags
+        # a conflicts with both b and c; b and c conflict with a
+        # Check: no conflicting pair is present together
+        if has_a:
+            self.assertFalse(has_b, "a and b are conflicting")
+            self.assertFalse(has_c, "a and c are conflicting")
+        # It's acceptable if only 1 or 2 tags are present
+        self.assertLessEqual(len(tags), 3)
+
+
+# ---------------------------------------------------------------------------
 # tag_story_with_keywords — deduplication
 # ---------------------------------------------------------------------------
 

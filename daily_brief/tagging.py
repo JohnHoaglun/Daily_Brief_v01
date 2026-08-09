@@ -143,6 +143,7 @@ def tag_story_with_keywords(story_title, category=None):
     tag_list = [tag for tag, _ in sorted_tags[:max_tags]]
 
     # Resolve mutually exclusive tag conflicts
+    conflict_losers = set()
     if tag_conflicts:
         for pair in tag_conflicts:
             if len(pair) != 2:
@@ -151,14 +152,17 @@ def tag_story_with_keywords(story_title, category=None):
             if a in tag_scores and b in tag_scores:
                 loser = a if tag_scores.get(a, 0) <= tag_scores.get(b, 0) else b
                 tag_list = [t for t in tag_list if t != loser]
+                conflict_losers.add(loser)
 
     # Minimum 3 tags: promote next-best scoring tags (even below normal threshold)
-    # Run AFTER conflict resolution so we restore tags stripped by conflicts
+    # Run AFTER conflict resolution so we restore tags stripped by conflicts,
+    # but NEVER re-add a tag that was removed as a conflict loser.
     min_tags = 3
     if len(tag_list) < min_tags:
         # Try all tags that scored > 0, even if below threshold
         all_scored = sorted(
-            [(t, s) for t, s in tag_scores.items() if s > 0 and t not in tag_list],
+            [(t, s) for t, s in tag_scores.items()
+             if s > 0 and t not in tag_list and t not in conflict_losers],
             key=lambda x: x[1], reverse=True
         )
         for tag, score in all_scored:
@@ -168,12 +172,12 @@ def tag_story_with_keywords(story_title, category=None):
         # Last resort: use category-derived tags
         if len(tag_list) < min_tags and category:
             cat_tag = category.lower().replace(" ", "-").replace("/", "-")
-            if cat_tag not in tag_list:
+            if cat_tag not in tag_list and cat_tag not in conflict_losers:
                 tag_list.append(cat_tag)
             if len(tag_list) < min_tags:
                 for part in category.lower().split():
                     part_tag = part.lower().replace(" ", "-").replace("/", "-")
-                    if part_tag and part_tag not in tag_list:
+                    if part_tag and part_tag not in tag_list and part_tag not in conflict_losers:
                         tag_list.append(part_tag)
                     if len(tag_list) >= min_tags:
                         break

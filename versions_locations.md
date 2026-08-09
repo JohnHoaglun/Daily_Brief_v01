@@ -2,7 +2,7 @@
 
 ## Canonical Version
 
-**Current release: `v1.0.122`**
+**Current release: `v1.0.126`**
 
 ## Required Release Process
 

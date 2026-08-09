@@ -1,7 +1,7 @@
-# TODO: Daily Brief v01 - v1.0.127 (Wave 4 Concurrency) ✅ COMPLETE
+# TODO: Daily Brief v01 - v1.0.128 (Weather Label + No-Fallback Fix) ✅ COMPLETE
 
 ## Status
-v1.0.127: Wave 4 concurrency safety — COMPLETE. 530/530 tests passing. Committed 9b14320, pushed to origin/dev_opencode.
+v1.0.128: Weather provider isolation tests adapted for day-of-week labels + removed forecast fallback. 530/530 tests passing. Committed 2ee5da2, pushed to origin/dev_opencode.
 
 ## Active Work
 ### Agent A — Atomic report writes ✅

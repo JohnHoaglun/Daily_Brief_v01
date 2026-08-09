@@ -4,6 +4,13 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.128 — Weather label + no-fallback test fixes
+- **Weather label format**: `get_weather_label_for_offset()` now returns abbreviated day-of-week (`strftime("%a")`) — e.g. "Sun", "Mon" — replacing "Today"/"Today Night"/"Tomorrow". Date column in weather table shows day names consistently.
+- **Forecast fallback removed**: `merge_weather_data()` no longer falls back to forecast high temperature when ERA5 climate normal is absent. Station `avg_temp_today` is "Unavailable" instead.
+- **Test fixes** (`test_weather_provider_isolation.py`): `test_full_provider_data` updated for "Sat" date labels. `test_era5_absent_no_fallback` and `test_both_fail_fallback` (renamed `test_both_fail_no_fallback`) updated to assert "Unavailable" when ERA5 data is missing.
+- **530/530 tests passing**.
+- **1 file changed, 9 insertions(+), 9 deletions(-)**
+---
 ### v1.0.127 — Wave 4: Concurrency Safety
 - **RunContext pattern** (`pipeline.py`): Per-run context scoping eliminates global state leaks between concurrent pipeline invocations. Phase timings, llm_client, log file path, and output directory all scoped to `RunContext`. Module-level `RUN_LOGFILE`, `PHASE_TIMINGS`, `OUTPUT_DIR` kept as backwards-compat shim.
 - **Atomic run reservation** (`lifecycle.py`): `RunAllocator` uses O_CREAT|O_EXCL filesystem markers for exclusively unique version allocation. Concurrent processes scan existing logs and markers, then atomically claim their version. Collision resolution via retry on FileExistsError.

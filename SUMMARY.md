@@ -4,6 +4,16 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.123 — Concurrency contract fixtures (Wave 0)
+- Added `tests/test_concurrency_contract.py` (669 lines, 13 tests across 6 test classes) documenting the concurrency bugs to be fixed in Wave 4.
+- **TestConcurrentModuleGlobalsIsolation** (3 tests): Concurrent runs share `RUN_LOGFILE`, `PHASE_TIMINGS`, and `_llm_client` module globals. 1 test fails (logfile leak), 2 pass (LLM client creates independently, timings captured).
+- **TestConcurrentVersionAllocation** (2 tests): Report and log version allocation each independently scans filesystem — concurrent runs collide on v1. 1 test fails (version collision), 1 passes (log/report version pairing).
+- **TestAtomicReportWrites** (2 tests): `write_report()` writes directly to final path without temp file + `os.replace()`. 1 test fails (no temp file used), 1 passes (baseline write correctness).
+- **TestIndependentPhaseTimings** (2 tests): Phase 1 and Phase 2 run serially; timings are recorded independently. Both pass (documents current serial behavior).
+- **TestBoundedArticleConcurrency** (2 tests): Article extraction `asyncio.gather()` is unbounded. 1 passes (all stories run simultaneously), 1 passes (pending feature warning).
+- **TestRunContextNoGlobalLeak** (2 tests): Global state leaks between concurrent runs — last-writer wins. 1 test fails (concurrent leak), 1 passes (sequential reset works).
+- 13 tests total: 9 pass (contract baseline + serial behavior), 4 fail (documenting bugs). 441/441 tests passing across full suite.
+
 ### v1.0.122 — README release-history cleanup
 - Replaced the mixed performance/changelog section in `README.md` with actual performance information. The complete release history is maintained only in `SUMMARY.md`.
 

@@ -1,7 +1,15 @@
-# TODO: Daily Brief v01 - v1.0.122
+# TODO: Daily Brief v01 - v1.0.123
 
 ## Status
-v1.0.122: README performance content now contains only performance information; the canonical release history is `SUMMARY.md`. 402/402 passing, config validate PASS, 0 warnings.
+v1.0.123: Wave 0 concurrency contract fixtures added — 13 tests in `tests/test_concurrency_contract.py` (9 pass, 4 fail documenting bugs). 441/441 passing across full suite.
+
+## Wave 4 - Concurrency Contract (acceptance criteria established)
+- [x] Wave 0: Create `tests/test_concurrency_contract.py` with concurrency, output lifecycle, and pipeline ownership fixtures. 13 tests, 4 failing (documenting bugs). Completed v1.0.123.
+- [ ] Wave 1: Introduce `RunContext` pattern to scope per-run state (log file, timings, LLM client, output dir). Replace module globals with parameterized context.
+- [ ] Wave 2: Atomic version allocation — shared version allocator with mutex/lock for concurrent runs.
+- [ ] Wave 3: Atomic report writes — `write_report()` uses temp file + `os.replace()`.
+- [ ] Wave 4: Concurrent Phase 1/Phase 2 — run weather and RSS fetch in parallel.
+- [ ] Wave 5: Bounded article concurrency — configurable `ARTICLE_MAX_CONCURRENCY` with `asyncio.Semaphore`.
 
 ## Priority 0 - Correct Run Outcomes
 - [x] Make `pipeline.main()` return an explicit run result or exit code. Update `__main__.py` to exit nonzero for internal report-validation failure and harness `FAIL`/`ERROR`; decide and document the policy for `WARN` and `SKIPPED`. Evidence: `daily_brief/pipeline.py:276-297`, `daily_brief/__main__.py:39-55`.

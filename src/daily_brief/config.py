@@ -16,7 +16,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 # Defaults — single nested structure matching the canonical YAML shape
 # ---------------------------------------------------------------------------
 DEFAULTS = {
-    "version": "1.0.108",
+    "version": "1.0.116",
     "llm": {
         "model": "gemma4-e2b",
         "host": "http://localhost:11434/v1",
@@ -27,10 +27,6 @@ DEFAULTS = {
         "summary_retry": {"attempts": 2, "backoff": [0.5, 1.0]},
         "summary_batch_size": 4,
         "summary_max_concurrency": 2,
-    },
-    "directories": {
-        "log_dir": "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/logs",
-        "news_dir": "/Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/news",
     },
     "weather": {
         "lat": 30.286,
@@ -150,8 +146,8 @@ def build_runtime_config(raw_cfg):
         "VERSION": value("version", DEFAULTS["version"], str),
         "LLM_MODEL": value("llm.model", DEFAULTS["llm"]["model"], str),
         "OLLAMA_HOST": value("llm.host", DEFAULTS["llm"]["host"], str),
-        "LOG_DIR": value("directories.log_dir", DEFAULTS["directories"]["log_dir"], str),
-        "NEWS_DIR": value("directories.news_dir", DEFAULTS["directories"]["news_dir"], str),
+        "LOG_DIR": value("directories.log_dir", None, str),
+        "NEWS_DIR": value("directories.news_dir", None, str),
         "WEATHER_LAT": number("weather.lat", DEFAULTS["weather"]["lat"], float),
         "WEATHER_LON": number("weather.lon", DEFAULTS["weather"]["lon"], float),
         "WEATHER_POINT_URL": "https://api.weather.gov/points/{lat},{lon}",

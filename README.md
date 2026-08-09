@@ -38,16 +38,16 @@ pip install aiohttp feedparser beautifulsoup4 openai pyyaml
 
 All runtime settings in `config.yaml`. Key groups:
 
-| Key | Description | Default |
+| Key | Description | Configured Value |
 |---|---|---|
-| `version` | Pipeline version | `1.0.117` |
+| `version` | Pipeline version | `1.0.116` |
 | `llm.model` | Model for summarization | `gemma4-e2b` |
 | `llm.host` | vLLM API endpoint | `http://192.168.4.52:8007` |
-| `directories.log_dir` | Log output directory | vault `Dev/logs/` |
-| `directories.news_dir` | Report output directory | vault `Dev/news/` |
+| `directories.log_dir` | Log output directory | `.../Shared_AI/vault/OpenCode/Daily_Brief_v01/Dev/logs` |
+| `directories.news_dir` | Report output directory | `.../Shared_AI/vault/OpenCode/Daily_Brief_v01/Dev/news` |
 | `weather.lat` / `weather.lon` | Weather location | `30.286, -95.566` (Houston) |
 | `weather.wunderground_station_id` | Wunderground station | `KTXMONTG645` |
-| `categories.*` | 17 news categories with queries and limits | see `config.yaml` |
+| `categories.*` | 16 news categories with queries and limits | see `config.yaml` |
 | `tagging_mappings.*` | Keyword-to-tag mappings | 20+ categories |
 
 ## Pipeline Phases

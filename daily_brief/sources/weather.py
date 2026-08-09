@@ -1,5 +1,5 @@
 """
-Daily Brief v1.0.121 — Weather Source
+Daily Brief v1.0.122 — Weather Source
 =====================================
 NWS forecast fetch, parse, and orchestration of all weather data sources.
 """
@@ -370,4 +370,3 @@ async def fetch_weather(session: aiohttp.ClientSession, lat: float, lon: float) 
         weather_data["errors"].append(str(e))
 
     return weather_data
-

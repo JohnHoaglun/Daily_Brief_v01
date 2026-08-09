@@ -4,6 +4,9 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.122 — README release-history cleanup
+- Replaced the mixed performance/changelog section in `README.md` with actual performance information. The complete release history is maintained only in `SUMMARY.md`.
+
 ### v1.0.121 — Version reference registry
 - Added `versions_locations.md`, the canonical registry of all current release-version markers. It must be read before each commit and updated whenever a new tracked file adds a current-version reference.
 - Normalized all current code and documentation version markers to v1.0.121. Historical changelog entries retain their original release versions.

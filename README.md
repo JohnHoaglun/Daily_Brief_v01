@@ -1,4 +1,4 @@
-# Daily Brief v1.0.121
+# Daily Brief v1.0.122
 Automated daily news brief generator that fetches stories from 17 configured categories via Google News RSS, enriches them with weather and lake-level data, summarizes them with AI, and produces a structured Markdown report.
 
 ## Architecture
@@ -40,7 +40,7 @@ All runtime settings in `config.yaml`. Key groups:
 
 | Key | Description | Configured Value |
 |---|---|---|
-| `version` | Pipeline version | `1.0.121` |
+| `version` | Pipeline version | `1.0.122` |
 | `llm.model` | Model for summarization | `gemma4-e2b` |
 | `llm.host` | vLLM API endpoint | `http://192.168.4.52:8007` |
 | `directories.log_dir` | Log output directory | `.../Shared_AI/vault/OpenCode/Daily_Brief_v01/Dev/logs` |
@@ -90,28 +90,9 @@ TODOS.md                    # Live task board
 
 ## Performance
 
-- v1.0.67 baseline: ~105–114s internal pipeline time across 70–73 stories. LLM summarization (Phase 3) dominates at ~96–100s.
-- v1.0.94 (C.2a adopted): Phase 3 median 43.4s (from 97.7s baseline) — 55.6% speedup via `batch_size=4`, `max_concurrency=2`. Quality: zero invalid/boilerplate/refusal/exceptions across 24 benchmark runs.
-- v1.0.95 (C.4): centralized batch retry, single-story recovery, and structured `SummaryMetrics`. Pipeline Phase 3D/3E duplicate recovery loops removed (−57 lines). Transient batch failures now retried as full batches before falling to individual recovery.
-- v1.0.96 (C.3): centralized HTTP retry/status — bounded 3-attempt retry with async backoff for transient failures (502/503/504/429/timeout). RSS routed with 2xx acceptance; article extraction gated to exact-200 before parsing. Weather/climate/lakes/Wunderground inherit retry automatically (zero caller changes).
-- v1.0.97 (C.5): retired the dormant alert feature — removed `llm/alerter.py` and all alert references. 925 tests (924 passing, 1 pre-existing), config validate PASS.
-- v1.0.98 (D.1): unified config schema — nested `DEFAULTS`, `_get_nested()` helper, single YAML read. Config validator validates canonical `llm.*`/`network.*`/`runtime.*` paths. Pipeline uses explicit imports.
-- v1.0.99 (D.2): promoted `Story` to 7-field typed dataclass. Replaced `StoryPipelineState` with alias. All consumers use keyword construction. Deleted unused fields.
-- v1.0.100 (D.3): canonicalized 4 duplicate utility functions — `_safe_sentence_summary`, `_count_sentences`, `build_context`, `_coerce_temperature_f` — consolidated in `utils.py`. 921 tests (2 pre-existing), config validate PASS.
-- v1.0.101 (D.4): added 32 parser golden fixture tests for `parse_batch_summary_response()` (15 format fixtures + 17 edge cases). 953 tests (2 pre-existing), config validate PASS.
-- v1.0.102 (D.5): tagging precompilation — `precompile_tagging()` builds 410 precompiled regex pairs at startup. Single tag computation per story via `id(st)` cache, reused for frontmatter + body. 953/955 tests (2 pre-existing), config validate PASS.
-- v1.0.103 (D.6): Bug-7 — NWS `forecast` URL safe suffix. Bug-8 — `station_rows` safe indexing with `len()` guard. Bug-11 — version alignment across all sources. 954/956 tests (2 pre-existing), config validate PASS.
-- v1.0.104 (D.7): typed `HarnessResult` dataclass. Weather errors surfaced in pipeline log. Declarative `CHECK_LIST`/`SMOKE_TEST_CHECKS` + `_wrapped()` helper. 954/956 tests passing, config validate PASS.
-- v1.0.105 (D.8): startup crash fix — `log()` guarded against `RUN_LOGFILE=None` before logfile init. Early logs write stderr only. 954/956 tests (2 pre-existing), config validate PASS.
-- v1.0.106 (D.9): startup integration test — `TestStartupSequence` runs real `pipeline.main()` through Phase 4 with deterministic boundary mocks. Removed obsolete `TestPipelineCreatesDirs`. 955/956 tests (1 pre-existing), config validate PASS.
-- v1.0.107 (Quality-7): fixed `TestConfigUncoveredBranches` module state leak — `importlib.reload` with mocked `yaml.safe_load` left `TIMEZONE="UTC"` and stale categories, causing `test_zoneinfo_uses_configured_timezone` to fail when run after config tests. Added `tearDownClass` to restore real YAML config. 956/956 tests passing (0 pre-existing), config validate PASS.
-- v1.0.108 (Harness): shared log/report version identity — `compute_output_path()` now accepts explicit `file_ver` from the pipeline. Run log and report share the same version number, so Phase 6 harness finds the correct report. 959/959 tests passing (0 pre-existing), config validate PASS, pipeline smoke test harness validates actual report.
-- v1.0.112 (Summarizer): added topic-alignment guard. 977/984 tests passing (7 pre-existing RSS dedup), config validate PASS.
-- v1.0.115 (P0): pipeline exit-code contract — 0=PASS, 1=WARN/CONFIG, 2=FAIL/VALIDATION, 3=ERROR/SKIPPED. 991/991 tests passing.
-- v1.0.116 (P1): summary recovery correctness — canonical `_is_valid_summary()` gate for batch and recovery. 1009/1009 tests passing.
-- v1.0.117 (P1): config safety (raw loader, typed builder, CLI imports), validator hardening, LLM core (`max_retries=0`, `aclose()`, recovery concurrency=2, deadline), weather rendering resilience, 63 async mock migrations, test validity fixes. 1039/1039 tests passing (21 smoke deselected), 0 warnings.
-- v1.0.119: cleanup ordering fix — moved `cleanup_old_files()` after `write_report()` so retention works for both reports and logs. 1046/1046 tests.
-- v1.0.120: test suite consolidation — reduced from 1,046 to 402 tests (62% reduction). Removed optional tool tests (benchmark, corpus, smoke), source-code inspections, historical-bug demonstrations, duplicate coverage, and micro-input permutations. 402/402 passing, 5.64s.
+- Baseline: ~105-114 seconds of internal pipeline time across 70-73 stories, with Phase 3 LLM summarization consuming ~96-100 seconds.
+- Adopted batch scheduling: Phase 3 median 43.4 seconds, down from 97.7 seconds (55.6% faster), using `batch_size=4` and `max_concurrency=2`.
+- Benchmark and corpus-capture utilities remain available as explicit module commands for performance investigations.
 
 ## Module Commands
 
@@ -124,7 +105,7 @@ python3 -m daily_brief.benchmark_llm_batches --help
 
 ## Tracking
 
-See `PROJECT.md` for architecture, `PLAN.md` for active optimization strategy, and `SUMMARY.md` for changelog.
+See `PROJECT.md` for architecture and current status, `SUMMARY.md` for the complete release changelog, and `TODOS.md` for the active backlog.
 
 ## License
 

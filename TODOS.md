@@ -1,7 +1,7 @@
-# TODO: Daily Brief v01 - v1.0.118
+# TODO: Daily Brief v01 - v1.0.119
 
 ## Status
-v1.0.118: Repository structure migration complete. Root package `daily_brief/`, no `src/`. 1039/1039 passing (21 smoke deselected), config validate PASS, 0 warnings.
+v1.0.119: Cleanup ordering fix. `cleanup_old_files()` now runs after `write_report()`, so both reports and logs finish at exactly `max_log_versions`. 1046/1046 passing (21 smoke deselected), config validate PASS, 0 warnings.
 
 ## Priority 0 - Correct Run Outcomes
 - [x] Make `pipeline.main()` return an explicit run result or exit code. Update `__main__.py` to exit nonzero for internal report-validation failure and harness `FAIL`/`ERROR`; decide and document the policy for `WARN` and `SKIPPED`. Evidence: `daily_brief/pipeline.py:276-297`, `daily_brief/__main__.py:39-55`.
@@ -75,7 +75,8 @@ v1.0.118: Repository structure migration complete. Root package `daily_brief/`, 
 
 ## Priority 2 - Output Lifecycle And Shared State
 - [ ] Make report/log version allocation atomic for overlapping runs and write reports via temporary file plus `os.replace`. Evidence: `daily_brief/pipeline.py:140-149`, `daily_brief/rendering/report.py:56-68`.
-- [ ] Correct retention ordering so exactly `max_log_versions` reports remain after the new report is written. Evidence: `daily_brief/pipeline.py:245-260`, `daily_brief/rendering/cleanup.py:12-21`.
+- [x] Correct retention ordering so exactly `max_log_versions` reports remain after the new report is written. Evidence: `daily_brief/pipeline.py:297-298`, `daily_brief/rendering/cleanup.py:12-21`.
+  - Completed v1.0.119. Moved `cleanup_old_files()` from before to immediately after `write_report()`. 7 new tests.
 - [ ] Replace mutable pipeline module globals (`RUN_LOGFILE`, `PHASE_TIMINGS`, `_llm_client`) with a per-run context to support repeated and concurrent invocation. Evidence: `daily_brief/pipeline.py:60-64`.
 - [ ] Consolidate direct pipeline logging and standard logging; correct failure output to report `RUN_LOGFILE` directly rather than an unset environment variable. Evidence: `daily_brief/pipeline.py:75-87,283`, `daily_brief/__main__.py:14-36`.
 - [ ] Replace hard-coded `77316` weather-section checks with configuration-driven location/section identity. Evidence: `daily_brief/pipeline.py:250-251`, `daily_brief/rendering/report.py:149-151`, `daily_brief/rendering/weather_table.py:23`.

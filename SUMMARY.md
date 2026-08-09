@@ -4,6 +4,12 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.119 — Cleanup ordering fix
+- `daily_brief/pipeline.py`: Moved `cleanup_old_files()` from before `write_report()` to immediately after. Previously, cleanup ran before the new report was on disk, leaving `max_log_versions + 1` news files on each run (6 instead of 5). Now both reports and logs finish at exactly the configured retention limit.
+- `tests/test_cleanup.py`: 5 new unit tests — retention count (2), non-matching files untouched (1), under-limit no-op (1), empty directory safety (1).
+- `tests/test_pipeline_ordering.py`: 2 regression tests — fixed write-before-cleanup yields correct count (1), old order leaves 6 files documenting the bug (1).
+- 1046/1046 tests passing (7 new, 0 regressions).
+
 ### v1.0.118 — Repository structure migration
 - Moved src/daily_brief/ to daily_brief/ (root package). No PYTHONPATH or src/ needed.
 - Moved Test_validate_run.py to daily_brief/validation_harness.py. Phase 6 uses `-m daily_brief.validation_harness`.

@@ -280,7 +280,6 @@ async def main():
 
         sections = build_sections_from_stories(stories, format_pub_date)
         filepath, file_ver = compute_output_path(OUTPUT_DIR, file_ver=log_ver)
-        cleanup_old_files(OUTPUT_DIR, LOG_DIR, MAX_LOG_VERSIONS)
 
         ordered_cats = ordered_categories_for_render([c[0] for c in CATEGORIES if c[1]])
         sections_map = {cn: sections.get(cn, []) for cn in ordered_cats}
@@ -296,6 +295,7 @@ async def main():
             "WEATHER_SECTION_TITLE": WEATHER_SECTION_TITLE,
         })
         write_report(filepath, md)
+        cleanup_old_files(OUTPUT_DIR, LOG_DIR, MAX_LOG_VERSIONS)
 
         elapsed = time.monotonic() - t4
         log(f"\nFile written to {filepath}")

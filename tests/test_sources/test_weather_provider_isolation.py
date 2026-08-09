@@ -112,12 +112,12 @@ class TestProviderFailurePermutations(TestCase):
         self.assertEqual(len(result["forecast"]), 3)
         self.assertIn("91\u00b0", result["station"]["avg_temp_today"])
 
-    def test_both_fail_fallback(self):
+    def test_both_fail_no_fallback(self):
+        """When both ERA5 and rainfall fail, station data is 'Unavailable' — no forecast fallback."""
         result = asyncio.get_event_loop().run_until_complete(
             self._run(raise_climate=True, raise_rain=True))
         self.assertEqual(len(result["forecast"]), 3)
-        self.assertIn("95\u00b0", result["station"]["avg_temp_today"])
-        self.assertIn("forecast fallback", result["station"]["avg_temp_today"])
+        self.assertEqual(result["station"]["avg_temp_today"], "Unavailable")
         self.assertEqual(result["station"]["avg_monthly_rainfall"], "Unavailable")
         self.assertEqual(result["station"]["current_monthly_rainfall"], "Unavailable")
 
@@ -130,7 +130,7 @@ class TestMergeWeatherData(TestCase):
     """Direct tests for the pure merge function."""
 
     def test_full_provider_data(self):
-        forecast = [{"date": "Today", "high": "95\u00b0F", "low": "75\u00b0F",
+        forecast = [{"date": "Sat", "high": "95\u00b0F", "low": "75\u00b0F",
                      "day": "Sunny", "night": "Clear", "precip": "10%", "wind": "10 mph"}]
         climate_high = 91
         station_monthly = {"avg_monthly_rainfall": 3.2, "current_monthly_rainfall": 2.1}
@@ -139,19 +139,19 @@ class TestMergeWeatherData(TestCase):
 
         result = merge_weather_data(forecast, climate_high, station_monthly, lakes, errors)
         self.assertEqual(len(result["forecast"]), 1)
-        self.assertEqual(result["forecast"][0]["date"], "Today")
+        self.assertEqual(result["forecast"][0]["date"], "Sat")
         self.assertEqual(result["station"]["avg_temp_today"], "91\u00b0F")
         self.assertIn("3.2", result["station"]["avg_monthly_rainfall"])
         self.assertIn("2.1", result["station"]["current_monthly_rainfall"])
         self.assertIn("lake_crawford", result["lakes"])
         self.assertEqual(len(result["errors"]), 1)
 
-    def test_era5_absent_forecast_fallback(self):
-        forecast = [{"date": "Today", "high": "92\u00b0F", "low": "72\u00b0F"}]
+    def test_era5_absent_no_fallback(self):
+        """When ERA5 climate normal is unavailable, avg_temp_today is 'Unavailable' — no forecast fallback."""
+        forecast = [{"date": "Sat", "high": "92\u00b0F", "low": "72\u00b0F"}]
         result = merge_weather_data(forecast, None,
                                     {"avg_monthly_rainfall": 3.2, "current_monthly_rainfall": 2.1}, {}, [])
-        self.assertIn("92\u00b0", result["station"]["avg_temp_today"])
-        self.assertIn("forecast fallback", result["station"]["avg_temp_today"])
+        self.assertEqual(result["station"]["avg_temp_today"], "Unavailable")
 
     def test_rainfall_formatting(self):
         result = merge_weather_data([], 91,

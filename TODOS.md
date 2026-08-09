@@ -81,7 +81,7 @@ v1.0.117: Full P1 reliability, configuration safety, and test-validity backlog c
 - [ ] Replace hard-coded `77316` weather-section checks with configuration-driven location/section identity. Evidence: `src/daily_brief/pipeline.py:250-251`, `src/daily_brief/rendering/report.py:149-151`, `src/daily_brief/rendering/weather_table.py:23`.
 
 ## Priority 3 - Packaging, CI, And Repository Hygiene
-- [ ] Establish one canonical version source and add a release-consistency check for package/runtime/YAML/README/tracking files. Current stale values include `src/daily_brief/config.py:19`, `src/daily_brief/__init__.py:2`, `src/daily_brief/__main__.py:2`, `dashboard_pipeline.py:3`, `PLAN.md:1`, and README current-status references.
+- [ ] Establish one canonical version source and add a release-consistency check for package/runtime/YAML/README/tracking files. Current stale values include `src/daily_brief/config.py:19`, `src/daily_brief/__init__.py:2`, `src/daily_brief/__main__.py:2`, `PLAN.md:1`, and README current-status references.
 - [ ] Add `pyproject.toml` with `src` package discovery and declared runtime/test dependencies; replace per-test/script `sys.path` mutation with editable installation.
 - [ ] Add dependency locking appropriate to the selected package manager and CI for supported Python versions, tests, config validation, lint/format/type checks, warnings policy, and opt-in integration checks.
 - [ ] Repair `scripts/run_tests.sh` unreachable failure reporting caused by `set -e`; add a measured coverage threshold to `scripts/run_coverage.sh`.

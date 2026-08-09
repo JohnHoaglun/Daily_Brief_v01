@@ -1,6 +1,6 @@
 """
 Daily Brief Pipeline Orchestration
-The main() orchestrator extracted from dashboard_pipeline.py.
+The main() orchestrator — 6 phases: weather, RSS, LLM, render, validate, harness.
 """
 
 import sys

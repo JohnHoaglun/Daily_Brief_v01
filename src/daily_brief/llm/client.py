@@ -1,9 +1,8 @@
 """
-Daily Brief v1.0.89 — LLM Client
+Daily Brief v1.0.117 — LLM Client
 ==================================
 Instantiatable LLM client wrapping OpenAI-compatible API.
 Migrated to AsyncOpenAI for non-blocking event loop (Perf-8).
-Extracted from dashboard_pipeline.py monolith.
 """
 
 import logging

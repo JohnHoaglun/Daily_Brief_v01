@@ -1,5 +1,5 @@
 """
-Daily Brief v1.0.100 — Article Extraction
+Daily Brief v1.0.121 — Article Extraction
 =========================================
 Fetch full article text for summary context. ``build_context`` is in utils.py.
 """
@@ -51,4 +51,3 @@ async def stage_extract_article(story: Any, session: aiohttp.ClientSession) -> N
             story.context = text
     except Exception as exc:
         logger.debug("  [extract error] '%s...': %s", story.title[:60], exc)
-

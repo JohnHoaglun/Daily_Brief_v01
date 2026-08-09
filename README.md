@@ -1,4 +1,4 @@
-# Daily Brief v1.0.118
+# Daily Brief v1.0.121
 Automated daily news brief generator that fetches stories from 17 configured categories via Google News RSS, enriches them with weather and lake-level data, summarizes them with AI, and produces a structured Markdown report.
 
 ## Architecture
@@ -16,7 +16,7 @@ Modular codebase in `daily_brief/`:
 - **`models.py`** — typed data models: `Story`, `HarnessResult`
 - **`utils.py`** — shared utilities: sentence extraction, context building, temperature coercion
 - **`http_client.py`** — centralized HTTP request helpers with retry/backoff
-- **`tests/`** — 1039 tests (unit, mocked, integration, smoke, post-run validation; 1039 passing, 21 smoke deselected)
+- **`tests/`** — 402 deterministic tests (unit, mocked, integration, post-run validation; 402 passing)
 
 ## Requirements
 
@@ -40,7 +40,7 @@ All runtime settings in `config.yaml`. Key groups:
 
 | Key | Description | Configured Value |
 |---|---|---|
-| `version` | Pipeline version | `1.0.117` |
+| `version` | Pipeline version | `1.0.121` |
 | `llm.model` | Model for summarization | `gemma4-e2b` |
 | `llm.host` | vLLM API endpoint | `http://192.168.4.52:8007` |
 | `directories.log_dir` | Log output directory | `.../Shared_AI/vault/OpenCode/Daily_Brief_v01/Dev/logs` |
@@ -82,11 +82,10 @@ daily_brief/                # All source code (root package)
   validation_harness.py     # Post-run validation (was Test_validate_run.py)
   benchmark_llm_batches.py  # LLM batch benchmark harness
   capture_corpus.py         # Corpus capture utility
-tests/                      # 1039 tests (1039 passing, 21 smoke deselected)
+tests/                      # 402 tests (402 passing)
 PROJECT.md                  # Architecture and status
 SUMMARY.md                  # Changelog
 TODOS.md                    # Live task board
-PLAN.md                     # Optimization strategy and findings
 ```
 
 ## Performance
@@ -111,7 +110,8 @@ PLAN.md                     # Optimization strategy and findings
 - v1.0.115 (P0): pipeline exit-code contract — 0=PASS, 1=WARN/CONFIG, 2=FAIL/VALIDATION, 3=ERROR/SKIPPED. 991/991 tests passing.
 - v1.0.116 (P1): summary recovery correctness — canonical `_is_valid_summary()` gate for batch and recovery. 1009/1009 tests passing.
 - v1.0.117 (P1): config safety (raw loader, typed builder, CLI imports), validator hardening, LLM core (`max_retries=0`, `aclose()`, recovery concurrency=2, deadline), weather rendering resilience, 63 async mock migrations, test validity fixes. 1039/1039 tests passing (21 smoke deselected), 0 warnings.
-- v1.0.118 (Migration): repository structure migration — `src/daily_brief/` to `daily_brief/` root package, `Test_validate_run.py` to `daily_brief/validation_harness.py`, scripts moved into package, `reports/` removed (benchmark output uses LOG_DIR), all 32 test files updated. 1039/1039 tests passing. Benchmark via `daily_brief.benchmark_llm_batches`.
+- v1.0.119: cleanup ordering fix — moved `cleanup_old_files()` after `write_report()` so retention works for both reports and logs. 1046/1046 tests.
+- v1.0.120: test suite consolidation — reduced from 1,046 to 402 tests (62% reduction). Removed optional tool tests (benchmark, corpus, smoke), source-code inspections, historical-bug demonstrations, duplicate coverage, and micro-input permutations. 402/402 passing, 5.64s.
 
 ## Module Commands
 

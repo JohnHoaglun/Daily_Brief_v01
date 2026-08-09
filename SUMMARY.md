@@ -4,6 +4,10 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.121 — Version reference registry
+- Added `versions_locations.md`, the canonical registry of all current release-version markers. It must be read before each commit and updated whenever a new tracked file adds a current-version reference.
+- Normalized all current code and documentation version markers to v1.0.121. Historical changelog entries retain their original release versions.
+
 ### v1.0.120 — Test suite consolidation
 - Consolidated test suite from 1,046 to 402 tests (62% reduction). Deleted benchmark test suite (`test_benchmark_llm_batches.py`), corpus capture test suite (`test_capture_corpus.py`), smoke test suite (`test_smoke_test.py`), and source-inspection test files. Consolidated micro-permutation tests into focused behavioral contracts. Removed duplicate coverage across files. Removed no-assertion tests and historical-bug demonstrations. All 402 tests passing.
 

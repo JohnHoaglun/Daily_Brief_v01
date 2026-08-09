@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Daily Brief v1.0.117 — Supported launcher
+Daily Brief v1.0.121 — Supported launcher
 Run: python3 dashboard_pipeline.py
 """
 import asyncio

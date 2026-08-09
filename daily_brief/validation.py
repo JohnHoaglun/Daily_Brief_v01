@@ -1,5 +1,5 @@
 """
-Daily Brief v1.0.13 — Report Validation
+Daily Brief v1.0.121 — Report Validation
 =========================================
 
 Reads rendered markdown and checks summary quality.

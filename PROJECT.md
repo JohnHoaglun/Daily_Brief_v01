@@ -1,12 +1,12 @@
-# Project: Daily Brief v01 (v1.0.120)
+# Project: Daily Brief v01 (v1.0.121)
 
 ## Purpose
 Daily Brief aggregates RSS stories from configured categories, enriches them with weather and lake data, summarizes them through a vLLM OpenAI-compatible endpoint, and writes a Markdown report.
 
 ## Current Status
 - Modular refactoring P0-P6 is complete.
-- Test baseline: 956 tests, 956 passing (0 pre-existing), config validate PASS (v1.0.107).
-- Research review at v1.0.65 identified the active 4-phase optimization program in `PLAN.md`.
+- Test baseline: 402 tests, 402 passing, config validate PASS (v1.0.121).
+- Current release/version locations are tracked in `versions_locations.md` and must be checked before every commit.
 - Performance baseline (v1.0.67): 105–114s internal, 137–147s wall-clock. Phase 3 (LLM) dominates at ~96–100s.
 - Phase A complete (v1.0.67). Phase B complete (v1.0.88). Phase C complete (v1.0.97).
 - Preflight probes are now opt-in via `runtime.preflight_checks_enabled`. Default: `false` (disabled).

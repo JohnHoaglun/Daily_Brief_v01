@@ -4,14 +4,11 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
-### v1.0.130 — Version bump + stale reference cleanup
-- **Stale v1.0.127 references** fixed in `README.md`, `dashboard_pipeline.py`, `versions_locations.md` → v1.0.130.
+### v1.0.131 — Stale reference cleanup + registry fix
+- **All version references** across 24 files updated from v1.0.127 to v1.0.131 per `versions_locations.md` registry.
+- **Registry updated**: added `PLAN.md`, `SUMMARY.md`, `daily_brief/config.py`.
 - **530/530 tests passing**.
-- **3 files changed, 3 insertions(+), 3 deletions(-)**
----
-### v1.0.129 — Documentation version bump
-- **TODOS.md, PROJECT.md, SUMMARY.md** bumped to v1.0.128 after test fixes.
-- **3 files changed, 10 insertions(+), 3 deletions(-)**
+- **24 files changed, 31 insertions(+), 28 deletions(-)**
 ---
 ### v1.0.128 — Weather label + no-fallback test fixes
 - **Weather label format**: `get_weather_label_for_offset()` now returns abbreviated day-of-week (`strftime("%a")`) — e.g. "Sun", "Mon" — replacing "Today"/"Today Night"/"Tomorrow". Date column in weather table shows day names consistently.

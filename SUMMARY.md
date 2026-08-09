@@ -4,6 +4,17 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.127 — Wave 4: Concurrency Safety
+- **RunContext pattern** (`pipeline.py`): Per-run context scoping eliminates global state leaks between concurrent pipeline invocations. Phase timings, llm_client, log file path, and output directory all scoped to `RunContext`. Module-level `RUN_LOGFILE`, `PHASE_TIMINGS`, `OUTPUT_DIR` kept as backwards-compat shim.
+- **Atomic run reservation** (`lifecycle.py`): `RunAllocator` uses O_CREAT|O_EXCL filesystem markers for exclusively unique version allocation. Concurrent processes scan existing logs and markers, then atomically claim their version. Collision resolution via retry on FileExistsError.
+- **Concurrent Phase 1+2** (`pipeline.py`): Weather and RSS fetch dispatched concurrently via `asyncio.gather()` (was serial). Bounded article extraction via `asyncio.Semaphore` from `ARTICLE_MAX_CONCURRENCY` config.
+- **Atomic report writes** (`rendering/report.py`): `write_report()` writes to temp file, verifies content, then `os.replace()` for atomic overwrite. On failure, original report preserved and temp file cleaned up.
+- **Configuration** (`config.yaml`, `config.py`, `config_validator.py`): `ARTICLE_MAX_CONCURRENCY` added (default 4, validated).
+- **Dead code removal** (`pipelines/rss_dedup.py`): Removed no-op `widen_category()` wrapper.
+- **Test updates**: `test_concurrency_contract.py` assertions rewritten for new architecture (filesystem artifacts, barrier assertions). `test_pipeline.py` `TestHarnessDiagnostics` updated for file-based verification. New `test_run_allocator.py` with atomic allocator tests.
+- **530/530 tests passing** (including all 13 concurrency contract tests).
+- **35 files changed, 756 insertions(+), 406 deletions(-)**
+---
 ### v1.0.126 — Phase 6 harness fix: tag conflict invariant + diagnostics
 - **Tag conflict fix** (`tagging.py`): `tag_story_with_keywords()` now tracks `conflict_losers` set — tags removed during conflict resolution cannot be re-added by the minimum-tag promotion loop. Fixes check 3.7 live FAIL where `international` + `local` conflict was undone by promotion. Fewer than 3 tags acceptable when conflicts prevent reaching 3.
 - **Phase 6 diagnostics** (`pipeline.py`): `run_test_harness()` findings now persisted to run log — each `HarnessResult.stdout_lines` entry logged as `[Harness]` prefix, each `stderr_lines` as `[Harness err]`. Previously only `Harness result: FAIL — exit code 2` was written; detailed check items were lost on in-memory `HarnessResult`.

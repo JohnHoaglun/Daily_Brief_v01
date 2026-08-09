@@ -97,14 +97,13 @@ class TestGetWeatherLabelForOffset(TestCase):
         return datetime(year, month, day, 10, 0, 0, tzinfo=CHICTZ)
 
     def test_offsets(self):
-        self.assertEqual(get_weather_label_for_offset(self._ref(), 0), "Today")
-        self.assertEqual(get_weather_label_for_offset(self._ref(), 1), "Tonight")
-        label2 = get_weather_label_for_offset(self._ref(), 2)
-        target2 = (self._ref().date() + timedelta(days=2)).strftime("%A")
-        self.assertEqual(label2, target2)
-        neg_label = get_weather_label_for_offset(self._ref(), -1)
-        neg_target = (self._ref().date() + timedelta(days=-1)).strftime("%A")
-        self.assertEqual(neg_label, neg_target)
+        # All offsets return abbreviated day-of-week names
+        ref = self._ref()  # 2026-07-18 is Saturday
+        self.assertEqual(get_weather_label_for_offset(ref, 0), "Sat")
+        self.assertEqual(get_weather_label_for_offset(ref, 1), "Sun")
+        self.assertEqual(get_weather_label_for_offset(ref, 2), "Mon")
+        self.assertEqual(get_weather_label_for_offset(ref, -1), "Fri")
+        self.assertEqual(get_weather_label_for_offset(ref, -7), "Sat")
 
 
 # ---------------------------------------------------------------------------
@@ -156,10 +155,11 @@ class TestFetchWeatherHappyPath(TestCase):
         forecast = _make_forecast(self.today, self.tomorrow)
         result = asyncio.get_event_loop().run_until_complete(self._run(point, forecast))
 
-        # Forecast rows
+        # Forecast rows — day-of-week labels (Sat/Sun/Mon for 2026-07-18 reference)
         self.assertEqual(len(result["forecast"]), 3)
-        self.assertEqual(result["forecast"][0]["date"], "Today")
-        self.assertEqual(result["forecast"][1]["date"], "Tonight")
+        self.assertEqual(result["forecast"][0]["date"], "Sat")
+        self.assertEqual(result["forecast"][1]["date"], "Sun")
+        self.assertEqual(result["forecast"][2]["date"], "Mon")
 
         # Day/night descriptions
         self.assertIn("Sunny", result["forecast"][0]["day"])

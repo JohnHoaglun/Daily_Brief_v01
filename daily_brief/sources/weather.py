@@ -54,15 +54,9 @@ def get_reference_datetime() -> datetime:
 
 
 def get_weather_label_for_offset(reference: datetime, offset_days: int, style: str = "long") -> str:
-    """Generate weather label for a given offset from reference date."""
+    """Generate day-of-week label for the target date (e.g. "Sun", "Mon")."""
     target = reference.date() + timedelta(days=offset_days)
-    today = reference.date()
-    tomorrow = today + timedelta(days=1)
-    if target == today:
-        return "Today"
-    if target == tomorrow:
-        return "Tonight"
-    return target.strftime("%A")
+    return target.strftime("%a")
 
 
 def _parse_date_for_weather(raw_value: Optional[str]) -> Optional[datetime]:
@@ -297,17 +291,7 @@ def merge_weather_data(
     if station_monthly.get("current_monthly_rainfall") and not weather_data["station"].get("current_monthly_rainfall"):
         weather_data["station"]["current_monthly_rainfall"] = f"{station_monthly['current_monthly_rainfall']} Inches"
 
-    # Fallback: use forecast high if climate normal failed
     station = weather_data["station"]
-    if not station.get("avg_temp_today") and forecast:
-        logger.debug("[fetch_weather] Climate normal unavailable, falling back to forecast high")
-        first_row = forecast[0]
-        temp_candidates = [first_row.get("high"), first_row.get("low")]
-        for val in temp_candidates:
-            m = re.search(r"(-?\d+(?:\.\d+)?)", _safe_text(val, ""))
-            if m:
-                station["avg_temp_today"] = f"{m.group(0)}°F (forecast fallback)"
-                break
     if station.get("avg_monthly_rainfall") == station.get("current_monthly_rainfall"):
         station["current_monthly_rainfall"] = None
     for key in ("avg_temp_today", "avg_monthly_rainfall", "current_monthly_rainfall"):

@@ -29,6 +29,14 @@ from daily_brief.rendering.report import (
     write_report,
 )
 
+import aiohttp as _aiohttp_mod
+import daily_brief.pipeline as _pipeline_mod
+
+
+def _restore_aiohttp_client_session():
+    """Restore daily_brief.pipeline.aiohttp.ClientSession to the real class."""
+    _pipeline_mod.aiohttp.ClientSession = _aiohttp_mod.ClientSession
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -146,6 +154,9 @@ class TestConcurrentModuleGlobalsIsolation(TestCase):
     """CONCURRENCY BUG: module-level RUN_LOGFILE, PHASE_TIMINGS,
     OUTPUT_DIR, _llm_client are shared across concurrent pipeline runs."""
 
+    def tearDown(self):
+        _restore_aiohttp_client_session()
+
     def test_logfile_independent(self):
         """Two concurrent runs must produce independent log file paths."""
         run_a = tempfile.mkdtemp()
@@ -260,6 +271,9 @@ class TestConcurrentVersionAllocation(TestCase):
     """CONCURRENCY BUG: pipeline.py and report.py each independently scan
     the filesystem for the next version number. Two concurrent runs can
     allocate the same version number."""
+
+    def tearDown(self):
+        _restore_aiohttp_client_session()
 
     def test_log_version_no_collision(self):
         """Two concurrent runs on the same dir must not get the same log ver."""
@@ -435,6 +449,9 @@ class TestIndependentPhaseTimings(TestCase):
     """Phase 1 (weather) and Phase 2 (RSS) timings must be independently
     measurable even if run concurrently."""
 
+    def tearDown(self):
+        _restore_aiohttp_client_session()
+
     def test_phase_timings_records_both(self):
         """PHASE_TIMINGS must contain separate Phase 1 and Phase 2 entries."""
         tmpdir = tempfile.mkdtemp()
@@ -513,6 +530,9 @@ class TestBoundedArticleConcurrency(TestCase):
     """CONCURRENCY BUG: Phase 3A calls asyncio.gather for ALL stories
     simultaneously with no concurrency limit."""
 
+    def tearDown(self):
+        _restore_aiohttp_client_session()
+
     def test_article_fetch_is_unbounded(self):
         """Multiple stories extracted via asyncio.gather run all at once.
         Contracts: a semaphore or semaphore-counting mechanism should limit
@@ -577,6 +597,9 @@ class TestRunContextNoGlobalLeak(TestCase):
     """CONCURRENCY BUG: pipeline global state leaks between sequential
     runs.  A RunContext (or similar) pattern is needed to scope per-run
     state."""
+
+    def tearDown(self):
+        _restore_aiohttp_client_session()
 
     def test_globals_reset_between_sequential_runs(self):
         """After two sequential runs, globals should reflect only the second

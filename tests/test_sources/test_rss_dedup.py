@@ -1,5 +1,5 @@
 """
-Unit tests for src/daily_brief/pipelines/rss_dedup.py.
+Unit tests for daily_brief/pipelines/rss_dedup.py.
 Dedup, age-filtering, widening, and fetch_and_dedup orchestration.
 """
 from __future__ import annotations

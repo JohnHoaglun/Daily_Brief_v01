@@ -1,5 +1,5 @@
 """
-Unit tests for src/daily_brief/sources/climate.py.
+Unit tests for daily_brief/sources/climate.py.
 ERA5 climate normal fetch and climate.gov HTML summary parsing.
 """
 import asyncio

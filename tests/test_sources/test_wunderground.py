@@ -1,5 +1,5 @@
 """
-Unit tests for src/daily_brief/sources/wunderground.py.
+Unit tests for daily_brief/sources/wunderground.py.
 Wunderground station scraping, precipitation parsing, and metrics fetching.
 """
 import asyncio

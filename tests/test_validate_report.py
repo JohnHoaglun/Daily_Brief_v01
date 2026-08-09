@@ -1,5 +1,5 @@
 """
-Unit tests for src/daily_brief/validation.py — report-level validation.
+Unit tests for daily_brief/validation.py — report-level validation.
 
 Tests 7 report-level checks + existing per-story check regression.
 """

@@ -1,5 +1,5 @@
 """
-Unit tests for src/daily_brief/sources/rss.py.
+Unit tests for daily_brief/sources/rss.py.
 RSS feed URL construction, title normalization, date parsing, sorting, and async fetch.
 """
 from __future__ import annotations

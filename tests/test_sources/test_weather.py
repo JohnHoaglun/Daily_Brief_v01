@@ -1,5 +1,5 @@
 """
-Unit tests for src/daily_brief/sources/weather.py.
+Unit tests for daily_brief/sources/weather.py.
 NWS forecast JSON parsing, date extraction, label generation, and fetch orchestration.
 """
 import asyncio

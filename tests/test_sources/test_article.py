@@ -1,5 +1,5 @@
 """
-Unit tests for src/daily_brief/sources/article.py.
+Unit tests for daily_brief/sources/article.py.
 Article extraction and context building.
 """
 from __future__ import annotations

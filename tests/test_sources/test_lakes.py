@@ -1,5 +1,5 @@
 """
-Unit tests for src/daily_brief/sources/lakes.py.
+Unit tests for daily_brief/sources/lakes.py.
 Reservoir level scraping: table parsing, label matching, date fallback, and regex fallback.
 """
 import asyncio

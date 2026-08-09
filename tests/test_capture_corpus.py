@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Tests for scripts/capture_corpus.py — validation, metadata, force flag, path resolution.
+Tests for daily_brief/capture_corpus.py — validation, metadata, force flag, path resolution.
 Python 3.9 compatible, no network calls.
 """
 

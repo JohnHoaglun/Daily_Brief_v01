@@ -4,6 +4,17 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.125 — Wave 1: Reliability fixes (parser, rendering, RSS, climate)
+- **Parser assignment** (`summarizer.py`): First-wins dedup semantics — `reserved_empty_slots` and `skipped_fuzzy_match` prevent duplicate fuzzy matches from overwriting assigned slots or stealing positional fallback targets. Adjacent swap detection works correctly after headline matching. 17/17 contract tests passing.
+- **Rendering safety** (`report.py`, `weather_table.py`, `utils.py`): `[Tag]` bracket slicing uses `[1:-1]` (was `[2:-2]`); `[[Tag]]` uses `[2:-2]`. Pipe characters in weather table cells escaped as `&#124;` to prevent Markdown table column breaks. Newlines in story titles and summaries normalized to spaces. 29/29 contract tests passing.
+- **RSS identity** (`rss.py`): `normalize_title()` now uses NFKD Unicode normalization (fullwidth → ASCII, decomposed → composed). Removed site-suffix stripping (`split(" - ")`) and 80-character truncation — full normalized title is the dedup key. 26/26 contract tests passing.
+- **Weather & climate** (`climate.py`, `http_client.py`, `weather_table.py`, `report.py`): `_fetch_climate_normal_high` accepts `reference_date` parameter. `_fetch_json` return type widened to `Optional[Any]` with docstring warning. Removed hardcoded `77316` from weather subtitle and station row labels. 23/23 contract tests passing.
+- **Test pollution fix** (`conftest.py`): Autouse fixture restores pipeline module attributes after every test, preventing mock leaks from concurrency contract tests.
+- **Test updates**: `parser_golden_fixtures.py` golden outputs updated for corrected behavior. `test_rss.py` suffix/truncation test rewritten. `test_weather_table.py` golden subtitle updated.
+- **Full suite**: 506 passing, 4 concurrency contract failures (Wave 4 pending).
+- **KNOWN ISSUE**: Live pipeline run at 2026-08-09 20:22 hit exit code 2 (harness FAIL) despite report generating correctly. Root cause investigation needed.
+- **13 files changed, 122 insertions(+), 60 deletions(-)
+---
 ### v1.0.123 — Concurrency contract fixtures (Wave 0)
 - Added `tests/test_concurrency_contract.py` (669 lines, 13 tests across 6 test classes) documenting the concurrency bugs to be fixed in Wave 4.
 - **TestConcurrentModuleGlobalsIsolation** (3 tests): Concurrent runs share `RUN_LOGFILE`, `PHASE_TIMINGS`, and `_llm_client` module globals. 1 test fails (logfile leak), 2 pass (LLM client creates independently, timings captured).

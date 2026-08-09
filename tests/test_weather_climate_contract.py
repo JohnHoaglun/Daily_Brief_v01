@@ -155,7 +155,6 @@ class TestClimateNormalReferenceDate(unittest.TestCase):
 
         ref_date = datetime(2020, 3, 15, 10, 0, 0, tzinfo=CHICTZ)
 
-        # After Wave 2, this call should pass reference_date
         async def run():
             from daily_brief.sources.climate import _fetch_climate_normal_high
             with patch("daily_brief.sources.climate._fetch_json",
@@ -164,9 +163,10 @@ class TestClimateNormalReferenceDate(unittest.TestCase):
                     MagicMock(), 30.286, -95.566, ref_date
                 )
 
-        # This will fail until Wave 2 adds the parameter
-        with self.assertRaises(TypeError):
-            asyncio.get_event_loop().run_until_complete(run())
+        result = asyncio.get_event_loop().run_until_complete(run())
+        # The function now accepts reference_date and uses it for the query
+        self.assertIsNotNone(result)
+        self.assertEqual(result, 88)  # round(88.5) = 88
 
     def test_reference_date_ignores_wall_clock(self):
         """The function must NOT read datetime.now() internally. The caller's

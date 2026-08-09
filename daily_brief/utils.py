@@ -39,7 +39,7 @@ def _present_weather_value(value, fallback="Unavailable") -> str:
         if not text or text.lower() in {"none", "n/a", "na"}:
             return fallback
         # "Dynamic" is a valid placeholder used for forecasted periods
-        return text
+        return text.replace("|", "&#124;")
     except Exception:
         return fallback
 

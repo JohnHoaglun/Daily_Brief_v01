@@ -228,14 +228,14 @@ class TestWeatherPipeSafety(TestCase):
         }
         result = build_weather_markdown(weather)
         for line in result:
-            if "Sunny|Partly Cloudy" in line:
+            if "Sunny" in line and "Partly Cloudy" in line:
                 pipe_count = line.count("|")
                 self.assertEqual(pipe_count, 8,
                     f"Row has {pipe_count} pipes (expected 8 for 7-column table). "
                     f"Row: {line!r}")
                 break
         else:
-            self.fail("No row containing 'Sunny|Partly Cloudy' found.")
+            self.fail("No row containing 'Sunny' and 'Partly Cloudy' found.")
 
     def test_pipe_in_station_value(self):
         """Pipe in station value also breaks the 2-column station table."""
@@ -253,10 +253,10 @@ class TestWeatherPipeSafety(TestCase):
         }
         result = build_weather_markdown(weather)
         for line in result:
-            if "83|85" in line:
+            if "83" in line and "85" in line:
                 pipe_count = line.count("|")
                 # 2-column station table: | label | value | = 3 pipes
-                # Unescaped pipe in cell -> 5 pipes = broken
+                # Escaped pipe (no literal | in value) keeps count at 3
                 self.assertEqual(pipe_count, 3,
                     f"Station row has {pipe_count} pipes (expected 3 for 2-column table). "
                     f"Row: {line!r}")
@@ -287,12 +287,15 @@ class TestNewlineSafety(TestCase):
         # If the newline is preserved, the summary text spans 2+ lines in the
         # list item, creating broken inline Markdown.
         for line in result:
-            if "First sentence" in line:
-                self.assertNotIn("\n", line,
-                    "Summary line contains embedded newline. "
+            if "First sentence. Second sentence" in line:
+                before_pub = line.split("\n*Originally")[0] if "Originally" in line else line
+                self.assertNotIn("\n", before_pub,
+                    "Summary must not contain embedded newlines. "
                     "Story text must be normalized (newlines → spaces) "
                     "for safe inline Markdown rendering.")
                 break
+        else:
+            self.fail("No line containing 'First sentence. Second sentence' found.")
 
     def test_newline_in_title_breaks_link(self):
         """Title with \\n must not produce a broken Markdown link."""

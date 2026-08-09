@@ -111,8 +111,12 @@ async def _fetch_json(
     user_agent: str = _DEFAULT_USER_AGENT,
     timeout: int = 15,
     **params: Any,
-) -> Optional[Dict[str, Any]]:
-    """Fetch JSON from URL, return dict or None on failure.
+) -> Optional[Any]:
+    """Fetch JSON from URL, return the parsed value or None on failure.
+
+    The return value may be any valid JSON value (dict, list, str, int, float, bool, None).
+    Consumers must validate the return type (e.g. isinstance(result, dict)) before
+    calling dict methods like .get() or .keys().
 
     Accepts arbitrary **params forwarded to session.get() (e.g. params=, ssl=).
     """

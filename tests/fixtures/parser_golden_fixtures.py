@@ -282,15 +282,16 @@ FIXTURES = [
         "count": 3,
         "expected": [
             "Three buildings destroyed in the blaze.",
-            "",
+            "Mayor announces budget. Schools get new funding.",
             "Storm warning issued. Prepare tonight.",
         ],
         "notes": (
             "STORY_0 matched by headline fuzzy → idx 0 (matched_by_headline). "
-            "Positional 1. → idx 0, already in matched_by_headline → skipped. "
-            "Positional 2. → idx 1, but fuzzy headline match redirects fuzzy_idx→2 "
-            "(storm/warn/issu overlap with headline 2 = 100%). So target_idx=2, not 1. "
-            "Slot 1 empty (mayor headline not assigned), slot 2 has storm warning."
+            "Positional 1. → idx 0, fuzzy headline match redirects fuzzy_idx→1 "
+            "(mayor overlap with headline 1). Slot 1 filled with mayor. "
+            "Positional 2. → idx 1, fuzzy headline match redirects fuzzy_idx→2 "
+            "(storm overlap with headline 2 = 100%). Slot 2 filled with storm. "
+            "All three stories correctly assigned to their matching slots."
         ),
     },
     # ───────── 15. Reordered numbered with fuzzy positional remapping ────────
@@ -310,12 +311,12 @@ FIXTURES = [
         "expected": [
             "Fire destroys three downtown buildings. No injuries.",
             "Mayor unveils budget plan. Schools get new funding.",
-            "",
+            "Storm warning in effect. Prepare for severe weather tonight.",
         ],
         "notes": (
-            "Numbered out of order: 1=mayor (fuzzy→idx 1), 2=storm (positional idx 1), "
-            "3=fire (fuzzy→idx 0). Slot 2 empty — fuzzy remapping of 2→1 overwrites slot 1 "
-            "and slot 2 never filled. Documents data loss from duplicate fuzzy targets."
+            "Numbered out of order: 1=mayor (fuzzy→idx 1), 2=storm (positional idx 2/"
+            "fuzzy→idx 2), 3=fire (fuzzy→idx 0). All three stories correctly assigned "
+            "to their matching headline slots via positional fallback with fuzzy remapping."
         ),
     },
 ]

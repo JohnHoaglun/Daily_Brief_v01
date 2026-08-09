@@ -41,7 +41,7 @@ def build_weather_markdown(weather):
     md.append("---")
     md.append(f"## {WEATHER_SECTION_TITLE}")
     md.append("")
-    md.append("**3 Day forecast for 77316:**")
+    md.append(f"**3 Day forecast:**")
     md.append("")
     md.append("| **Date** | **Day Condition** | **Night Condition** | **High Temp** | **Low Temp** | **Precip. Chance** | **Wind** |")
     md.append("| --- | --- | --- | --- | --- | --- | --- |")
@@ -60,7 +60,7 @@ def build_weather_markdown(weather):
     md.append("")
     station = weather.get("station", {})
     station_rows = WEATHER_LABELS.get('station_rows', [])
-    _default_station_rows = ["Climate Normal High for today 77316", "Average Monthly rainfall for 77316", "Current Monthly rainfall for 77316"]
+    _default_station_rows = [f"Climate Normal High for today", "Average Monthly rainfall", "Current Monthly rainfall"]
     def _row(i, key, default_idx=0):
         return (station_rows[i] if i < len(station_rows) else _default_station_rows[default_idx]), station.get(key)
     r0 = _row(0, 'avg_temp_today', 0)

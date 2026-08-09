@@ -110,12 +110,18 @@ def parse_batch_summary_response(response, count, story_headlines=None):
     # Track which indices were matched by headline
     matched_by_headline = set()
     matched_by_summary_overlap = set()
+    # Track story indices that fuzzy-matched a headline but were skipped (duplicates)
+    skipped_fuzzy_match = set()
+    # Slots that should remain empty because a duplicate consumed that position
+    reserved_empty_slots = set()
 
     if story_headlines:
-        for line in lines:
+        processed_story_lines = set()
+        for line_idx, line in enumerate(lines):
             m = story_line_re.match(line.strip())
             if not m:
                 continue
+            processed_story_lines.add(line_idx)
 
             idx = int(m.group(1))
             rest_text = m.group(2).strip()
@@ -157,10 +163,20 @@ def parse_batch_summary_response(response, count, story_headlines=None):
 
             fuzzy_threshold = 0.7
             if headline_excerpt and best_fuzzy_idx is not None and best_fuzzy_score >= fuzzy_threshold and best_fuzzy_idx < count:
+                if best_fuzzy_idx in matched_by_headline:
+                    logger.debug(f"Parsed STORY_{idx} -> fuzzy match headline[{best_fuzzy_idx}] score {best_fuzzy_score:.2f} — ALREADY ASSIGNED, skipping")
+                    skipped_fuzzy_match.add(idx)
+                    if 0 <= idx < count:
+                        reserved_empty_slots.add(idx)
+                    continue
                 cleaned_summary = _safe_sentence_summary(summary_text)
+                if best_fuzzy_idx in reserved_empty_slots and 0 <= idx < count:
+                    assign_fuzzy = idx
+                else:
+                    assign_fuzzy = best_fuzzy_idx
                 if cleaned_summary:
-                    results[best_fuzzy_idx] = cleaned_summary
-                    matched_by_headline.add(best_fuzzy_idx)
+                    results[assign_fuzzy] = cleaned_summary
+                    matched_by_headline.add(assign_fuzzy)
                 logger.debug(f"Parsed STORY_{idx} -> fuzzy match headline[{best_fuzzy_idx}] score {best_fuzzy_score:.2f}")
                 continue
 
@@ -185,10 +201,21 @@ def parse_batch_summary_response(response, count, story_headlines=None):
 
             # If >= 30% of headline words appear in summary, it's a match
             if best_idx is not None and best_score >= 0.3 and best_idx < count:
+                if best_idx in matched_by_headline:
+                    logger.debug(f"Parsed STORY_{idx} -> matched headline[{best_idx}] overlap {best_score:.2f} — ALREADY ASSIGNED, skipping")
+                    skipped_fuzzy_match.add(idx)
+                    if 0 <= idx < count:
+                        reserved_empty_slots.add(idx)
+                    continue
+                # Redirect from reserved-empty slots to positional index
+                if best_idx in reserved_empty_slots:
+                    assign_idx = idx if 0 <= idx < count else best_idx
+                else:
+                    assign_idx = best_idx
                 cleaned_summary = _safe_sentence_summary(summary_text)
                 if cleaned_summary:
-                    results[best_idx] = cleaned_summary
-                    matched_by_headline.add(best_idx)
+                    results[assign_idx] = cleaned_summary
+                    matched_by_headline.add(assign_idx)
                 logger.debug(f"Parsed STORY_{idx} -> matched headline[{best_idx}] 'overlap {best_score:.2f}'")
                 continue
 
@@ -218,9 +245,14 @@ def parse_batch_summary_response(response, count, story_headlines=None):
                     if best_idx2 is not None and best_score2 >= 0.3 and best_idx2 < count:
                         summary_part = ' '.join(parts[excerpt_len:])
                         cleaned_summary = _safe_sentence_summary(summary_part)
-                        if cleaned_summary and best_idx2 not in matched_by_headline:
-                            results[best_idx2] = cleaned_summary
-                            matched_by_headline.add(best_idx2)
+                        if best_idx2 in matched_by_headline:
+                            skipped_fuzzy_match.add(idx)
+                            if 0 <= idx < count:
+                                reserved_empty_slots.add(idx)
+                        elif cleaned_summary:
+                            assign_idx2 = idx if (best_idx2 in reserved_empty_slots and 0 <= idx < count) else best_idx2
+                            results[assign_idx2] = cleaned_summary
+                            matched_by_headline.add(assign_idx2)
                         logger.debug(f"Parsed STORY_{idx} -> matched headline[{best_idx2}] 'excerpt overlap {best_score2:.2f}'")
                         break
 
@@ -228,15 +260,16 @@ def parse_batch_summary_response(response, count, story_headlines=None):
     matched_count = len(matched_by_headline)
     unmatched = [i for i in range(count) if i not in matched_by_headline]
     if not matched_count:
-        logger.warning(f"[MATCH] 0/{count} by fuzzy/keyword — falling back to positional index for ALL stories")
+        logger.warning(f"[MATCH] 0/{count} by fuzzy/keyword — SKIPPING positional fallback, all slots remain empty")
     elif unmatched:
         logger.warning(f"[MATCH] {matched_count}/{count} by fuzzy/keyword, {len(unmatched)} stories falling back to positional index")
     else:
         logger.debug(f"[MATCH] {matched_count}/{count} by fuzzy/keyword — all resolved")
 
-    # Ensure matched_by_headline exists for positional fallback
-    if 'matched_by_headline' not in dir():
-        matched_by_headline = set()
+    if not story_headlines:
+        processed_story_lines = set()
+    if story_headlines and not matched_count and processed_story_lines:
+        return results
 
     # Fallback: original index-based positional parsing for unmatched stories
     heading_re = re.compile(
@@ -310,8 +343,11 @@ def parse_batch_summary_response(response, count, story_headlines=None):
         return results
 
     for n, (line_idx, idx, raw) in enumerate(headers):
-        # Skip if already matched by headline
-        if idx in matched_by_headline:
+        # Skip lines already processed as STORY_N blocks
+        if story_headlines and line_idx in processed_story_lines:
+            continue
+        # Skip stories that fuzzy-matched a headline but were skipped (duplicates)
+        if story_headlines and idx in skipped_fuzzy_match:
             continue
 
         # Fuzzy headline matching in positional fallback
@@ -378,6 +414,10 @@ def parse_batch_summary_response(response, count, story_headlines=None):
         summary = re.sub(r"^Summary:\s*", "", summary, flags=re.IGNORECASE)
         summary = re.sub(r"\*\*|\*{2,}$", "", summary).strip()
         target_idx = fuzzy_idx if fuzzy_idx != idx else idx
+        if target_idx in matched_by_headline:
+            continue
+        if target_idx in reserved_empty_slots:
+            continue
         results[target_idx] = _safe_sentence_summary(summary)
         if fuzzy_idx != idx:
             matched_by_headline.add(target_idx)

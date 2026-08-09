@@ -139,12 +139,12 @@ class TestTruncationBug(TestCase):
         self.assertEqual(len(normalized), 80)
         self.assertEqual(normalized, title.lower())
 
-    def test_title_81_chars_truncated(self):
-        """Title 81 chars IS truncated to 80 (current buggy behavior)."""
+    def test_title_81_chars_not_truncated(self):
+        """Title 81 chars is preserved — no truncation for identity."""
         title = "X" * 81
         normalized = _normalize(title)
-        self.assertEqual(len(normalized), 80)
-        self.assertNotEqual(normalized, title.lower())  # lost the last char
+        self.assertEqual(len(normalized), 81)
+        self.assertEqual(normalized, title.lower())  # full title preserved
 
 
 # ---------------------------------------------------------------------------

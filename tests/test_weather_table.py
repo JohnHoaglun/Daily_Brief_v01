@@ -91,7 +91,7 @@ class TestGoldenOutput(TestCase):
         self.assertEqual(result[0], "")
         self.assertEqual(result[1], "---")
         self.assertEqual(result[2], "## Weather Forecast")
-        self.assertEqual(result[4], "**3 Day forecast for 77316:**")
+        self.assertEqual(result[4], "**3 Day forecast:**")
         self.assertEqual(result[6], "| **Date** | **Day Condition** | **Night Condition** | **High Temp** | **Low Temp** | **Precip. Chance** | **Wind** |")
         self.assertEqual(result[7], "| --- | --- | --- | --- | --- | --- | --- |")
         self.assertEqual(result[-1], "---")

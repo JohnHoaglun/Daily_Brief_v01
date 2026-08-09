@@ -24,13 +24,18 @@ async def _fetch_climate_normal_high(
     session: aiohttp.ClientSession,
     lat: float,
     lon: float,
+    reference_date: Optional[datetime] = None,
 ) -> Optional[int]:
-    """Fetch the historical average high temperature for today's date from Open-Meteo ERA5.
+    """Fetch the historical average high temperature for the given reference date
+    from Open-Meteo ERA5.
 
-    Returns the climate normal (long-term average) for this calendar date — NOT today's forecast.
+    Returns the climate normal (long-term average) for the calendar month+day of
+    reference_date — NOT the forecast.  Uses the 1991-2020 climatology period.
     Coordinates are provided by the caller to avoid a per-run geocoding request.
     """
-    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if reference_date is None:
+        reference_date = datetime.now(timezone.utc)
+    today_str = reference_date.strftime("%Y-%m-%d")
     try:
         archive_url = "https://archive-api.open-meteo.com/v1/era5"
         params: Dict[str, Any] = {

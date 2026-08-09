@@ -30,13 +30,16 @@ except Exception:
 
 
 def normalize_title(title: str) -> str:
-    """Strip site-suffix from an RSS title for deduplication.
+    """Normalize an RSS title for deduplication identity.
 
-    Splits on the `` - `` separator and returns the first meaningful
-    part, truncated to 80 characters and lower-cased.
+    Applies NFKD Unicode normalization (collapses fullwidth, decomposes
+    accents, maps smart quotes) so equivalent titles produce identical
+    dedup keys.  Returns lower-cased, stripped string — no truncation
+    and no site-suffix stripping.
     """
-    parts: List[str] = [p.strip() for p in title.split(" - ") if p.strip()]
-    return (parts[0] if parts else title.lower().strip())[:80].lower()
+    import unicodedata
+    normalized = unicodedata.normalize("NFKD", title)
+    return normalized.strip().lower()
 
 
 def parse_feed_date(entry: dict[str, Any]) -> Optional[datetime]:

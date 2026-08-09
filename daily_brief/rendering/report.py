@@ -128,8 +128,11 @@ def build_markdown(stories, weather, sections_map, ordered_cats, config_kwargs):
                     tag = tag.strip()
                     if tag.startswith("#"):
                         individual_tags.append(tag.lstrip("#"))
-                    elif tag.startswith("[") and tag.endswith("]"):
+                    elif tag.startswith("[[") and tag.endswith("]]"):
                         tag_content = tag[2:-2]
+                        individual_tags.append(tag_content)
+                    elif tag.startswith("[") and tag.endswith("]"):
+                        tag_content = tag[1:-1]
                         individual_tags.append(tag_content)
                 for tag in individual_tags:
                     all_tags.add(tag.lower())
@@ -147,7 +150,7 @@ def build_markdown(stories, weather, sections_map, ordered_cats, config_kwargs):
 
     # Category sections — render header even for empty categories
     for cn in ordered_cats:
-        if cn == WEATHER_SECTION_TITLE or cn == "Weather Forecast 77316":
+        if cn == WEATHER_SECTION_TITLE or cn == "Weather Forecast":
             continue
         cat_stories = sections_map.get(cn, [])
         if not cat_stories:
@@ -156,7 +159,7 @@ def build_markdown(stories, weather, sections_map, ordered_cats, config_kwargs):
             continue
         md += ["", f"## {cn} ({len(cat_stories)} stories)", ""]
         for idx, st in enumerate(cat_stories):
-            title_text = st["title"]
+            title_text = st["title"].replace("\n", " ").replace("\r", " ")
             url_val = st["link"]
             link_md = (
                 f"[{title_text}]({url_val})"
@@ -171,7 +174,8 @@ def build_markdown(stories, weather, sections_map, ordered_cats, config_kwargs):
             tags_md = _tag_cache.get(id(st), "")
             md.append("")
             md.append(f"{idx + 1}. {link_md}")
-            md.append(st["summary"] + pub_line)
+            summary_text = st.get("summary", "").replace("\n", " ").replace("\r", " ")
+            md.append(summary_text + pub_line)
             md.append(tags_md)
 
         md.append("---")

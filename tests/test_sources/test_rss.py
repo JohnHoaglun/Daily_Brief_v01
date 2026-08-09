@@ -31,13 +31,15 @@ from daily_brief.sources.rss import (
 class TestNormalizeTitle(TestCase):
     def test_suffix_stripped_lowercased_truncated(self):
         self.assertEqual(normalize_title("Breaking News"), "breaking news")
-        self.assertEqual(normalize_title("Breaking News - CNN"), "breaking news")
-        self.assertEqual(normalize_title("Breaking News - Section - CNN"), "breaking news")
+        # NFKD normalization preserves full title including suffix
+        self.assertEqual(normalize_title("Breaking News - CNN"), "breaking news - cnn")
+        self.assertEqual(normalize_title("Breaking News - Section - CNN"), "breaking news - section - cnn")
         self.assertEqual(normalize_title("Just a Title"), "just a title")
-        self.assertEqual(normalize_title("a" * 100), "a" * 80)
+        # No truncation — full title preserved for identity
+        self.assertEqual(normalize_title("a" * 100), "a" * 100)
         self.assertEqual(normalize_title(""), "")
         self.assertEqual(normalize_title("   "), "")
-        self.assertEqual(normalize_title(" - Reuters"), "reuters")
+        self.assertEqual(normalize_title(" - Reuters"), "- reuters")
 
 
 # ---------------------------------------------------------------------------

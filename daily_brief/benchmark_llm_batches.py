@@ -2,7 +2,7 @@
 """Benchmark LLM batch summarization: batch_size x concurrency matrix.
 
 Usage:
-    python3 scripts/benchmark_llm_batches.py [--fixture PATH] [--batch-sizes 3 4 5 6] \
+    python3 -m daily_brief.benchmark_llm_batches [--fixture PATH] [--batch-sizes 3 4 5 6] \
         [--concurrencies 1 2] [--warmups 1] [--runs 3] [--host URL] [--model NAME] \
         [--output PATH]
 """
@@ -22,10 +22,8 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = SCRIPT_DIR.parent
-SRC_DIR = PROJECT_DIR / "src"
-sys.path.insert(0, str(SRC_DIR))
 
-from daily_brief.config import LLM_MODEL as CFG_MODEL, OLLAMA_HOST as CFG_HOST, VERSION
+from daily_brief.config import LLM_MODEL as CFG_MODEL, OLLAMA_HOST as CFG_HOST, LOG_DIR, VERSION
 from daily_brief.llm.client import create_llm_client
 from daily_brief.llm.summarizer import (
     StoryPipelineState,
@@ -587,8 +585,8 @@ def parse_args(argv=None):
                     help=f"vLLM endpoint (default: {CFG_HOST})")
     p.add_argument("--model", default=CFG_MODEL,
                     help=f"Model name (default: {CFG_MODEL})")
-    p.add_argument("--output", default=str(PROJECT_DIR / "reports" / "llm_batch_benchmark.json"),
-                    help="JSON output file path")
+    p.add_argument("--output", default=str(Path(LOG_DIR) / "llm_batch_benchmark.json"),
+                     help="JSON output file path")
     return p.parse_args(argv)
 
 

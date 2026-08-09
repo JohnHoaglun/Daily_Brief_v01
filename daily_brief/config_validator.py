@@ -543,7 +543,7 @@ if __name__ == "__main__":
     import yaml
     import os
     parent = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    cfg = os.path.join(parent, "..", "config.yaml")
+    cfg = os.path.join(parent, "config.yaml")
     with open(cfg) as f:
         data = yaml.safe_load(f)
     ok, iss = validate_config(data)

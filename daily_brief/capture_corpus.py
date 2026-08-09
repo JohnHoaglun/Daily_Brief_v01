@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Corpus capture module for Daily Brief v1.0.92.
+Corpus capture module for Daily Brief v1.0.117.
 
 Runs the pipeline through Phases 1-3A (config validation, RSS fetch/dedup,
 article extraction), then captures story metadata and the exact
@@ -11,8 +11,8 @@ corpus validation (min stories, context coverage, required fields),
 metadata enrichment (categories, category_order, context_stats).
 
 Usage:
-    python3 scripts/capture_corpus.py --output tests/fixtures/llm_benchmark_contexts.json
-    python3 scripts/capture_corpus.py --output ./corpus.json --force
+    python3 -m daily_brief.capture_corpus --output tests/fixtures/llm_benchmark_contexts.json
+    python3 -m daily_brief.capture_corpus --output ./corpus.json --force
 """
 
 from __future__ import annotations
@@ -25,9 +25,7 @@ import statistics
 import sys
 from collections import OrderedDict
 from datetime import datetime, timezone
-# Ensure the daily_brief package is importable (src/ is at project root, scripts/ is sibling)
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(PROJECT_ROOT, "src"))
 
 import aiohttp
 from daily_brief.config import (

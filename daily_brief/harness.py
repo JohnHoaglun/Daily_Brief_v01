@@ -1,7 +1,7 @@
 """
 Daily Brief v1.0.117 — Test Harness Runner
 ===========================================
-Runs the external Test_validate_run.py harness via subprocess.
+Runs the daily_brief.validation_harness module via subprocess.
 """
 
 import logging
@@ -26,25 +26,19 @@ class HarnessResult:
 
 
 def run_test_harness(run_logfile, script_dir=None) -> HarnessResult:
-    """Run the external Test_validate_run.py harness against the latest output.
+    """Run the daily_brief.validation_harness module against the latest output.
 
     Args:
         run_logfile: Path to the current run log file (e.g., "run_log_2026-07-26_v18.md")
-        script_dir: Optional project root directory. Defaults to parent of src/daily_brief/
+        script_dir: Optional project root directory. Defaults to parent of daily_brief/
 
     Returns:
         HarnessResult with typed status (PASS/WARN/FAIL/SKIPPED/ERROR)
     """
     if script_dir is None:
-        script_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-    harness_script = os.path.join(script_dir, 'Test_validate_run.py')
     config_file = os.path.join(script_dir, 'config.yaml')
-
-    if not os.path.exists(harness_script):
-        msg = f"Test harness script not found: {harness_script}"
-        logger.warning(msg)
-        return HarnessResult(status="SKIPPED", message=msg)
 
     if not run_logfile:
         msg = "No run_logfile set — skipping test harness"
@@ -62,12 +56,7 @@ def run_test_harness(run_logfile, script_dir=None) -> HarnessResult:
     run_date, run_version = match.group(1), match.group(2)
 
     logger.info("Running test harness for %s %s...", run_date, run_version)
-    cmd = [
-        sys.executable, harness_script,
-        "--config", config_file,
-        "--date", run_date,
-        "--version", run_version,
-    ]
+    cmd = [sys.executable, "-m", "daily_brief.validation_harness", "--config", config_file, "--date", run_date, "--version", run_version]
 
     try:
         result = subprocess.run(
@@ -97,7 +86,7 @@ def run_test_harness(run_logfile, script_dir=None) -> HarnessResult:
             stderr_lines=stderr_lines,
         )
     except FileNotFoundError:
-        msg = f"Test harness script not found at: {harness_script}"
+        msg = f"Module daily_brief.validation_harness not found"
         logger.error(msg)
         return HarnessResult(status="ERROR", message=msg)
     except subprocess.TimeoutExpired:

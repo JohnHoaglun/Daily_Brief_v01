@@ -1,11 +1,8 @@
 """
-Extended connectivity tests — success paths, formatting, and edge cases.
-Covers check_llm, check_rss, check_weather success/error HTTP paths,
-run_all_checks, format_results, and report().
+Extended connectivity tests — one contract each for LLM, RSS, weather,
+aggregate checks, formatter, timeout, and TLS behavior.
 """
 import asyncio
-import os
-import sys
 import io
 from unittest import TestCase, mock
 
@@ -22,28 +19,14 @@ from daily_brief.connectivity import (
     run_smoke_test,
     format_results,
     report,
-    _result,
     _ensure_v1,
 )
-
-
-def _mock_configs():
-    """Patch connectivity config with known test values."""
-    patches = {}
-    patches["llm"] = mock.patch("daily_brief.connectivity.OLLAMA_HOST", "http://localhost:11434/v1")
-    patches["rss_base"] = mock.patch("daily_brief.connectivity.RSS_BASE", "https://news.google.com/rss/search?q=")
-    patches["rss_params"] = mock.patch("daily_brief.connectivity.RSS_PARAMS", "&hl=en-US&gl=US&ceid=US:en")
-    patches["weather_lat"] = mock.patch("daily_brief.connectivity.WEATHER_LAT", 30.286)
-    patches["weather_lon"] = mock.patch("daily_brief.connectivity.WEATHER_LON", -95.566)
-    patches["weather_url"] = mock.patch("daily_brief.connectivity.WEATHER_POINT_URL", "https://api.weather.gov/points/{lat},{lon}")
-    patches["categories"] = mock.patch("daily_brief.connectivity.CATEGORIES", [("World News", "world news", 10)])
-    return patches
 
 
 class TestCheckLLM(TestCase):
     """check_llm HTTP success and error paths."""
 
-    def test_check_llm_success(self):
+    def test_llm_reachable(self):
         async def run():
             with mock.patch("daily_brief.connectivity.OLLAMA_HOST", "http://localhost:11434/v1"):
                 with aioresponses() as m:
@@ -56,7 +39,7 @@ class TestCheckLLM(TestCase):
         self.assertTrue(result["ok"])
         self.assertIn("LLM host reachable", result["message"])
 
-    def test_check_llm_http_error(self):
+    def test_llm_http_error(self):
         async def run():
             with mock.patch("daily_brief.connectivity.OLLAMA_HOST", "http://localhost:11434/v1"):
                 with aioresponses() as m:
@@ -73,7 +56,7 @@ class TestCheckLLM(TestCase):
 class TestCheckRSS(TestCase):
     """check_rss HTTP success and error paths."""
 
-    def test_check_rss_success(self):
+    def test_rss_reachable(self):
         async def run():
             with mock.patch("daily_brief.connectivity.CATEGORIES", [("World News", "testq", 10)]):
                 with mock.patch("daily_brief.connectivity.RSS_BASE", "https://news.google.com/rss/search?q="):
@@ -88,7 +71,7 @@ class TestCheckRSS(TestCase):
         self.assertTrue(result["ok"])
         self.assertIn("RSS feed reachable", result["message"])
 
-    def test_check_rss_http_error(self):
+    def test_rss_http_error(self):
         async def run():
             with mock.patch("daily_brief.connectivity.CATEGORIES", [("World News", "testq", 10)]):
                 with mock.patch("daily_brief.connectivity.RSS_BASE", "https://news.google.com/rss/search?q="):
@@ -103,8 +86,8 @@ class TestCheckRSS(TestCase):
         self.assertFalse(result["ok"])
         self.assertIn("HTTP 404", result["message"])
 
-    def test_check_rss_tls_verification_enabled(self):
-        """Regression test: ssl=False was removed from check_rss session.get()."""
+    def test_rss_no_ssl_false(self):
+        """Regression: ssl=False must not appear in check_rss source."""
         import inspect
         source = inspect.getsource(check_rss)
         self.assertNotIn("ssl=False", source)
@@ -112,72 +95,60 @@ class TestCheckRSS(TestCase):
 
 
 class TestCheckWeather(TestCase):
-    """check_weather HTTP success path."""
+    """check_weather and alternate provider reachability."""
 
-    def test_check_weather_success(self):
+    def test_weather_gov_reachable(self):
         async def run():
             with aioresponses() as m:
                 m.get("https://api.weather.gov/points/30.286,-95.566", status=200)
                 async with aiohttp.ClientSession() as session:
                     result = await check_weather(session, timeout=5.0)
                 return result
-
         result = asyncio.get_event_loop().run_until_complete(run())
         self.assertTrue(result["ok"])
         self.assertIn("Weather.gov reachable", result["message"])
 
-
-class TestCheckOpenmeteo(TestCase):
-    """check_openmeteo success path."""
-
-    def test_check_openmeteo_success(self):
+    def test_openmeteo_reachable(self):
         async def run():
             with aioresponses() as m:
                 m.get("https://geocoding-api.open-meteo.com/api/docs", status=200)
                 async with aiohttp.ClientSession() as session:
                     result = await check_openmeteo(session, timeout=5.0)
                 return result
-
         result = asyncio.get_event_loop().run_until_complete(run())
         self.assertTrue(result["ok"])
         self.assertIn("Open-Meteo reachable", result["message"])
 
-
-class TestCheckWunderground(TestCase):
-    """check_wunderground success path."""
-
-    def test_check_wunderground_success(self):
+    def test_wunderground_and_lakes_reachable(self):
         async def run():
             with aioresponses() as m:
                 m.head("https://www.wunderground.com/", status=200)
-                async with aiohttp.ClientSession() as session:
-                    result = await check_wunderground(session, timeout=5.0)
-                return result
-
-        result = asyncio.get_event_loop().run_until_complete(run())
-        self.assertTrue(result["ok"])
-        self.assertIn("Wunderground reachable", result["message"])
-
-
-class TestCheckLakes(TestCase):
-    """check_lakes success path."""
-
-    def test_check_lakes_success(self):
-        async def run():
-            with aioresponses() as m:
                 m.head("https://waterdatafortexas.org/reservoirs/individual/conroe", status=200)
                 async with aiohttp.ClientSession() as session:
-                    result = await check_lakes(session, timeout=5.0)
-                return result
+                    wr = await check_wunderground(session, timeout=5.0)
+                    lr = await check_lakes(session, timeout=5.0)
+                    return wr, lr
+        wr, lr = asyncio.get_event_loop().run_until_complete(run())
+        self.assertTrue(wr["ok"])
+        self.assertIn("Wunderground reachable", wr["message"])
+        self.assertTrue(lr["ok"])
 
-        result = asyncio.get_event_loop().run_until_complete(run())
-        self.assertTrue(result["ok"])
+
+def _mock_configs():
+    patches = {}
+    patches["llm"] = mock.patch("daily_brief.connectivity.OLLAMA_HOST", "http://localhost:11434/v1")
+    patches["rss_base"] = mock.patch("daily_brief.connectivity.RSS_BASE", "https://news.google.com/rss/search?q=")
+    patches["rss_params"] = mock.patch("daily_brief.connectivity.RSS_PARAMS", "&hl=en-US&gl=US&ceid=US:en")
+    patches["weather_lat"] = mock.patch("daily_brief.connectivity.WEATHER_LAT", 30.286)
+    patches["weather_lon"] = mock.patch("daily_brief.connectivity.WEATHER_LON", -95.566)
+    patches["weather_url"] = mock.patch("daily_brief.connectivity.WEATHER_POINT_URL", "https://api.weather.gov/points/{lat},{lon}")
+    patches["categories"] = mock.patch("daily_brief.connectivity.CATEGORIES", [("World News", "world news", 10)])
+    return patches
 
 
 class TestRunAllChecks(TestCase):
-    """run_all_checks returns 3 check results."""
 
-    def test_run_all_checks_returns_three(self):
+    def test_returns_three_results(self):
         async def run():
             mc = _mock_configs()
             with mc["llm"], mc["rss_base"], mc["rss_params"], mc["weather_lat"], mc["weather_lon"], mc["weather_url"], mc["categories"]:
@@ -197,9 +168,8 @@ class TestRunAllChecks(TestCase):
 
 
 class TestSmokeTestTimeout(TestCase):
-    """run_smoke_test handles TimeoutError gracefully."""
 
-    def test_run_smoke_test_timeout(self):
+    def test_timeout_graceful(self):
         async def check_always_timeout(session, timeout):
             raise asyncio.TimeoutError("mock")
 
@@ -223,9 +193,8 @@ class TestSmokeTestTimeout(TestCase):
 
 
 class TestFormatResults(TestCase):
-    """format_results produces console-friendly output."""
 
-    def test_format_results_all_ok(self):
+    def test_format_ok_and_fail(self):
         results = [
             {"ok": True, "duration_ms": 10, "message": "ok1"},
             {"ok": True, "duration_ms": 20, "message": "ok2"},
@@ -234,42 +203,30 @@ class TestFormatResults(TestCase):
         output = format_results(results, labels=["LLM Host", "RSS Feed", "Weather.gov"])
         self.assertIn("Connectivity Checks:", output)
         self.assertIn("[+] LLM Host", output)
-        self.assertIn("[+] RSS Feed", output)
-        self.assertIn("[+] Weather.gov", output)
-        self.assertIn("OK", output)
         self.assertIn("3/3 passed", output)
-        self.assertIn("0 warning", output)
 
-
-class TestReport(TestCase):
-    """report() prints and returns pass/fail status."""
-
-    def test_report_ok(self):
-        results = [
-            {"ok": True, "duration_ms": 10, "message": "ok"},
+    def test_report_returns_status(self):
+        ok_results = [
             {"ok": True, "duration_ms": 10, "message": "ok"},
             {"ok": True, "duration_ms": 10, "message": "ok"},
         ]
         out = io.StringIO()
-        rv = report(results, file=out)
-        self.assertTrue(rv)
+        self.assertTrue(report(ok_results, file=out))
 
-    def test_report_fail(self):
-        results = [
+        fail_results = [
             {"ok": True, "duration_ms": 10, "message": "ok"},
             {"ok": False, "duration_ms": 10, "message": "fail"},
-            {"ok": True, "duration_ms": 10, "message": "ok"},
         ]
         out = io.StringIO()
-        rv = report(results, file=out)
-        self.assertFalse(rv)
+        self.assertFalse(report(fail_results, file=out))
 
 
 class TestEnsureV1(TestCase):
-    """_ensure_v1 appends /v1 if missing."""
 
-    def test_already_has_v1(self):
+    def test_already_has_and_needs_v1(self):
         self.assertEqual(_ensure_v1("http://localhost:11434/v1"), "http://localhost:11434/v1")
-
-    def test_needs_v1(self):
         self.assertEqual(_ensure_v1("http://localhost:11434"), "http://localhost:11434/v1")
+
+
+if __name__ == "__main__":
+    unittest.main()

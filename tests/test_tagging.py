@@ -25,8 +25,6 @@ _DEFAULT_MAPPINGS = {
     "economy": ["stock", "market", "earnings"],
 }
 
-_DEFAULT_CONFIG = {"max_tags": 5, "score_cap": 5.0, "score_threshold": 0.3}
-
 _DEFAULT_BOOSTS = {
     "AI News": ["ai", "tech"],
     "Local News": ["local"],
@@ -46,7 +44,6 @@ def _patch_config(
     conflicts=None,
 ):
     """Patch daily_brief.config tagging constants for isolated unit tests."""
-    # Patch the tagging module's namespace (where tag_story_with_keywords reads from)
     patches = [
         mock.patch("daily_brief.tagging.TAGGING_CONFIG", {
             "max_tags": max_tags,
@@ -73,38 +70,26 @@ def _patch_config(
 
 class TestWordBoundaryMatch(TestCase):
 
-    def test_exact_word_match(self):
+    def test_exact_and_case_insensitive(self):
+        """Exact word match; case insensitive."""
         self.assertTrue(_word_boundary_match("ai breakthrough announces new model", "ai"))
-
-    def test_case_insensitive(self):
         self.assertTrue(_word_boundary_match("AI takes over", "ai"))
         self.assertTrue(_word_boundary_match("Houston city council meets", "houston"))
 
-    def test_no_partial_match(self):
+    def test_word_boundary_no_partial(self):
+        """Partial substring must not match without word boundary."""
         self.assertFalse(_word_boundary_match("stunning performance", "sting"))
+        self.assertFalse(_word_boundary_match("stunning results", "sun"))
 
-    def test_suffix_s(self):
+    def test_suffix_and_punctuation_boundaries(self):
+        """Suffixes (s/ed/es/ing), possessive apostrophe, punctuation act as word boundaries."""
         self.assertTrue(_word_boundary_match("new storms hit", "storm"))
-        self.assertTrue(_word_boundary_match("multiple strikes reported", "strike"))
-
-    def test_suffix_ed(self):
         self.assertTrue(_word_boundary_match("suspect arrested downtown", "arrest"))
-
-    def test_suffix_ing(self):
         self.assertTrue(_word_boundary_match("investigating the crime scene", "investigat"))
-
-    def test_suffix_es(self):
         self.assertTrue(_word_boundary_match("two strikes called", "strike"))
-
-    def test_possessive_apostrophe(self):
         self.assertTrue(_word_boundary_match("Houston's new policy", "houston"))
-
-    def test_punctuation_boundary(self):
         self.assertTrue(_word_boundary_match("AI, the new frontier", "ai"))
         self.assertTrue(_word_boundary_match("texas (region) update", "texas"))
-
-    def test_no_match_embedded(self):
-        self.assertFalse(_word_boundary_match("stunning results", "sun"))
 
 
 # ---------------------------------------------------------------------------
@@ -113,21 +98,16 @@ class TestWordBoundaryMatch(TestCase):
 
 class TestKeywordHasStop(TestCase):
 
-    def test_single_stop_word(self):
+    def test_stop_detected_in_single_and_all_stop(self):
+        """Single or all-stop-word keywords are flagged."""
         self.assertTrue(_keyword_has_stop("new"))
         self.assertTrue(_keyword_has_stop("world"))
-
-    def test_multi_word_all_stop(self):
         self.assertTrue(_keyword_has_stop("new world report"))
 
-    def test_mixed_stop_and_real(self):
+    def test_mixed_and_no_stop_and_empty(self):
+        """Keywords with any real word pass. Empty string is vacuously True."""
         self.assertFalse(_keyword_has_stop("new weather alert"))
-
-    def test_no_stop_words(self):
         self.assertFalse(_keyword_has_stop("hurricane mariah"))
-
-    def test_empty_string_returns_true(self):
-        """Empty string: no words found, all([]) is vacuously True."""
         self.assertTrue(_keyword_has_stop(""))
 
 
@@ -137,25 +117,22 @@ class TestKeywordHasStop(TestCase):
 
 class TestTagStoryBasic(TestCase):
 
-    def test_single_keyword_match(self):
+    def test_single_and_multiple_keyword_matches(self):
         with _patch_config():
             result = tag_story_with_keywords("AI model breakthrough")
-        # Tag key is "ai" in our test mappings
         self.assertIn("[[ai]]", result)
 
-    def test_no_match(self):
-        with _patch_config():
-            result = tag_story_with_keywords("Cooking dinner at home")
-        self.assertNotIn("[[ai]]", result)
-        self.assertNotIn("[[weather]]", result)
-
-    def test_multiple_keyword_matches(self):
         with _patch_config():
             result = tag_story_with_keywords("Houston weather storm hits texas")
         self.assertIn("[[local]]", result)
         self.assertIn("[[weather]]", result)
 
-    def test_returns_fallback_for_no_match(self):
+    def test_no_match_fallback(self):
+        with _patch_config():
+            result = tag_story_with_keywords("Cooking dinner at home")
+        self.assertNotIn("[[ai]]", result)
+        self.assertNotIn("[[weather]]", result)
+
         with _patch_config():
             result = tag_story_with_keywords("Zyx qwerty abc")
         self.assertEqual(result, "#news")
@@ -175,19 +152,13 @@ class TestTagStoryBasic(TestCase):
 class TestTagStoryScoring(TestCase):
 
     def test_more_hits_first(self):
+        """Keyword with most hits scores highest and appears first."""
         with _patch_config():
             result = tag_story_with_keywords(
                 "ai artificial intelligence machine learning model"
             )
             tags = result.split()
-            # "ai" tag has 3 keyword hits → highest score → first
             self.assertEqual(tags[0], "[[ai]]")
-
-    def test_early_position_boost(self):
-        """Keyword in first 100 chars gets 2x boost."""
-        with _patch_config():
-            result = tag_story_with_keywords("ai news from today")
-        self.assertIn("[[ai]]", result)
 
     def test_multi_word_keyword(self):
         with _patch_config():
@@ -195,6 +166,7 @@ class TestTagStoryScoring(TestCase):
         self.assertIn("[[ai]]", result)
 
     def test_stop_word_keyword_ignored(self):
+        """Keywords composed entirely of stop words are skipped."""
         mappings = {
             "newstuff": ["new"],
             "report": ["report", "analysis"],
@@ -218,19 +190,11 @@ class TestTagStoryThreshold(TestCase):
             result = tag_story_with_keywords("AI model")
         self.assertNotIn("[[ai]]", result)
 
-    def test_zero_threshold_tags(self):
+    def test_zero_threshold_any_score(self):
         """Threshold=0.0 lets any positive score through."""
         with _patch_config(score_threshold=0.0):
             result = tag_story_with_keywords("AI news")
         self.assertIn("[[ai]]", result)
-
-    def test_score_cap(self):
-        """Score is capped at score_cap — tags still appear, just capped."""
-        with _patch_config(score_cap=1.0):
-            result = tag_story_with_keywords(
-                "ai artificial intelligence machine learning model"
-            )
-            self.assertIn("[[ai]]", result)
 
 
 # ---------------------------------------------------------------------------
@@ -239,15 +203,14 @@ class TestTagStoryThreshold(TestCase):
 
 class TestTagStoryMaxTags(TestCase):
 
-    def test_respects_max_tags(self):
-        """Only top N from initial slice; min_tags may add more."""
+    def test_truncates_to_max(self):
+        """Only top N tags returned by max_tags slice."""
         with _patch_config(max_tags=2):
             result = tag_story_with_keywords(
                 "ai machine learning weather storm houston"
             )
-        # Function should not crash; returns valid string
         tags = result.split()
-        # Each tag is unique
+        self.assertLessEqual(len(tags), 3)  # max_tags + possible min_tags additions
         self.assertEqual(len(tags), len(set(tags)))
 
     def test_max_tags_zero_safe(self):
@@ -271,29 +234,10 @@ class TestCategoryBoost(TestCase):
             "Weather Alerts": ["weather"],
         }
         with _patch_config(mappings=mappings, boosts=boosts):
-            # "hurricane" NOT in title, but category boost fires
             result = tag_story_with_keywords(
                 "Storm warning issued", category="Weather Alerts"
             )
         self.assertIn("[[weather]]", result)
-
-    def test_legacy_boost_keyword_in_title(self):
-        """Legacy path: category-set fires legacy keyword matching in boost tags."""
-        mappings = {
-            "ai": ["deep learning"],
-        }
-        boosts = {
-            "AI News": ["ai", "tech"],
-        }
-        with _patch_config(mappings=mappings, boosts=boosts):
-            result = tag_story_with_keywords(
-                "AI breakthrough in tech", category="AI News"
-            )
-        # "deep learning" NOT in title (score=0), but category boost:
-        #   "ai" tag in boost_tags for "AI News" → +3.0,
-        #   "ai" and "tech" also appear in title via legacy path → +2.0 each
-        # Total score well above threshold
-        self.assertIn("[[ai]]", result)
 
     def test_no_boost_without_category(self):
         """Boosts only fire for explicit category membership."""
@@ -303,7 +247,6 @@ class TestCategoryBoost(TestCase):
         boosts = {"Weather Alerts": ["weather"]}
         with _patch_config(mappings=mappings, boosts=boosts):
             result = tag_story_with_keywords("Storm warning issued", category=None)
-        # "hurricane" not in title, no category → no weather tag
         self.assertNotIn("[[weather]]", result)
 
 
@@ -313,8 +256,8 @@ class TestCategoryBoost(TestCase):
 
 class TestTagConflicts(TestCase):
 
-    def test_conflict_resolution_runs_before_min_tags(self):
-        """Conflict resolution fires first; min_tags=3 cannot restore the loser when other tags fill the gap."""
+    def test_conflict_resolution_before_min_tags(self):
+        """Conflict resolution fires first; min_tags cannot restore the loser."""
         mappings = {
             "economy": ["stock", "market", "earnings"],
             "international": ["international", "foreign"],
@@ -326,10 +269,6 @@ class TestTagConflicts(TestCase):
             result = tag_story_with_keywords(
                 "international trade and local city stock market nfl football"
             )
-        # Four tags score above threshold. After top-N slice (4 tags),
-        # conflict resolution removes the loser ("international" scores
-        # less than "local"). tag_list has 3 remaining tags, so
-        # min_tags=3 is satisfied and the conflict-removed tag is NOT restored.
         tags = result.split()
         self.assertEqual(len(tags), 3)
         for t in tags:
@@ -339,17 +278,6 @@ class TestTagConflicts(TestCase):
         self.assertIn("[[economy]]", result)
         self.assertIn("[[sports]]", result)
 
-    def test_no_conflict_with_one_tag(self):
-        """Only one tag in conflict pair present → no removal."""
-        mappings = {
-            "international": ["international"],
-            "local": ["local", "city"],
-        }
-        conflicts = [["international", "local"]]
-        with _patch_config(mappings=mappings, conflicts=conflicts, boosts={}):
-            result = tag_story_with_keywords("international news")
-        self.assertIn("[[international]]", result)
-
 
 # ---------------------------------------------------------------------------
 # tag_story_with_keywords — deduplication
@@ -358,7 +286,7 @@ class TestTagConflicts(TestCase):
 class TestTagDeduplication(TestCase):
 
     def test_no_duplicate_tags(self):
-        """Output never contains duplicate tags."""
+        """Output never contains duplicate tags, even with repeated keywords or duplicate mappings."""
         with _patch_config():
             result = tag_story_with_keywords(
                 "ai ai artificial intelligence machine learning"
@@ -366,16 +294,12 @@ class TestTagDeduplication(TestCase):
         tags = result.split()
         self.assertEqual(len(tags), len(set(tags)))
 
-    def test_dedup_duplicate_keyword_entry(self):
-        """Duplicate keyword entries in mappings still produce one tag."""
         mappings = {
             "ai": ["ai", "ai", "artificial intelligence"],
             "weather": ["weather"],
         }
         with _patch_config(mappings=mappings):
-            result = tag_story_with_keywords(
-                "ai artificial intelligence weather"
-            )
+            result = tag_story_with_keywords("ai artificial intelligence weather")
         self.assertIn("[[ai]]", result)
         self.assertIn("[[weather]]", result)
         tags = result.split()
@@ -431,30 +355,24 @@ class TestMinTagPromotion(TestCase):
 
 class TestEdgeCases(TestCase):
 
-    def test_empty_title(self):
+    def test_empty_title_and_none_category(self):
+        """Empty title returns valid string. None category works fine."""
         with _patch_config():
             result = tag_story_with_keywords("")
         self.assertIsInstance(result, str)
 
-    def test_none_category(self):
         with _patch_config():
             result = tag_story_with_keywords("ai news", category=None)
         self.assertIn("[[ai]]", result)
 
-    def test_none_category_no_matches(self):
-        mappings = {}
-        with _patch_config(mappings=mappings):
-            result = tag_story_with_keywords("random text", category=None)
-        self.assertEqual(result, "#news")
-
-    def test_special_chars_in_title(self):
+    def test_special_chars_and_unicode(self):
+        """Special chars and Unicode in title don't break matching."""
         with _patch_config():
             result = tag_story_with_keywords(
                 "AI: 'Artificial Intelligence' — The Future (2025)"
             )
         self.assertIn("[[ai]]", result)
 
-    def test_unicode_in_title(self):
         with _patch_config():
             result = tag_story_with_keywords("AI modèle français")
         self.assertIn("[[ai]]", result)

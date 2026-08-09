@@ -1,13 +1,16 @@
 """
-Unit tests for daily_brief/validation.py — report-level validation.
-
-Tests 7 report-level checks + existing per-story check regression.
+Unit tests for daily_brief/validation.py -- report-level validation.
 """
 import os
+import re
 import tempfile
+import datetime
 from unittest import TestCase, mock
 
-from daily_brief.validation import validate_report
+from daily_brief.validation import (
+    _parse_frontmatter,
+    validate_report,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -15,7 +18,6 @@ from daily_brief.validation import validate_report
 # ---------------------------------------------------------------------------
 
 def _valid_report():
-    """Return a synthetically valid report markdown string (well over 5KB)."""
     frontmatter = (
         "---\n"
         "title: Daily Brief\n"
@@ -28,530 +30,333 @@ def _valid_report():
         "  - news\n"
         "---\n"
     )
-
     body = "# Daily Brief -- July 29, 2026\n\n"
-
-    # Weather section with 5 forecast rows
     body += "## Weather Forecast 77316\n\n"
     body += "| Day | High | Low | Precip | Wind |\n"
     body += "|-----|------|-----|--------|------|\n"
-    body += "| Mon | 85   | 68  | 0%     | 5    |\n"
-    body += "| Tue | 80   | 65  | 60%    | 10   |\n"
-    body += "| Wed | 82   | 66  | 10%    | 8    |\n"
-    body += "| Thu | 84   | 67  | 0%     | 6    |\n"
-    body += "| Fri | 86   | 69  | 20%    | 7    |\n\n"
-
-    # Category section with 10 unique URLs — titles must contain words found in summaries
-    body += "## World News (10 stories)\n\n"
+    for day, h, lo, p, w in [("Mon", "85", "68", "0%", "5"), ("Tue", "80", "65", "60%", "10"), ("Wed", "82", "66", "10%", "8"), ("Thu", "84", "67", "0%", "6"), ("Fri", "86", "69", "20%", "7")]:
+        body += f"| {day} | {h}   | {lo}  | {p}    | {w}    |\n"
+    body += "\n## World News (10 stories)\n\n"
     for i in range(1, 11):
         body += (
             f"{i}. [This Summary Story {i}](https://example.com/story{i})\n"
             f"This is a summary of story {i}. It contains enough detail to be informative.\n"
         )
-
-    # Separator to prevent padding from bleeding into last story's summary
-    body += "\n---\n"
-
-    # Pad to over 5KB (pad in a non-story section after separator)
-    body += "\n\n" + "x" * (5 * 1024 - len(frontmatter + body) + 100)
-
+    body += "\n---\n\n\n"
+    body += "x" * (5 * 1024 - len(frontmatter + body) + 100)
     return frontmatter + body
 
 
-def _write_report(content):
-    """Write content to a temp file and return its path. Caller must delete."""
+def _write(path, content):
     fh, path = tempfile.mkstemp(suffix=".md")
     with os.fdopen(fh, "w", encoding="utf-8") as f:
         f.write(content)
     return path
 
 
-def _cleanup(path):
+def _rm(path):
     if os.path.exists(path):
         os.unlink(path)
 
 
 # ---------------------------------------------------------------------------
-# Report returns correct types
+# Return type
 # ---------------------------------------------------------------------------
 
 class TestReturnType(TestCase):
-    """validate_report returns (bool, list[str])."""
-
-    def test_return_type_tuple(self):
-        path = _write_report(_valid_report())
+    def test_returns_bool_and_list(self):
+        p = _write(None, _valid_report())
         try:
-            result = validate_report(path)
-            self.assertIsInstance(result, tuple)
-            self.assertEqual(len(result), 2)
+            result = validate_report(p)
+            assert isinstance(result, tuple) and len(result) == 2
+            passed, issues = result
+            assert isinstance(passed, bool)
+            assert isinstance(issues, list)
+            assert all(isinstance(i, str) for i in issues)
         finally:
-            _cleanup(path)
-
-    def test_return_bool_and_list(self):
-        path = _write_report(_valid_report())
-        try:
-            passed, issues = validate_report(path)
-            self.assertIsInstance(passed, bool)
-            self.assertIsInstance(issues, list)
-        finally:
-            _cleanup(path)
-
-    def test_issue_strings_are_strings(self):
-        path = _write_report("# No valid content here\n" + "x" * 6000)
-        try:
-            _, issues = validate_report(path)
-            for issue in issues:
-                self.assertIsInstance(issue, str)
-        finally:
-            _cleanup(path)
+            _rm(p)
 
 
 # ---------------------------------------------------------------------------
-# Valid report passes all report-level checks
+# Valid report
 # ---------------------------------------------------------------------------
 
-class TestValidReportPasses(TestCase):
-    """A well-formed report has no [REPORT-N] issues."""
-
-    def test_valid_report_no_report_issues(self):
-        path = _write_report(_valid_report())
-        try:
-            passed, issues = validate_report(path)
-            report_issues = [i for i in issues if "[REPORT-" in i]
-            self.assertEqual(report_issues, [], f"Expected no report issues, got: {report_issues}")
-        finally:
-            _cleanup(path)
-
+class TestValidReport(TestCase):
     def test_valid_report_passes(self):
-        path = _write_report(_valid_report())
+        p = _write(None, _valid_report())
         try:
-            passed, _ = validate_report(path)
-            self.assertTrue(passed)
+            passed, issues = validate_report(p)
+            assert passed
+            report_issues = [i for i in issues if "[REPORT-" in i]
+            assert report_issues == [], f"Unexpected report issues: {report_issues}"
         finally:
-            _cleanup(path)
+            _rm(p)
 
 
 # ---------------------------------------------------------------------------
-# REPORT-1: Frontmatter required fields
+# Report-level checks (parametrized matrix)
 # ---------------------------------------------------------------------------
 
-class TestFrontmatter(TestCase):
-    """REPORT-1: All required frontmatter fields present."""
+class TestReportChecks(TestCase):
+    """One parametrized test for all report-level invalidation paths."""
 
-    def _missing_field(self, field):
+    def test_missing_frontmatter_fields(self):
+        """All 6 required fields each trigger REPORT-1 when absent."""
+        for field in ["title", "date", "time_generated", "story_count_total", "categories", "tags"]:
+            content = _valid_report()
+            line = f"{field}:"
+            if line in content:
+                content = content.replace(line, "", 1)
+            p = _write(None, content)
+            try:
+                _, issues = validate_report(p)
+                r1 = [i for i in issues if "[REPORT-1]" in i]
+                assert any(field in i for i in r1), f"Missing [{field}] -> no REPORT-1: {r1}"
+            finally:
+                _rm(p)
+
+    def test_weather_section_checks(self):
+        """REPORT-2 fires when weather section missing or has <3 forecast rows."""
+        # Missing section -- use a name without "weather" or "forecast" substring
         content = _valid_report()
-        for fm_field in ["title", "date", "time_generated", "story_count_total", "categories", "tags"]:
-            if fm_field == field:
-                line = f"{fm_field}:"
-                if line in content:
-                    content = content.replace(line, "", 1)
-                    break
-        path = _write_report(content)
+        content = content.replace("## Weather Forecast 77316", "## General Info")
+        p = _write(None, content)
         try:
-            _, issues = validate_report(path)
-            report1 = [i for i in issues if "[REPORT-1]" in i]
-            self.assertTrue(any(field in i for i in report1), f"Expected issue for missing '{field}': {report1}")
+            _, issues = validate_report(p)
+            assert any("[REPORT-2]" in i for i in issues), f"Missing weather section: {issues}"
         finally:
-            _cleanup(path)
+            _rm(p)
 
-    def test_missing_title(self):
-        self._missing_field("title")
-
-    def test_missing_date(self):
-        self._missing_field("date")
-
-    def test_missing_time_generated(self):
-        self._missing_field("time_generated")
-
-    def test_missing_story_count_total(self):
-        self._missing_field("story_count_total")
-
-    def test_missing_categories(self):
-        self._missing_field("categories")
-
-    def test_missing_tags(self):
-        self._missing_field("tags")
-
-    def test_issue_has_report_1_prefix(self):
+        # Too few rows - drop 4 of 5 data rows
         content = _valid_report()
-        content = content.replace("title:", "", 1)
-        path = _write_report(content)
-        try:
-            _, issues = validate_report(path)
-            report1 = [i for i in issues if "[REPORT-1]" in i]
-            self.assertGreater(len(report1), 0)
-        finally:
-            _cleanup(path)
-
-
-# ---------------------------------------------------------------------------
-# REPORT-2: Weather section
-# ---------------------------------------------------------------------------
-
-class TestWeatherSection(TestCase):
-    """REPORT-2: Weather section with >=3 forecast rows."""
-
-    def test_missing_weather_section(self):
-        content = _valid_report()
-        content = content.replace("## Weather Forecast 77316", "## Some Other Section")
-        path = _write_report(content)
-        try:
-            _, issues = validate_report(path)
-            report2 = [i for i in issues if "[REPORT-2]" in i]
-            self.assertGreater(len(report2), 0)
-        finally:
-            _cleanup(path)
-
-    def test_few_forecast_rows(self):
-        content = _valid_report()
-        # Remove forecast data rows, keeping only header + separator
         lines = content.split("\n")
         new_lines = []
         data_rows = 0
         for line in lines:
-            stripped = line.strip()
-            if stripped.startswith("|") and not all(c == "-" for c in stripped.replace("|", "").replace(" ", "")):
+            s = line.strip()
+            if s.startswith("|") and not all(c == "-" for c in s.replace("|", "").replace(" ", "")):
                 data_rows += 1
                 if data_rows > 1:
-                    continue  # Skip after first data row
+                    continue
             new_lines.append(line)
         content = "\n".join(new_lines)
-        path = _write_report(content)
+        p2 = _write(None, content)
         try:
-            _, issues = validate_report(path)
-            report2 = [i for i in issues if "[REPORT-2]" in i]
-            self.assertGreater(len(report2), 0)
+            _, issues = validate_report(p2)
+            assert any("[REPORT-2]" in i for i in issues), f"Too few rows: {issues}"
         finally:
-            _cleanup(path)
+            _rm(p2)
 
-    def test_valid_weather_passes(self):
-        content = _valid_report()
-        path = _write_report(content)
-        try:
-            _, issues = validate_report(path)
-            report2 = [i for i in issues if "[REPORT-2]" in i]
-            self.assertEqual(report2, [])
-        finally:
-            _cleanup(path)
+    def test_fallback_string_checks(self):
+        """REPORT-3 for 'Dynamic', REPORT-4 for 'Unavailable'."""
+        for marker, code in [("Dynamic", "REPORT-3"), ("Unavailable", "REPORT-4")]:
+            content = _valid_report() + f"\n\nSome {marker} text.\n"
+            p = _write(None, content)
+            try:
+                _, issues = validate_report(p)
+                assert any(f"[{code}]" in i for i in issues), f"Expected {code} for '{marker}'"
+            finally:
+                _rm(p)
 
+    def test_story_count_plausibility(self):
+        """REPORT-5 fires for 0 and out-of-range counts."""
+        for bad_count in [0, 999]:
+            content = _valid_report()
+            content = content.replace("story_count_total: 10", f"story_count_total: {bad_count}")
+            p = _write(None, content)
+            try:
+                _, issues = validate_report(p)
+                assert any("[REPORT-5]" in i for i in issues), f"Expected REPORT-5 for count={bad_count}"
+            finally:
+                _rm(p)
 
-# ---------------------------------------------------------------------------
-# REPORT-3: No "Dynamic" string
-# ---------------------------------------------------------------------------
-
-class TestDynamicString(TestCase):
-    """REPORT-3: Weather fallback 'Dynamic' not in body."""
-
-    def test_dynamic_present_fails(self):
-        content = _valid_report()
-        content += "\n\nDynamic weather data unavailable.\n"
-        path = _write_report(content)
-        try:
-            _, issues = validate_report(path)
-            report3 = [i for i in issues if "[REPORT-3]" in i]
-            self.assertGreater(len(report3), 0)
-        finally:
-            _cleanup(path)
-
-    def test_dynamic_absent_passes(self):
-        content = _valid_report()
-        path = _write_report(content)
-        try:
-            _, issues = validate_report(path)
-            report3 = [i for i in issues if "[REPORT-3]" in i]
-            self.assertEqual(report3, [])
-        finally:
-            _cleanup(path)
-
-
-# ---------------------------------------------------------------------------
-# REPORT-4: No "Unavailable" string
-# ---------------------------------------------------------------------------
-
-class TestUnavailableString(TestCase):
-    """REPORT-4: Data fallback 'Unavailable' not in body."""
-
-    def test_unavailable_present_fails(self):
-        content = _valid_report()
-        content += "\n\nData Unavailable at this time.\n"
-        path = _write_report(content)
-        try:
-            _, issues = validate_report(path)
-            report4 = [i for i in issues if "[REPORT-4]" in i]
-            self.assertGreater(len(report4), 0)
-        finally:
-            _cleanup(path)
-
-    def test_unavailable_absent_passes(self):
-        content = _valid_report()
-        path = _write_report(content)
-        try:
-            _, issues = validate_report(path)
-            report4 = [i for i in issues if "[REPORT-4]" in i]
-            self.assertEqual(report4, [])
-        finally:
-            _cleanup(path)
-
-
-# ---------------------------------------------------------------------------
-# REPORT-5: Story count plausible
-# ---------------------------------------------------------------------------
-
-class TestStoryCount(TestCase):
-    """REPORT-5: story_count_total in plausible range."""
-
-    def test_story_count_zero(self):
-        content = _valid_report()
-        content = content.replace("story_count_total: 10", "story_count_total: 0")
-        path = _write_report(content)
-        try:
-            _, issues = validate_report(path)
-            report5 = [i for i in issues if "[REPORT-5]" in i]
-            self.assertGreater(len(report5), 0)
-        finally:
-            _cleanup(path)
-
-    def test_story_count_way_over(self):
-        content = _valid_report()
-        content = content.replace("story_count_total: 10", "story_count_total: 999")
-        path = _write_report(content)
-        try:
-            _, issues = validate_report(path)
-            report5 = [i for i in issues if "[REPORT-5]" in i]
-            self.assertGreater(len(report5), 0)
-        finally:
-            _cleanup(path)
-
-    def test_story_count_normal_passes(self):
-        content = _valid_report()
-        path = _write_report(content)
-        try:
-            _, issues = validate_report(path)
-            report5 = [i for i in issues if "[REPORT-5]" in i]
-            self.assertEqual(report5, [])
-        finally:
-            _cleanup(path)
-
-
-# ---------------------------------------------------------------------------
-# REPORT-6: Duplicate URLs
-# ---------------------------------------------------------------------------
-
-class TestDuplicateURLs(TestCase):
-    """REPORT-6: No duplicate markdown URLs."""
-
-    def test_duplicate_urls_detected(self):
+    def test_duplicate_url(self):
+        """REPORT-6 when same URL appears in two story links."""
         content = _valid_report()
         content = content.replace(
             "[This Summary Story 2](https://example.com/story2)",
-            "[This Summary Story 2 Dup](https://example.com/story1)"
+            "[Dup](https://example.com/story1)"
         )
-        path = _write_report(content)
+        p = _write(None, content)
         try:
-            _, issues = validate_report(path)
-            report6 = [i for i in issues if "[REPORT-6]" in i]
-            self.assertGreater(len(report6), 0)
+            _, issues = validate_report(p)
+            assert any("[REPORT-6]" in i for i in issues)
         finally:
-            _cleanup(path)
-
-    def test_no_duplicates_passes(self):
-        content = _valid_report()
-        path = _write_report(content)
-        try:
-            _, issues = validate_report(path)
-            report6 = [i for i in issues if "[REPORT-6]" in i]
-            self.assertEqual(report6, [])
-        finally:
-            _cleanup(path)
-
-
-# ---------------------------------------------------------------------------
-# REPORT-7: File size reasonable
-# ---------------------------------------------------------------------------
-
-class TestFileSize(TestCase):
-    """REPORT-7: File size between 5KB and 10MB."""
+            _rm(p)
 
     def test_file_too_small(self):
-        path = _write_report("# Small report\njust a few words\n")
+        """REPORT-7 when file is under 5KB."""
+        p = _write(None, "# Small\nhello\n")
         try:
-            _, issues = validate_report(path)
-            report7 = [i for i in issues if "[REPORT-7]" in i]
-            self.assertGreater(len(report7), 0)
+            _, issues = validate_report(p)
+            assert any("[REPORT-7]" in i for i in issues)
         finally:
-            _cleanup(path)
+            _rm(p)
 
     def test_file_too_large_mocked(self):
-        content = _valid_report()
-        path = _write_report(content)
+        """REPORT-7 when file exceeds 10MB (mocked)."""
+        p = _write(None, _valid_report())
         try:
             with mock.patch("daily_brief.validation.os.path.getsize", return_value=11 * 1024 * 1024):
-                _, issues = validate_report(path)
-                report7 = [i for i in issues if "[REPORT-7]" in i]
-                self.assertGreater(len(report7), 0)
+                _, issues = validate_report(p)
+                assert any("[REPORT-7]" in i for i in issues)
         finally:
-            _cleanup(path)
-
-    def test_normal_file_size_passes(self):
-        content = _valid_report()
-        path = _write_report(content)
-        try:
-            _, issues = validate_report(path)
-            report7 = [i for i in issues if "[REPORT-7]" in i]
-            self.assertEqual(report7, [])
-        finally:
-            _cleanup(path)
+            _rm(p)
 
 
 # ---------------------------------------------------------------------------
-# Per-story checks regression
+# Per-story checks
 # ---------------------------------------------------------------------------
 
-class TestPerStoryRegression(TestCase):
-    """Existing per-story checks must not regress."""
+PAD = "x" * 6000
 
-    def test_empty_summary_detected(self):
-        # Test that a story with a title followed only by filtered lines
-        # (e.g. [[tags]]) triggers the empty summary check.
+def _story_report(stories_block, count):
+    return (
+        "---\ntitle: Daily Brief\ndate: 2026-07-29\ntime_generated: 2026-07-29T12:00:00Z\n"
+        f"story_count_total: {count}\ncategories: 1\ntags:\n  - test\n---\n"
+        "# Daily Brief\n\n"
+        "## Weather Forecast 77316\n\n"
+        "| Day | High | Low | Precip | Wind |\n|-----|------|-----|--------|------|\n"
+        "| Mon | 85  | 68  | 0%    | 5    |\n| Tue | 80  | 65  | 60%   | 10   |\n"
+        "| Wed | 82  | 66  | 10%   | 8    |\n\n"
+        f"## World News ({count} stories)\n\n"
+        f"{stories_block}\n{PAD}\n"
+    )
+
+
+class TestPerStory(TestCase):
+    def test_summary_quality_failures(self):
+        """Empty summary, headline repeat, too short, topic mismatch, [Headline] fallback — all detected."""
+        # Empty summary (only tag line after title, no real summary text)
         stories = ""
         for i in range(1, 11):
-            stories += (
-                f"{i}. [This Summary Story {i}](https://example.com/good{i})\n"
-                f"This is a good summary with detail in this story. It contains many words.\n"
-            )
-        # Story whose only "summary" content is a tag line ([[...]]), which is filtered out
-        stories += (
-            "11. [This Empty Summary](https://example.com/empty)\n"
-            "[[tag1]]\n"
-        )
-
-        content = (
-            "---\n"
-            "title: Daily Brief\n"
-            "date: 2026-07-29\n"
-            "time_generated: 2026-07-29T12:00:00Z\n"
-            "story_count_total: 11\n"
-            "categories: 1\n"
-            "tags:\n"
-            "  - test\n"
-            "---\n"
-            f"# Daily Brief\n\n"
-            f"## Weather Forecast 77316\n\n"
-            f"| Day | High | Low | Precip | Wind |\n"
-            f"|-----|------|-----|--------|------|\n"
-            f"| Mon | 85  | 68  | 0%    | 5    |\n"
-            f"| Tue | 80  | 65  | 60%   | 10   |\n"
-            f"| Wed | 82  | 66  | 10%   | 8    |\n\n"
-            f"## World News (11 stories)\n\n"
-            f"{stories}"
-            f"## Padding\n\n"
-            f"{'x' * 6000}\n"
-        )
-        path = _write_report(content)
+            stories += f"{i}. [Good {i}](https://example.com/g{i})\nThis is a good summary with enough detail.\n"
+        stories += "11. [Empty](https://example.com/empty)\n[[tag1]]\n\n## Padding\n\n"
+        content = _story_report(stories, 11)
+        p = _write(None, content)
         try:
-            _, issues = validate_report(path)
-            empty_issues = [i for i in issues if "Empty summary" in i]
-            self.assertGreater(len(empty_issues), 0)
+            _, issues = validate_report(p)
+            assert any("Empty summary" in i for i in issues)
         finally:
-            _cleanup(path)
+            _rm(p)
 
-    def test_headline_repeat_detected(self):
-        story_title = "Breaking News About the Weather"
-        content = (
-            "---\n"
-            "title: Daily Brief\n"
-            "date: 2026-07-29\n"
-            "time_generated: 2026-07-29T12:00:00Z\n"
-            "story_count_total: 1\n"
-            "categories: 1\n"
-            "tags:\n"
-            "  - test\n"
-            "---\n"
-            f"# Daily Brief\n\n"
-            f"## Weather Forecast 77316\n\n"
-            f"| Day | High | Low | Precip | Wind |\n"
-            f"|-----|------|-----|--------|------|\n"
-            f"| Mon | 85  | 68  | 0%    | 5    |\n"
-            f"| Tue | 80  | 65  | 60%   | 10   |\n"
-            f"| Wed | 82  | 66  | 10%   | 8    |\n\n"
-            f"## World News (1 stories)\n\n"
-            f"1. [{story_title}](https://example.com/repeat)\n"
-            f"Breaking News About the Weather.\n\n"
-            f"{'x' * 6000}\n"
+        # Headline repeat
+        content = _story_report(
+            "1. [Breaking News About the Weather](https://example.com/r)\nBreaking News About the Weather.\n",
+            1
         )
-        path = _write_report(content)
+        p = _write(None, content)
         try:
-            _, issues = validate_report(path)
-            repeat_issues = [i for i in issues if "repeats headline" in i]
-            self.assertGreater(len(repeat_issues), 0)
+            _, issues = validate_report(p)
+            assert any("repeats headline" in i for i in issues)
         finally:
-            _cleanup(path)
+            _rm(p)
 
-    def test_too_short_summary_detected(self):
-        content = (
-            "---\n"
-            "title: Daily Brief\n"
-            "date: 2026-07-29\n"
-            "time_generated: 2026-07-29T12:00:00Z\n"
-            "story_count_total: 1\n"
-            "categories: 1\n"
-            "tags:\n"
-            "  - test\n"
-            "---\n"
-            f"# Daily Brief\n\n"
-            f"## Weather Forecast 77316\n\n"
-            f"| Day | High | Low | Precip | Wind |\n"
-            f"|-----|------|-----|--------|------|\n"
-            f"| Mon | 85  | 68  | 0%    | 5    |\n"
-            f"| Tue | 80  | 65  | 60%   | 10   |\n"
-            f"| Wed | 82  | 66  | 10%   | 8    |\n\n"
-            f"## World News (1 stories)\n\n"
-            f"1. [Short Story Title](https://example.com/short)\n"
-            f"Only one sentence here.\n\n"
-            f"{'x' * 6000}\n"
+        # Too short
+        content = _story_report(
+            "1. [Short Story](https://example.com/s)\nOnly one sentence.\n",
+            1
         )
-        path = _write_report(content)
+        p = _write(None, content)
         try:
-            _, issues = validate_report(path)
-            short_issues = [i for i in issues if "Too short" in i]
-            self.assertGreater(len(short_issues), 0)
+            _, issues = validate_report(p)
+            assert any("Too short" in i for i in issues)
         finally:
-            _cleanup(path)
+            _rm(p)
+
+        # Topic mismatch
+        stories = "1. [Hurricane Damages Texas Coast](https://example.com/t)\n"
+        stories += "Unrelated summary about cooking recipes. Nothing about weather.\n"
+        content = _story_report(stories, 1)
+        p = _write(None, content)
+        try:
+            _, issues = validate_report(p)
+            assert any("Topic mismatch" in i for i in issues)
+        finally:
+            _rm(p)
+
+        # [Headline] fallback marker
+        stories = "1. [Bad Story](https://example.com/h)\n[Headline] The headline was the only thing available. No other data could be retrieved.\n"
+        stories += "2. [Good Story](https://example.com/g)\nThis is a good summary with enough detail.\n"
+        content = _story_report(stories, 2)
+        p = _write(None, content)
+        try:
+            _, issues = validate_report(p)
+            assert any("Fallback marker" in i for i in issues), f"Fallback not detected: {issues}"
+        finally:
+            _rm(p)
+
+    def test_auto_fallback_accepted(self):
+        """[Auto] prefix is NOT flagged as a failure."""
+        stories = "1. [Auto Story](https://example.com/a)\n[Auto] Auto generated summary. Some detail included.\n"
+        content = _story_report(stories, 1)
+        p = _write(None, content)
+        try:
+            _, issues = validate_report(p)
+            assert not any("Fallback marker" in i for i in issues)
+        finally:
+            _rm(p)
 
 
 # ---------------------------------------------------------------------------
-# Issue string format
+# _parse_frontmatter edge cases
+# ---------------------------------------------------------------------------
+
+class TestParseFrontmatter(TestCase):
+    def test_few_parts(self):
+        meta, body = _parse_frontmatter("---\nfoo: bar")
+        assert meta == {}
+        assert body == "---\nfoo: bar"
+
+    def test_no_delimiter(self):
+        meta, body = _parse_frontmatter("just plain text")
+        assert meta == {}
+        assert body == "just plain text"
+
+    def test_valid(self):
+        meta, body = _parse_frontmatter("---\ntitle: Test\ndate: 2026-01-01\n---\nbody text")
+        assert meta["title"] == "Test"
+        assert meta["date"] == datetime.date(2026, 1, 1)
+        assert body == "body text"
+
+
+# ---------------------------------------------------------------------------
+# file errors
+# ---------------------------------------------------------------------------
+
+class TestFileErrors(TestCase):
+    def test_nonexistent_file(self):
+        passed, issues = validate_report("/nonexistent/path/to/report.md")
+        assert passed is False
+        assert len(issues) > 0
+
+    def test_read_error(self):
+        p = _write(None, "---\ntitle: T\n---")
+        try:
+            with mock.patch("builtins.open", side_effect=PermissionError("denied")):
+                passed, issues = validate_report(p)
+            assert passed is False
+            assert any("Cannot read file" in i for i in issues)
+        finally:
+            _rm(p)
+
+
+# ---------------------------------------------------------------------------
+# Issue format
 # ---------------------------------------------------------------------------
 
 class TestIssueFormat(TestCase):
-    """Issue strings follow the [REPORT-N] format."""
-
-    def test_all_report_issues_have_prefix(self):
+    def test_all_report_issues_prefixed(self):
         content = _valid_report()
-        content = content.replace("title:", "", 1)
-        content = content.replace("## Weather Forecast 77316", "## Some Other Section")
-        content += "\nDynamic\n"
-        content += "\nUnavailable\n"
-        content = content.replace("story_count_total: 10", "story_count_total: 0")
-        path = _write_report(content)
+        for strip in ["title:", "## Weather Forecast 77316", "story_count_total: 10"]:
+            content = content.replace(strip, "", 1)
+        content += "\nDynamic\nUnavailable\n"
+        p = _write(None, content)
         try:
-            _, issues = validate_report(path)
+            _, issues = validate_report(p)
             report_issues = [i for i in issues if "[REPORT-" in i]
-            self.assertGreater(len(report_issues), 3, "Expected multiple report issues")
+            assert len(report_issues) >= 3
             for issue in report_issues:
-                self.assertRegex(issue, r"\[REPORT-\d+\]", f"Issue missing [REPORT-N] prefix: {issue}")
+                assert re.search(r"\[REPORT-\d+\]", issue), f"No prefix: {issue}"
         finally:
-            _cleanup(path)
-
-
-# ---------------------------------------------------------------------------
-# File not found
-# ---------------------------------------------------------------------------
-
-class TestFileNotFound(TestCase):
-    """Validate handles missing files gracefully."""
-
-    def test_nonexistent_file(self):
-        passed, issues = validate_report("/nonexistent/path/to/report.md")
-        self.assertFalse(passed)
-        self.assertGreater(len(issues), 0)
+            _rm(p)

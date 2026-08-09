@@ -126,3 +126,38 @@ class TestCleanupOldFiles(TestCase):
             with tempfile.TemporaryDirectory() as log_dir:
                 cleanup_old_files(news_dir, log_dir, 5)  # Should not raise
                 # No assertions needed, just verify no exception
+
+    def test_cleanup_runs_after_report_write(self):
+        """Pipeline regression: write_report runs before cleanup, final count is limit."""
+        with tempfile.TemporaryDirectory() as output_dir:
+            with tempfile.TemporaryDirectory() as log_dir:
+                # 5 existing reports (mtime 1..5)
+                for i in range(1, 6):
+                    path = os.path.join(output_dir, f"DailyBrief-2026-08-0{i}_v01.md")
+                    with open(path, "w") as f:
+                        f.write(f"report {i}\n")
+                    os.utime(path, (float(i), float(i)))
+
+                existing = sorted(
+                    f for f in os.listdir(output_dir)
+                    if f.startswith("DailyBrief-") and f.endswith(".md")
+                )
+                self.assertEqual(len(existing), 5)
+
+                # Simulate write_report creating the 6th (newest, mtime=10)
+                new_path = os.path.join(output_dir, "DailyBrief-2026-08-06_v01.md")
+                with open(new_path, "w") as f:
+                    f.write("new report\n")
+                os.utime(new_path, (10.0, 10.0))
+
+                # Now run cleanup (should see 6 files, keep 5, remove oldest)
+                cleanup_old_files(output_dir, log_dir, max_log_versions=5)
+
+                remaining = sorted(
+                    f for f in os.listdir(output_dir)
+                    if f.startswith("DailyBrief-") and f.endswith(".md")
+                )
+                self.assertEqual(len(remaining), 5,
+                    f"Expected 5, got {len(remaining)}: {remaining}")
+                self.assertNotIn("DailyBrief-2026-08-01_v01.md", remaining)
+                self.assertIn("DailyBrief-2026-08-06_v01.md", remaining)

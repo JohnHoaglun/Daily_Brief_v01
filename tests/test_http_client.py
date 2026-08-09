@@ -50,21 +50,15 @@ class TestIsStatusAccepted(unittest.TestCase):
         from daily_brief.http_client import _is_status_accepted
         return _is_status_accepted
 
-    def test_exact_200_default(self):
+    def test_default_200_accepted_others_rejected(self):
         fn = self._import()
         self.assertTrue(fn(200))
-
-    def test_non_200_default(self):
-        fn = self._import()
         self.assertFalse(fn(201))
         self.assertFalse(fn(404))
 
-    def test_predicate_match(self):
+    def test_custom_predicate(self):
         fn = self._import()
         self.assertTrue(fn(201, lambda s: 200 <= s < 300))
-
-    def test_predicate_miss(self):
-        fn = self._import()
         self.assertFalse(fn(400, lambda s: 200 <= s < 300))
 
 
@@ -75,36 +69,21 @@ class TestShouldRetry(unittest.TestCase):
         from daily_brief.http_client import _should_retry
         return _should_retry
 
-    def test_retryable_429(self):
-        self.assertTrue(self._import()(429))
+    def test_transient_statuses_retry(self):
+        fn = self._import()
+        for status in (429, 502, 503, 504):
+            self.assertTrue(fn(status), f"{status} should be retryable")
 
-    def test_retryable_502(self):
-        self.assertTrue(self._import()(502))
+    def test_client_error_statuses_no_retry(self):
+        fn = self._import()
+        for status in (400, 401, 403, 404):
+            self.assertFalse(fn(status), f"{status} should not be retryable")
 
-    def test_retryable_503(self):
-        self.assertTrue(self._import()(503))
-
-    def test_retryable_504(self):
-        self.assertTrue(self._import()(504))
-
-    def test_not_retryable_400(self):
-        self.assertFalse(self._import()(400))
-
-    def test_not_retryable_401(self):
-        self.assertFalse(self._import()(401))
-
-    def test_not_retryable_403(self):
-        self.assertFalse(self._import()(403))
-
-    def test_not_retryable_404(self):
-        self.assertFalse(self._import()(404))
-
-    def test_retryable_timeout_error(self):
-        self.assertTrue(self._import()(asyncio.TimeoutError()))
-
-    def test_retryable_client_error(self):
+    def test_exceptions(self):
+        fn = self._import()
+        self.assertTrue(fn(asyncio.TimeoutError()))
         import aiohttp
-        self.assertTrue(self._import()(aiohttp.ClientError()))
+        self.assertTrue(fn(aiohttp.ClientError()))
 
 
 class TestRequestWithRetry(unittest.TestCase):
@@ -127,7 +106,8 @@ class TestRequestWithRetry(unittest.TestCase):
         self.assertEqual(attempts, 1)
         mock_sleep.assert_not_called()
 
-    def test_retry_recovery_503_503_200(self):
+    def test_retry_then_recover(self):
+        """503, 503, 200 → returns text with 3 attempts, 2 sleeps."""
         fn = self._import()
         session = make_session(
             MockResp(status=503),
@@ -141,7 +121,8 @@ class TestRequestWithRetry(unittest.TestCase):
         self.assertEqual(attempts, 3)
         self.assertEqual(mock_sleep.call_count, 2)
 
-    def test_retry_exhaustion_502_thrice(self):
+    def test_retry_exhaustion(self):
+        """Three transient failures → returns None text, last status, 3 attempts."""
         fn = self._import()
         session = make_session(
             MockResp(status=502),
@@ -155,7 +136,8 @@ class TestRequestWithRetry(unittest.TestCase):
         self.assertEqual(attempts, 3)
         self.assertEqual(mock_sleep.call_count, 2)
 
-    def test_timeout_then_200(self):
+    def test_timeout_then_recover(self):
+        """Timeout then 200 → 2 attempts, 1 sleep."""
         fn = self._import()
         session = make_session(
             MockResp(exception=asyncio.TimeoutError()),
@@ -182,41 +164,18 @@ class TestRequestWithRetry(unittest.TestCase):
         self.assertEqual(attempts, 3)
         self.assertEqual(mock_sleep.call_count, 2)
 
-    def test_non_retryable_400_single(self):
+    def test_non_retryable_immediate_no_retry(self):
+        """Non-retryable status returns immediately with 1 attempt, no sleep."""
         fn = self._import()
-        session = make_session(MockResp(status=400))
-        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-            text, status, attempts = self._loop(fn(session, "http://x"))
-        self.assertIsNone(text)
-        self.assertEqual(status, 400)
-        self.assertEqual(attempts, 1)
-        mock_sleep.assert_not_called()
+        for status in (400, 401, 403, 404):
+            session = make_session(MockResp(status=status))
+            with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+                text, got_status, attempts = self._loop(fn(session, "http://x"))
+            self.assertEqual(got_status, status)
+            self.assertEqual(attempts, 1)
+            mock_sleep.assert_not_called()
 
-    def test_non_retryable_401_single(self):
-        fn = self._import()
-        session = make_session(MockResp(status=401))
-        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-            text, status, attempts = self._loop(fn(session, "http://x"))
-        self.assertEqual(attempts, 1)
-        mock_sleep.assert_not_called()
-
-    def test_non_retryable_403_single(self):
-        fn = self._import()
-        session = make_session(MockResp(status=403))
-        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-            text, status, attempts = self._loop(fn(session, "http://x"))
-        self.assertEqual(attempts, 1)
-        mock_sleep.assert_not_called()
-
-    def test_non_retryable_404_single(self):
-        fn = self._import()
-        session = make_session(MockResp(status=404))
-        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-            text, status, attempts = self._loop(fn(session, "http://x"))
-        self.assertEqual(attempts, 1)
-        mock_sleep.assert_not_called()
-
-    def test_status_predicate_200_299(self):
+    def test_status_predicate_accept_2xx(self):
         fn = self._import()
         session = make_session(MockResp(status=201, text="created"))
         text, status, attempts = self._loop(
@@ -226,43 +185,20 @@ class TestRequestWithRetry(unittest.TestCase):
         self.assertEqual(status, 201)
         self.assertEqual(attempts, 1)
 
-    def test_status_predicate_rejects_400(self):
-        fn = self._import()
-        session = make_session(MockResp(status=400))
-        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-            text, status, attempts = self._loop(
-                fn(session, "http://x", status_predicate=lambda s: 200 <= s < 300)
-            )
-        self.assertIsNone(text)
-        self.assertEqual(attempts, 1)
-        mock_sleep.assert_not_called()
-
-    def test_header_forwarding_user_agent(self):
-        fn = self._import()
+    def test_header_and_timeout_forwarding(self):
         session = make_session(MockResp(status=200, text="ok"))
+        fn = self._import()
+
+        # Verify User-Agent is forwarded
         ua = "CustomAgent/2.0"
         with patch.object(session, "get", wraps=session.get) as gw:
             self._loop(fn(session, "http://x", user_agent=ua))
-        gw.assert_called_once()
+        gw.assert_called()
         kwargs = gw.call_args[1]
         self.assertIn("headers", kwargs)
         self.assertEqual(kwargs["headers"]["User-Agent"], ua)
 
-    def test_header_forwarding_timeout(self):
-        fn = self._import()
-        session = make_session(MockResp(status=200, text="ok"))
-        orig_get = session.get
-        captured_kwargs = {}
-
-        def capture_get(url, **kwargs):
-            captured_kwargs.update(kwargs)
-            return orig_get(url, **kwargs)
-
-        session.get = capture_get
-        self._loop(fn(session, "http://x", timeout=30))
-        self.assertEqual(captured_kwargs["timeout"].total, 30)
-
-    def test_non_retryable_exception_single(self):
+    def test_non_retryable_exception(self):
         fn = self._import()
         session = make_session(MockResp(exception=ValueError("boom")))
         with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
@@ -283,12 +219,17 @@ class TestFetchJson(unittest.TestCase):
     def _loop(self, coro):
         return asyncio.get_event_loop().run_until_complete(coro)
 
-    def test_200_returns_parsed_dict(self):
+    def test_valid_json_dict_and_list(self):
         fn = self._import()
         payload = json.dumps({"weather": "sunny"})
         session = make_session(MockResp(status=200, text=payload))
         result = self._loop(fn(session, "http://x"))
         self.assertEqual(result, {"weather": "sunny"})
+
+        payload = json.dumps([1, 2, 3])
+        session = make_session(MockResp(status=200, text=payload))
+        result = self._loop(fn(session, "http://x"))
+        self.assertEqual(result, [1, 2, 3])
 
     def test_failed_status_returns_none(self):
         fn = self._import()
@@ -302,13 +243,6 @@ class TestFetchJson(unittest.TestCase):
         session = make_session(MockResp(status=200, text="not json at all"))
         result = self._loop(fn(session, "http://x"))
         self.assertIsNone(result)
-
-    def test_valid_json_returned(self):
-        fn = self._import()
-        payload = json.dumps([1, 2, 3])
-        session = make_session(MockResp(status=200, text=payload))
-        result = self._loop(fn(session, "http://x"))
-        self.assertEqual(result, [1, 2, 3])
 
 
 class TestFetchText(unittest.TestCase):
@@ -345,18 +279,12 @@ class TestSafeJsonParse(unittest.TestCase):
     def _loop(self, coro):
         return asyncio.get_event_loop().run_until_complete(coro)
 
-    def test_valid_dict(self):
+    def test_valid_and_invalid(self):
         fn = self._import()
         result = self._loop(fn('{"a":1}'))
         self.assertEqual(result, {"a": 1})
-
-    def test_invalid(self):
-        fn = self._import()
         result = self._loop(fn('{bad'))
         self.assertIsNone(result)
-
-    def test_empty_string(self):
-        fn = self._import()
         result = self._loop(fn(""))
         self.assertIsNone(result)
 

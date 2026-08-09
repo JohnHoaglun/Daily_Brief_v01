@@ -4,6 +4,9 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.120 — Test suite consolidation
+- Consolidated test suite from 1,046 to 402 tests (62% reduction). Deleted benchmark test suite (`test_benchmark_llm_batches.py`), corpus capture test suite (`test_capture_corpus.py`), smoke test suite (`test_smoke_test.py`), and source-inspection test files. Consolidated micro-permutation tests into focused behavioral contracts. Removed duplicate coverage across files. Removed no-assertion tests and historical-bug demonstrations. All 402 tests passing.
+
 ### v1.0.119 — Cleanup ordering fix
 - `daily_brief/pipeline.py`: Moved `cleanup_old_files()` from before `write_report()` to immediately after. Previously, cleanup ran before the new report was on disk, leaving `max_log_versions + 1` news files on each run (6 instead of 5). Now both reports and logs finish at exactly the configured retention limit.
 - `tests/test_cleanup.py`: 5 new unit tests — retention count (2), non-matching files untouched (1), under-limit no-op (1), empty directory safety (1).

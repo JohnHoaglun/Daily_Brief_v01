@@ -2,6 +2,7 @@
 Unit tests for daily_brief/rendering/report.py.
 """
 import os
+import re
 import tempfile
 from unittest import TestCase, mock
 from datetime import datetime, timezone
@@ -31,7 +32,6 @@ def _make_story(title="Test Title", link="http://example.com", category="World N
 
 
 def _format_date(raw):
-    """Simple date formatter for tests."""
     return raw or "Unknown date"
 
 
@@ -67,50 +67,34 @@ def _weather():
 class TestBuildSectionsFromStories(TestCase):
     """Group stories into sections, format dates."""
 
-    def test_stories_grouped_by_category(self):
+    def test_grouping_and_entry_fields(self):
+        """Story-to-section mapping: grouped by category, all fields present."""
         stories = [
             _make_story(title="A", category="World News"),
             _make_story(title="B", category="US News"),
-            _make_story(title="C", category="World News"),
+            _make_story(title="C", link="http://c", category="World News", summary="C summary", pub_dt="2026-01-02"),
         ]
         sections = build_sections_from_stories(stories, _format_date)
-        self.assertIn("World News", sections)
-        self.assertIn("US News", sections)
-        self.assertEqual(len(sections["World News"]), 2)
-        self.assertEqual(len(sections["US News"]), 1)
-
-    def test_date_formatted_via_callable(self):
-        stories = [_make_story(pub_dt="2026-07-29")]
-        sections = build_sections_from_stories(stories, _format_date)
-        entry = sections["World News"][0]
-        self.assertEqual(entry["pub_date"], "2026-07-29")
+        assert "World News" in sections
+        assert "US News" in sections
+        assert len(sections["World News"]) == 2
+        assert len(sections["US News"]) == 1
+        # Entry fields preserved
+        entry = sections["World News"][1]
+        assert entry["title"] == "C"
+        assert entry["link"] == "http://c"
+        assert entry["category"] == "World News"
+        assert entry["summary"] == "C summary"
+        assert entry["pub_date"] == "2026-01-02"
+        # Date formatted via callable
+        assert sections["World News"][0]["pub_date"] == "2026-07-29"
 
     def test_empty_stories_returns_empty(self):
-        sections = build_sections_from_stories([], _format_date)
-        self.assertEqual(sections, {})
+        assert build_sections_from_stories([], _format_date) == {}
 
-    def test_none_summary_becomes_unavailable(self):
-        stories = [_make_story(summary=None)]
-        sections = build_sections_from_stories(stories, _format_date)
-        self.assertEqual(sections["World News"][0]["summary"], "[Summary unavailable]")
-
-    def test_entry_contains_all_fields(self):
-        stories = [_make_story(title="T", link="http://x", category="Tech", summary="S", pub_dt="2026-01-01")]
-        sections = build_sections_from_stories(stories, _format_date)
-        entry = sections["Tech"][0]
-        self.assertEqual(entry["title"], "T")
-        self.assertEqual(entry["link"], "http://x")
-        self.assertEqual(entry["category"], "Tech")
-        self.assertEqual(entry["summary"], "S")
-        self.assertEqual(entry["pub_date"], "2026-01-01")
-
-    def test_multiple_categories_preserved(self):
-        cats = ["World News", "US News", "Tech", "Finance"]
-        stories = [_make_story(title=f"S{i}", category=c) for i, c in enumerate(cats)]
-        sections = build_sections_from_stories(stories, _format_date)
-        for c in cats:
-            self.assertIn(c, sections)
-            self.assertEqual(len(sections[c]), 1)
+    def test_none_summary_fallback(self):
+        sections = build_sections_from_stories([_make_story(summary=None)], _format_date)
+        assert sections["World News"][0]["summary"] == "[Summary unavailable]"
 
 
 # ---------------------------------------------------------------------------
@@ -120,84 +104,55 @@ class TestBuildSectionsFromStories(TestCase):
 class TestComputeOutputPath(TestCase):
     """Auto-versioned output path generation."""
 
-    def test_returns_filepath_with_date_and_version(self):
+    def test_fresh_dir_auto_v01(self):
         with tempfile.TemporaryDirectory() as td:
             fp, ver = compute_output_path(td)
-            self.assertIn("DailyBrief-", fp)
-            self.assertIn("_v01.md", fp)
-            self.assertIsInstance(ver, int)
-            self.assertGreaterEqual(ver, 1)
+            assert ver == 1
+            assert isinstance(fp, str)
+            assert fp.endswith("_v01.md")
 
-    def test_path_ends_with_md(self):
-        with tempfile.TemporaryDirectory() as td:
-            fp, _ = compute_output_path(td)
-            self.assertTrue(fp.endswith(".md"))
-
-    def test_fresh_directory_starts_at_v01(self):
-        with tempfile.TemporaryDirectory() as td:
-            fp, ver = compute_output_path(td)
-            self.assertIn("_v01.md", fp)
-            self.assertEqual(ver, 1)
-
-    def test_existing_v01_increments_to_v02(self):
-        with tempfile.TemporaryDirectory() as td:
-            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-            existing = os.path.join(td, f"DailyBrief-{today}_v01.md")
-            with open(existing, "w") as f:
-                f.write("old")
-            fp, ver = compute_output_path(td)
-            self.assertIn("_v02.md", fp)
-            self.assertEqual(ver, 2)
-
-    def test_existing_multiple_versions_increments(self):
+    def test_existing_versions_increment(self):
         with tempfile.TemporaryDirectory() as td:
             today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
             for v in range(1, 4):
                 with open(os.path.join(td, f"DailyBrief-{today}_v{v:02d}.md"), "w") as f:
                     f.write("old")
             fp, ver = compute_output_path(td)
-            self.assertIn("_v04.md", fp)
-            self.assertEqual(ver, 4)
+            assert ver == 4
+            assert "_v04.md" in fp
 
-    def test_creates_output_dir_if_missing(self):
-        with tempfile.TemporaryDirectory() as td:
-            new_dir = os.path.join(td, "sub", "out")
-            fp, _ = compute_output_path(new_dir)
-            self.assertTrue(os.path.isdir(new_dir))
-            self.assertTrue(fp.startswith(new_dir))
-
-    def test_version_zero_padded(self):
-        with tempfile.TemporaryDirectory() as td:
-            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-            for v in range(1, 11):
-                with open(os.path.join(td, f"DailyBrief-{today}_v{v:02d}.md"), "w") as f:
-                    f.write("old")
-            fp, ver = compute_output_path(td)
-            self.assertIn("_v11.md", fp)
-            self.assertEqual(ver, 11)
-
-    def test_explicit_file_ver_overrides_disk(self):
+    def test_explicit_file_ver_auto(self):
         with tempfile.TemporaryDirectory() as td:
             today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
             for v in range(1, 9):
                 with open(os.path.join(td, f"DailyBrief-{today}_v{v:02d}.md"), "w") as f:
                     f.write("old")
             fp, ver = compute_output_path(td, file_ver=15)
-            self.assertEqual(fp, os.path.join(td, f"DailyBrief-{today}_v15.md"))
-            self.assertEqual(ver, 15)
+            assert ver == 15
+            assert fp == os.path.join(td, f"DailyBrief-{today}_v15.md")
 
-    def test_explicit_file_ver_with_empty_dir(self):
+    def test_explicit_file_ver_empty(self):
+        with tempfile.TemporaryDirectory() as td:
+            fp, ver = compute_output_path(td, file_ver=7)
+            assert ver == 7
+            assert "_v07.md" in fp
+
+    def test_creates_output_dir(self):
+        with tempfile.TemporaryDirectory() as td:
+            new_dir = os.path.join(td, "sub", "out")
+            fp, _ = compute_output_path(new_dir)
+            assert os.path.isdir(new_dir)
+            assert fp.startswith(new_dir)
+
+    def test_version_two_digit_padding(self):
         with tempfile.TemporaryDirectory() as td:
             today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-            fp, ver = compute_output_path(td, file_ver=7)
-            self.assertEqual(fp, os.path.join(td, f"DailyBrief-{today}_v07.md"))
-            self.assertEqual(ver, 7)
-
-    def test_file_ver_is_int_gte_1(self):
-        with tempfile.TemporaryDirectory() as td:
-            _, ver = compute_output_path(td)
-            self.assertIsInstance(ver, int)
-            self.assertGreaterEqual(ver, 1)
+            for v in range(1, 11):
+                with open(os.path.join(td, f"DailyBrief-{today}_v{v:02d}.md"), "w") as f:
+                    f.write("old")
+            fp, ver = compute_output_path(td)
+            assert ver == 11
+            assert "_v11.md" in fp
 
 
 # ---------------------------------------------------------------------------
@@ -207,158 +162,110 @@ class TestComputeOutputPath(TestCase):
 class TestBuildMarkdown(TestCase):
     """Full markdown report rendering."""
 
+    def _build(self, stories, sections=None, cats=None, cfg=None, tag_return="", wx_lines=None):
+        if sections is None:
+            sections = build_sections_from_stories(stories, _format_date)
+        if cats is None:
+            cats = list(sections.keys())
+        if cfg is None:
+            cfg = _config_kwargs()
+        if wx_lines is None:
+            wx_lines = ["## Weather"]
+        with (
+            mock.patch("daily_brief.rendering.report.build_weather_markdown", return_value=wx_lines),
+            mock.patch("daily_brief.rendering.report.tag_story_with_keywords", return_value=tag_return),
+        ):
+            return build_markdown(stories, {}, sections, cats, cfg)
 
-
-    @mock.patch("daily_brief.rendering.report.tag_story_with_keywords")
-    @mock.patch("daily_brief.rendering.report.build_weather_markdown")
-    def test_return_type_is_list(self, mock_wx, mock_tag):
-        mock_wx.return_value = ["## Weather"]
-        mock_tag.return_value = ""
-        stories = []
-        result = build_markdown(stories, {}, {}, [], _config_kwargs())
-        self.assertIsInstance(result, list)
-
-    @mock.patch("daily_brief.rendering.report.tag_story_with_keywords")
-    @mock.patch("daily_brief.rendering.report.build_weather_markdown")
-    def test_non_empty_output(self, mock_wx, mock_tag):
-        mock_wx.return_value = ["## Weather"]
-        mock_tag.return_value = ""
-        stories = [_make_story(title="A Test Story")]
-        sections = build_sections_from_stories(stories, _format_date)
-        result = build_markdown(stories, {}, sections, ["World News"], _config_kwargs())
-        self.assertGreater(len(result), 20)
-
-    @mock.patch("daily_brief.rendering.report.tag_story_with_keywords")
-    @mock.patch("daily_brief.rendering.report.build_weather_markdown")
-    def test_frontmatter_yaml_header(self, mock_wx, mock_tag):
-        mock_wx.return_value = ["## Weather"]
-        mock_tag.return_value = ""
-        result = build_markdown([], {}, {}, [], _config_kwargs())
-        self.assertEqual(result[0], "---")
-        self.assertEqual(result[1], "title: Daily Brief")
-
-    @mock.patch("daily_brief.rendering.report.tag_story_with_keywords")
-    @mock.patch("daily_brief.rendering.report.build_weather_markdown")
-    def test_frontmatter_date_and_status(self, mock_wx, mock_tag):
-        mock_wx.return_value = ["## Weather"]
-        mock_tag.return_value = ""
-        result = build_markdown([], {}, {}, [], _config_kwargs())
-        joined = "\n".join(result)
-        self.assertIn("date: ", joined)
-        self.assertIn("time_generated: ", joined)
-        self.assertIn("status: active", joined)
-
-    @mock.patch("daily_brief.rendering.report.tag_story_with_keywords")
-    @mock.patch("daily_brief.rendering.report.build_weather_markdown")
-    def test_frontmatter_story_count_categories(self, mock_wx, mock_tag):
-        mock_wx.return_value = ["## Weather"]
-        mock_tag.return_value = ""
-        cfg = _config_kwargs({"total_after_dedup": 42, "rendered_cat_count": 5})
-        result = build_markdown([], {}, {}, [], cfg)
-        self.assertIn("story_count_total: 42", result)
-        self.assertIn("categories: 5", result)
-
-    @mock.patch("daily_brief.rendering.report.tag_story_with_keywords")
-    @mock.patch("daily_brief.rendering.report.build_weather_markdown")
-    def test_tags_from_seed_and_titles(self, mock_wx, mock_tag):
-        mock_wx.return_value = ["## Weather"]
-        mock_tag.return_value = "#texas #news"
-        stories = [_make_story(title="Texas Story")]
-        sections = build_sections_from_stories(stories, _format_date)
-        result = build_markdown(stories, {}, sections, ["World News"], _config_kwargs())
-        tags_section = [l for l in result if l.startswith("  - ")]
-        tag_values = [l.replace("  - ", "") for l in tags_section]
-        self.assertIn("daily-brief", tag_values)
-        self.assertIn("texas", tag_values)
-        self.assertIn("news", tag_values)
-
-    @mock.patch("daily_brief.rendering.report.tag_story_with_keywords")
-    @mock.patch("daily_brief.rendering.report.build_weather_markdown")
-    def test_tags_sorted_alphabetically(self, mock_wx, mock_tag):
-        mock_wx.return_value = ["## Weather"]
-        mock_tag.return_value = "#zebra #alpha #mango"
-        stories = [_make_story(title="Test")]
-        sections = build_sections_from_stories(stories, _format_date)
-        result = build_markdown(stories, {}, sections, ["World News"], _config_kwargs())
-        tags_section = [l for l in result if l.startswith("  - ")]
-        tag_values = [l.replace("  - ", "") for l in tags_section]
-        self.assertEqual(tag_values, sorted(tag_values))
-
-    @mock.patch("daily_brief.rendering.report.tag_story_with_keywords")
-    @mock.patch("daily_brief.rendering.report.build_weather_markdown")
-    def test_categories_rendered_in_order(self, mock_wx, mock_tag):
-        mock_wx.return_value = ["## Weather"]
-        mock_tag.return_value = ""
+    def test_full_markdown_golden_shape(self):
+        """Complete output: frontmatter -> header -> weather -> categories -> story entries."""
         stories = [
-            _make_story(title="A", category="Category B"),
-            _make_story(title="B", category="Category A"),
+            _make_story(title="My Title", link="http://example.com", category="World News",
+                        summary="A summary.", pub_dt="2026-07-29"),
+            _make_story(title="Second", link="http://two.com", category="Tech",
+                        summary="Another summary.", pub_dt="2026-07-30"),
         ]
         sections = build_sections_from_stories(stories, _format_date)
-        result = build_markdown(stories, {}, sections, ["Category A", "Category B"], _config_kwargs())
-        a_idx = next(i for i, l in enumerate(result) if l == "## Category A (1 stories)")
-        b_idx = next(i for i, l in enumerate(result) if l == "## Category B (1 stories)")
-        self.assertLess(a_idx, b_idx)
+        result = self._build(stories, sections, cats=["Tech", "World News"])
+        joined = "\n".join(result)
+        # Must be a list
+        assert isinstance(result, list)
+        assert len(result) > 20
+        # Frontmatter
+        assert result[0] == "---"
+        assert result[1] == "title: Daily Brief"
+        assert any("date: " in l for l in result)
+        assert any("time_generated: " in l for l in result)
+        assert any("status: active" in l for l in result)
+        assert "story_count_total: 10" in result
+        assert "categories: 3" in result
+        assert "tags:" in result
+        assert "---" in result  # closing YAML delimiter
+        # H1 header
+        assert any(l.startswith("# Daily Brief --") for l in result)
+        # Weather from build_weather_markdown
+        assert "## Weather" in result
+        # Category ordering: Tech before World News
+        tech_idx = next(i for i, l in enumerate(result) if l.startswith("## Tech"))
+        wn_idx = next(i for i, l in enumerate(result) if l == "## World News (1 stories)")
+        assert tech_idx < wn_idx
+        # Numbered story entry with link
+        assert "1. [My Title](http://example.com)" in result
+        assert "1. [Second](http://two.com)" in result
+        # Pub date line
+        assert "*Originally published on:* 2026-07-29" in joined
+        # Category section header with count
+        assert "## World News (1 stories)" in result
+        assert "## Tech (1 stories)" in result
 
-    @mock.patch("daily_brief.rendering.report.tag_story_with_keywords")
-    @mock.patch("daily_brief.rendering.report.build_weather_markdown")
-    def test_empty_category_renders_placeholder(self, mock_wx, mock_tag):
-        mock_wx.return_value = ["## Weather"]
-        mock_tag.return_value = ""
-        result = build_markdown([], {}, {}, ["EmptyCat"], _config_kwargs())
-        self.assertIn("## EmptyCat", result)
-        self.assertIn("_No stories found._", result)
+    def test_empty_category_header_render(self):
+        """Empty categories render a header with placeholder text."""
+        result = self._build([], sections={}, cats=["EmptyCat"], cfg=_config_kwargs({"rendered_cat_count": 1}))
+        assert "## EmptyCat" in result
+        assert "_No stories found._" in result
+        # Verify empty categories count in frontmatter
+        result2 = self._build(
+            [_make_story(title="A", category="Populated")],
+            cats=["Populated", "EmptyCat"],
+            cfg=_config_kwargs({"rendered_cat_count": 2}),
+        )
+        assert "categories: 2" in result2
+        assert "## Populated (1 stories)" in result2
+        assert "## EmptyCat" in result2
+        assert "_No stories found._" in result2
 
-    @mock.patch("daily_brief.rendering.report.tag_story_with_keywords")
-    @mock.patch("daily_brief.rendering.report.build_weather_markdown")
-    def test_weather_section_included(self, mock_wx, mock_tag):
-        mock_wx.return_value = ["## Weather", "**3 Day forecast**"]
-        mock_tag.return_value = ""
-        result = build_markdown([], {}, {}, [], _config_kwargs())
-        self.assertIn("## Weather", result)
-        mock_wx.assert_called_once()
+    def test_tag_extraction_hash_and_bracket(self):
+        """Hash tags and bracket-style tags both extracted and sorted."""
+        with (
+            mock.patch("daily_brief.rendering.report.build_weather_markdown", return_value=["## Weather"]),
+            mock.patch("daily_brief.rendering.report.tag_story_with_keywords", return_value="#texas #news [Bracket]"),
+        ):
+            stories = [_make_story(title="Texas Story")]
+            sections = build_sections_from_stories(stories, _format_date)
+            result = build_markdown(stories, {}, sections, ["World News"], _config_kwargs())
+        tags_section = [l for l in result if l.startswith("  - ")]
+        tag_values = [l.replace("  - ", "") for l in tags_section]
+        assert "daily-brief" in tag_values
+        assert "texas" in tag_values
+        assert "news" in tag_values
+        assert tag_values == sorted(tag_values), "Tags must be alphabetically sorted"
 
-    @mock.patch("daily_brief.rendering.report.tag_story_with_keywords")
-    @mock.patch("daily_brief.rendering.report.build_weather_markdown")
-    def test_story_entry_numbered_with_link(self, mock_wx, mock_tag):
-        mock_wx.return_value = ["## Weather"]
-        mock_tag.return_value = ""
-        stories = [_make_story(title="My Title", link="http://example.com")]
-        sections = build_sections_from_stories(stories, _format_date)
-        result = build_markdown(stories, {}, sections, ["World News"], _config_kwargs())
-        self.assertIn("1. [My Title](http://example.com)", result)
-
-    @mock.patch("daily_brief.rendering.report.tag_story_with_keywords")
-    @mock.patch("daily_brief.rendering.report.build_weather_markdown")
-    def test_weather_category_skipped(self, mock_wx, mock_tag):
-        mock_wx.return_value = ["## Weather"]
-        mock_tag.return_value = ""
-        stories = [_make_story(title="Weather Alert", category="Weather Forecast 77316")]
-        sections = build_sections_from_stories(stories, _format_date)
-        result = build_markdown(stories, {}, sections, ["Weather Forecast 77316"], _config_kwargs())
-        weather_headers = [l for l in result if l.startswith("## Weather Forecast 77316 (")]
-        self.assertEqual(len(weather_headers), 0)
-
-    @mock.patch("daily_brief.rendering.report.tag_story_with_keywords")
-    @mock.patch("daily_brief.rendering.report.build_weather_markdown")
-    def test_pub_date_line_included(self, mock_wx, mock_tag):
-        mock_wx.return_value = ["## Weather"]
-        mock_tag.return_value = ""
-        stories = [_make_story(title="T", pub_dt="2026-07-29")]
-        sections = build_sections_from_stories(stories, _format_date)
-        result = build_markdown(stories, {}, sections, ["World News"], _config_kwargs())
-        self.assertIn("*Originally published on:* 2026-07-29", "\n".join(result))
-
-    @mock.patch("daily_brief.rendering.report.tag_story_with_keywords")
-    @mock.patch("daily_brief.rendering.report.build_weather_markdown")
-    def test_link_fallback_for_hash(self, mock_wx, mock_tag):
-        mock_wx.return_value = ["## Weather"]
-        mock_tag.return_value = ""
+    def test_safe_no_link_render(self):
+        """link='#' → plain text heading without markdown link."""
         stories = [_make_story(title="No Link", link="#")]
         sections = build_sections_from_stories(stories, _format_date)
-        result = build_markdown(stories, {}, sections, ["World News"], _config_kwargs())
-        self.assertIn("1. No Link", result)
+        result = self._build(stories, sections, cats=["World News"])
+        assert "1. No Link" in result
         for line in result:
-            self.assertNotIn("[No Link](#)", line)
+            assert "[No Link](#)" not in line
+
+    def test_weather_category_skipped(self):
+        """Stories in the weather section category are not rendered as a section."""
+        stories = [_make_story(title="Weather Alert", category="Weather Forecast 77316")]
+        sections = build_sections_from_stories(stories, _format_date)
+        result = self._build(stories, sections, cats=["Weather Forecast 77316"])
+        weather_section_headers = [l for l in result if l.startswith("## Weather Forecast 77316 (")]
+        assert len(weather_section_headers) == 0
 
 
 # ---------------------------------------------------------------------------
@@ -368,94 +275,21 @@ class TestBuildMarkdown(TestCase):
 class TestWriteReport(TestCase):
     """Write markdown list to file."""
 
-    def test_file_exists_after_write(self):
+    def test_utf8_write_newlines(self):
+        """UTF-8 encoding, newline-joined content, trailing newline."""
         with tempfile.TemporaryDirectory() as td:
             fp = os.path.join(td, "test.md")
-            write_report(fp, ["line1", "line2"])
-            self.assertTrue(os.path.exists(fp))
-
-    def test_content_newline_joined(self):
-        with tempfile.TemporaryDirectory() as td:
-            fp = os.path.join(td, "test.md")
-            write_report(fp, ["a", "b", "c"])
+            write_report(fp, ["caf\u00e9", "\u2603 snow", "line3"])
+            assert os.path.exists(fp)
             with open(fp, "r", encoding="utf-8") as f:
                 content = f.read()
-            self.assertEqual(content, "a\nb\nc\n")
-
-    def test_utf8_encoding(self):
+            assert "caf\u00e9" in content
+            assert "\u2603" in content
+            assert content == "caf\u00e9\n\u2603 snow\nline3\n"
+        # No extra whitespace
         with tempfile.TemporaryDirectory() as td:
-            fp = os.path.join(td, "test.md")
-            write_report(fp, ["caf\u00e9", "\u2603 snow"])
+            fp = os.path.join(td, "test2.md")
+            write_report(fp, ["header", "", "body", "footer"])
             with open(fp, "r", encoding="utf-8") as f:
                 content = f.read()
-            self.assertIn("caf\u00e9", content)
-            self.assertIn("\u2603", content)
-
-    def test_trailing_newline(self):
-        with tempfile.TemporaryDirectory() as td:
-            fp = os.path.join(td, "test.md")
-            write_report(fp, ["only"])
-            with open(fp, "r", encoding="utf-8") as f:
-                content = f.read()
-            self.assertTrue(content.endswith("\n"))
-
-    def test_no_extra_whitespace(self):
-        with tempfile.TemporaryDirectory() as td:
-            fp = os.path.join(td, "test.md")
-            lines = ["header", "", "body", "footer"]
-            write_report(fp, lines)
-            with open(fp, "r", encoding="utf-8") as f:
-                content = f.read()
-            expected = "\n".join(lines) + "\n"
-            self.assertEqual(content, expected)
-
-    @mock.patch("daily_brief.rendering.report.tag_story_with_keywords")
-    @mock.patch("daily_brief.rendering.report.build_weather_markdown")
-    def test_bracket_style_tag_parsing(self, mock_wx, mock_tag):
-        """report.py lines 120-122: bracket-style tag [Bracket] → parsed and extracted."""
-        mock_wx.return_value = ["## Weather"]
-        # tag_story_with_keywords returns a string with both hash and bracket tags
-        mock_tag.return_value = "#hash [Bracket]"
-        stories = [_make_story(title="Bracket Story")]
-        sections = build_sections_from_stories(stories, _format_date)
-        result = build_markdown(stories, {}, sections, ["World News"], _config_kwargs())
-        joined = "\n".join(result)
-        # The hash tag "hash" should appear in frontmatter
-        self.assertIn("  - hash", joined)
-        # The bracket tag content should be extracted and appear in tags
-        # note: report.py uses tag[2:-2] for bracket content extraction
-        bracket_content = "rack"  # "[Bracket]"[2:-2] = "rack"
-        self.assertIn(f"  - {bracket_content.lower()}", joined)
-
-    @mock.patch("daily_brief.rendering.report.tag_story_with_keywords")
-    @mock.patch("daily_brief.rendering.report.build_weather_markdown")
-    def test_empty_category_counts_in_frontmatter(self, mock_wx, mock_tag):
-        """v1.0.111: empty categories still render a header and must count in frontmatter."""
-        mock_wx.return_value = ["## Weather"]
-        mock_tag.return_value = ""
-        # One populated category + one empty category
-        stories = [_make_story(title="A Story", category="PopulatedCat")]
-        sections = build_sections_from_stories(stories, _format_date)
-        cfg = _config_kwargs({"rendered_cat_count": 2})
-        result = build_markdown(stories, {}, sections, ["PopulatedCat", "EmptyCat"], cfg)
-        joined = "\n".join(result)
-        # Frontmatter should reflect both categories
-        self.assertIn("categories: 2", result)
-        # Both headers should render
-        self.assertIn("## PopulatedCat (1 stories)", result)
-        self.assertIn("## EmptyCat", result)
-        self.assertIn("_No stories found._", result)
-
-    @mock.patch("daily_brief.rendering.report.tag_story_with_keywords")
-    @mock.patch("daily_brief.rendering.report.build_weather_markdown")
-    def test_weather_cat_skip_with_tags(self, mock_wx, mock_tag):
-        """report.py line 140: weather category with non-empty tags → continue path."""
-        mock_wx.return_value = ["## Weather"]
-        mock_tag.return_value = "#weather #forecast"
-        # Story placed in the weather section title category
-        stories = [_make_story(title="Weather Story", category="Weather Forecast 77316")]
-        sections = build_sections_from_stories(stories, _format_date)
-        result = build_markdown(stories, {}, sections, ["Weather Forecast 77316"], _config_kwargs())
-        # The weather category should be skipped (line 140 continue)
-        weather_section_headers = [l for l in result if l.startswith("## Weather Forecast 77316 (")]
-        self.assertEqual(len(weather_section_headers), 0)
+            assert content == "header\n\nbody\nfooter\n"

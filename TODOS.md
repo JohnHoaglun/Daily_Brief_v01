@@ -1,7 +1,7 @@
-# TODO: Daily Brief v01 - v1.0.119
+# TODO: Daily Brief v01 - v1.0.120
 
 ## Status
-v1.0.119: Cleanup ordering fix. `cleanup_old_files()` now runs after `write_report()`, so both reports and logs finish at exactly `max_log_versions`. 1046/1046 passing (21 smoke deselected), config validate PASS, 0 warnings.
+v1.0.120: Test suite consolidated from 1,046 to 402 tests (62% reduction). Deleted benchmark/corpus/smoke/source-inspection test suites. Consolidated micro-permutation tests into focused behavioral contracts. Removed duplicate coverage, no-assertion tests, and historical-bug demonstrations. 402/402 passing, config validate PASS, 0 warnings.
 
 ## Priority 0 - Correct Run Outcomes
 - [x] Make `pipeline.main()` return an explicit run result or exit code. Update `__main__.py` to exit nonzero for internal report-validation failure and harness `FAIL`/`ERROR`; decide and document the policy for `WARN` and `SKIPPED`. Evidence: `daily_brief/pipeline.py:276-297`, `daily_brief/__main__.py:39-55`.

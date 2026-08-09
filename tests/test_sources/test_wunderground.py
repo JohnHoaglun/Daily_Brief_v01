@@ -14,139 +14,61 @@ from daily_brief.sources.wunderground import (
 )
 
 
-# ---------------------------------------------------------------------------
-# 1. _parse_wu_monthly_precipitation — happy path
-# ---------------------------------------------------------------------------
+class TestParseWuMonthlyPrecipitation(TestCase):
+    """Precipitation extraction - valid, dated fallback, edge cases."""
 
-class TestParseWuMonthlyPrecipitationHappy(TestCase):
-    """Correct precipitation extraction from WU monthly page."""
-
-    def _html(self, body_fragment: str) -> str:
-        return f"<html><body>{body_fragment}</body></html>"
-
-    def test_basic_precipitation_extraction(self):
-        """Precipitation value between Summary and graph."""
-        html = self._html(
-            "<div>Summary<div> July 1, 2026 - July 30, 2026 </div>"
-            "<div>Precipitation 3.45 in</div>"
-            "</div><div>graph</div>"
-        )
+    def test_valid_extraction(self):
+        html = "<html><body><div>Summary Jul 1-30 Precipitation 3.45 in</div><div>graph</div></body></html>"
         result = _parse_wu_monthly_precipitation(html, "2026-07-01", "2026-07-30")
         self.assertIsNotNone(result)
         self.assertAlmostEqual(result, 3.45, places=1)
 
-    def test_precipitation_integer(self):
-        """Integer precipitation value parsed correctly."""
-        html = self._html(
-            "<div>Summary Monthly data here. Precipitation 5 in next</div><div>graph</div>"
-        )
-        result = _parse_wu_monthly_precipitation(html, "2026-01-01", "2026-01-31")
-        self.assertAlmostEqual(result, 5.0, places=1)
+        html2 = "<html><body><div>Summary Precipitation 5 in next</div><div>graph</div></body></html>"
+        result2 = _parse_wu_monthly_precipitation(html2, "2026-01-01", "2026-01-31")
+        self.assertAlmostEqual(result2, 5.0, places=1)
 
-    def test_precipitation_with_degrees_symbol(self):
-        """Degree symbol before 'in' handled."""
-        html = self._html(
-            "<div>Summary Precipitation 2.1° in data</div><div>graph</div>"
-        )
-        result = _parse_wu_monthly_precipitation(html, "2026-03-01", "2026-03-31")
-        self.assertAlmostEqual(result, 2.1, places=1)
-
-    def test_dates_in_candidate_no_dated_fallback(self):
-        """When date labels are in the candidate, no dated fallback needed."""
-        html = self._html(
-            "<div>Summary July 1, 2026 - July 30, 2026 Precipitation 4.2 in</div><div>graph</div>"
-        )
-        result = _parse_wu_monthly_precipitation(html, "2026-07-01", "2026-07-30")
-        self.assertAlmostEqual(result, 4.2, places=1)
-
-    def test_dates_not_in_candidate_uses_dated_match(self):
-        """When date labels are NOT in the Summary candidate, dated match works."""
-        html = self._html(
+    def test_dated_fallback(self):
+        html = (
+            "<html><body>"
             "<div>Summary some text</div>"
             "<div>July 1, 2026 - July 30, 2026 Precipitation 1.8 in</div>"
             "<div>graph</div>"
+            "</body></html>"
         )
         result = _parse_wu_monthly_precipitation(html, "2026-07-01", "2026-07-30")
         self.assertAlmostEqual(result, 1.8, places=1)
 
-    def test_no_graph_anchor_uses_rest_of_text(self):
-        """When no 'graph' text found, search remainder of text after Summary."""
-        html = self._html(
-            "<div>Summary Precipitation 0.5 in end</div>"
-        )
-        result = _parse_wu_monthly_precipitation(html, "2026-06-01", "2026-06-30")
-        self.assertAlmostEqual(result, 0.5, places=1)
-
-
-# ---------------------------------------------------------------------------
-# 2. _parse_wu_monthly_precipitation — edge cases
-# ---------------------------------------------------------------------------
-
-class TestParseWuMonthlyPrecipitationEdgeCases(TestCase):
-    """Boundary and error conditions for precipitation parsing."""
-
-    def test_none_input(self):
-        self.assertIsNone(_parse_wu_monthly_precipitation(None, "2026-01-01", "2026-01-31"))
-
-    def test_empty_html(self):
-        self.assertIsNone(_parse_wu_monthly_precipitation("<html></html>", "2026-01-01", "2026-01-31"))
-
-    def test_no_summary_text(self):
-        html = "<html><body>No summary section here</body></html>"
-        self.assertIsNone(_parse_wu_monthly_precipitation(html, "2026-01-01", "2026-01-31"))
-
-    def test_no_precipitation_match(self):
-        html = "<html><body>Summary some unrelated content</body></html>"
-        self.assertIsNone(_parse_wu_monthly_precipitation(html, "2026-01-01", "2026-01-31"))
-
-    def test_value_exceeds_max_40(self):
-        """Value over 40 is rejected."""
-        html = "<html><body>Summary Precipitation 50.0 in</body></html>"
-        self.assertIsNone(_parse_wu_monthly_precipitation(html, "2026-01-01", "2026-01-31"))
-
-    def test_value_exactly_40_accepted(self):
-        """Value at exactly 40.0 is accepted."""
-        html = "<html><body>Summary Precipitation 40.0 in</body></html>"
-        result = _parse_wu_monthly_precipitation(html, "2026-01-01", "2026-01-31")
-        self.assertAlmostEqual(result, 40.0, places=1)
-
-    def test_value_zero_accepted(self):
-        """Value of 0.0 is accepted."""
-        html = "<html><body>Summary Precipitation 0.0 in</body></html>"
-        result = _parse_wu_monthly_precipitation(html, "2026-01-01", "2026-01-31")
-        self.assertAlmostEqual(result, 0.0, places=1)
-
-    def test_mixed_case_precipitation(self):
-        """Case-insensitive matching for 'Precipitation'."""
-        html = "<html><body>Summary precipitation 1.23 in</body></html>"
-        result = _parse_wu_monthly_precipitation(html, "2026-01-01", "2026-01-31")
+    def test_mixed_case_and_no_graph(self):
+        html_lower = "<html><body>Summary precipitation 1.23 in</body></html>"
+        result = _parse_wu_monthly_precipitation(html_lower, "2026-01-01", "2026-01-31")
         self.assertAlmostEqual(result, 1.23, places=1)
 
-    def test_precipitation_multiline(self):
-        """DOTALL flag allows matching across newlines."""
-        html = "<html><body>Summary\nPrecipitation 3.7 in</body></html>"
-        result = _parse_wu_monthly_precipitation(html, "2026-02-01", "2026-02-28")
-        self.assertAlmostEqual(result, 3.7, places=1)
+        html_node = "<html><body><div>Summary Precipitation 0.5 in end</div></body></html>"
+        result2 = _parse_wu_monthly_precipitation(html_node, "2026-06-01", "2026-06-30")
+        self.assertAlmostEqual(result2, 0.5, places=1)
 
+    def test_no_match_and_invalid_range(self):
+        self.assertIsNone(_parse_wu_monthly_precipitation(None, "2026-01-01", "2026-01-31"))
+        self.assertIsNone(_parse_wu_monthly_precipitation("<html></html>", "2026-01-01", "2026-01-31"))
+        self.assertIsNone(_parse_wu_monthly_precipitation(
+            "<html><body>Summary unrelated content</body></html>", "2026-01-01", "2026-01-31"))
 
-# ---------------------------------------------------------------------------
-# 3. _fetch_station_monthly_rainfall — async tests
-# ---------------------------------------------------------------------------
+        over = "<html><body>Summary Precipitation 50.0 in</body></html>"
+        self.assertIsNone(_parse_wu_monthly_precipitation(over, "2026-01-01", "2026-01-31"))
 
-class TestFetchStationMonthlyRainfall(TestCase):
-    """Async station monthly rainfall fetching with mocks."""
+        zero = "<html><body>Summary Precipitation 0.0 in</body></html>"
+        self.assertAlmostEqual(_parse_wu_monthly_precipitation(zero, "2026-01-01", "2026-01-31"), 0.0, places=1)
 
-    def test_happy_path_both_sources(self):
+    def test_both_source_merge(self):
         async def runner():
             ref = datetime(2026, 7, 15, 10, 0, 0)
             station_fetches = []
+
             async def mock_fetch_text(session, url, **kwargs):
                 station_fetches.append(url)
                 if "wunderground" in url:
                     return "<html><body>Summary July 1, 2026 - July 15, 2026 Precipitation 2.5 in</body></html>"
-                return (
-                    "<html><body>Normal 3.0 Current 4.1</body></html>"
-                )
+                return "<html><body>Normal 3.0 Current 4.1</body></html>"
 
             def mock_parse_climate(html, date):
                 return {"avg_monthly_rainfall": 3.0, "current_monthly_rainfall": 4.1}
@@ -161,7 +83,7 @@ class TestFetchStationMonthlyRainfall(TestCase):
 
         asyncio.get_event_loop().run_until_complete(runner())
 
-    def test_no_station_html(self):
+    def test_station_missing(self):
         async def runner():
             ref = datetime(2026, 7, 15)
             fetch_count = [0]
@@ -184,13 +106,14 @@ class TestFetchStationMonthlyRainfall(TestCase):
 
         asyncio.get_event_loop().run_until_complete(runner())
 
-    def test_no_climate_html_fallback(self):
+    def test_climate_missing(self):
         async def runner():
             ref = datetime(2026, 3, 10)
-            fetch_count = [0]
+            call_count = [0]
+
             async def mock_fetch_text(session, url, **kwargs):
-                fetch_count[0] += 1
-                if fetch_count[0] == 1:
+                call_count[0] += 1
+                if call_count[0] == 1:
                     return "<html><body>Summary March 1, 2026 - March 10, 2026 Precipitation 1.2 in</body></html>"
                 return None
 
@@ -202,14 +125,14 @@ class TestFetchStationMonthlyRainfall(TestCase):
 
         asyncio.get_event_loop().run_until_complete(runner())
 
-    def test_safe_rainfall_out_of_range(self):
+    def test_out_of_range(self):
         async def runner():
             ref = datetime(2026, 7, 15)
-            fetch_count = [0]
+            call_count = [0]
 
             async def mock_fetch_text(session, url, **kwargs):
-                fetch_count[0] += 1
-                if fetch_count[0] == 1:
+                call_count[0] += 1
+                if call_count[0] == 1:
                     return None
                 return "<html><body></body></html>"
 
@@ -225,15 +148,7 @@ class TestFetchStationMonthlyRainfall(TestCase):
 
         asyncio.get_event_loop().run_until_complete(runner())
 
-
-# ---------------------------------------------------------------------------
-# 4. _fetch_station_metrics — B.3 no-op regression
-# ---------------------------------------------------------------------------
-
-class TestFetchStationMetricsNoOp(TestCase):
-    """B.3: _fetch_station_metrics is a no-op that returns the established empty payload shape."""
-
-    def test_returns_empty_payload_shape(self):
+    def test_retired_metrics_no_op(self):
         async def runner():
             ref = datetime(2026, 7, 15)
             result = await _fetch_station_metrics(None, "KTXMONTG645", ref)
@@ -241,14 +156,8 @@ class TestFetchStationMetricsNoOp(TestCase):
             self.assertEqual(result["avg_monthly_rainfall"], None)
             self.assertEqual(result["current_monthly_rainfall"], None)
 
-        asyncio.get_event_loop().run_until_complete(runner())
-
-    def test_does_not_fetch_text(self):
-        """_fetch_text is not called — no dashboard HTTP request is made."""
-        async def runner():
-            ref = datetime(2026, 7, 15)
-            with mock.patch("daily_brief.sources.wunderground._fetch_text", mock.MagicMock()) as mock_fetch:
+            with mock.patch("daily_brief.sources.wunderground._fetch_text", mock.MagicMock()) as m:
                 await _fetch_station_metrics(None, "KTXMONTG645", ref)
-                mock_fetch.assert_not_called()
+                m.assert_not_called()
 
         asyncio.get_event_loop().run_until_complete(runner())

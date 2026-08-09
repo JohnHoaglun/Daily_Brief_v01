@@ -1,13 +1,10 @@
 """
-Tests for src/daily_brief/harness.py — run_test_harness subprocess handling.
+Tests for daily_brief/harness.py — run_test_harness subprocess handling.
 """
 import os
-import sys
 import subprocess
 import tempfile
 from unittest import TestCase, mock
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from daily_brief.harness import run_test_harness
 
@@ -32,7 +29,6 @@ class TestHarnessEdgeCases(TestCase):
         # Empty string — should return without error
 
     def test_harness_parse_failure(self):
-        script_path = os.path.join("/tmp", "Test_validate_run.py")
         with mock.patch("os.path.exists", return_value=True):
             run_test_harness("/tmp/bad_filename.md", script_dir="/tmp")
 
@@ -46,10 +42,7 @@ class TestHarnessExitCodes(TestCase):
 
     def _mock_script_dir(self):
         d = tempfile.mkdtemp()
-        script = os.path.join(d, "Test_validate_run.py")
         config = os.path.join(d, "config.yaml")
-        with open(script, "w") as f:
-            f.write("# mock")
         with open(config, "w") as f:
             f.write("{}")
         return d
@@ -128,10 +121,7 @@ class TestHarnessExceptions(TestCase):
 
     def _mock_script_dir(self):
         d = tempfile.mkdtemp()
-        script = os.path.join(d, "Test_validate_run.py")
         config = os.path.join(d, "config.yaml")
-        with open(script, "w") as f:
-            f.write("# mock")
         with open(config, "w") as f:
             f.write("{}")
         return d

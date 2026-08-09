@@ -1,9 +1,9 @@
-# Daily Brief v1.0.117
+# Daily Brief v1.0.118
 Automated daily news brief generator that fetches stories from 17 configured categories via Google News RSS, enriches them with weather and lake-level data, summarizes them with AI, and produces a structured Markdown report.
 
 ## Architecture
 
-Modular codebase in `src/daily_brief/`:
+Modular codebase in `daily_brief/`:
 
 - **`pipeline.py`** — asynchronous orchestrator (6 phases: weather, RSS, LLM, render, validate, test harness)
 - **`sources/`** — NWS forecast, Wunderground station metrics, Open-Meteo/ERA5 climate normals, Texas reservoir levels, RSS feeds, and article extraction
@@ -32,7 +32,7 @@ pip install aiohttp feedparser beautifulsoup4 openai pyyaml
 
 1. Ensure vLLM server is running with the configured model (default: `gemma4-e2b`)
 2. Configure `config.yaml` — validate with `python -m daily_brief config validate`
-3. Run: `PYTHONPATH=src python3 -m daily_brief`
+3. Run: `python3 dashboard_pipeline.py`
 
 ## Configuration
 
@@ -40,7 +40,7 @@ All runtime settings in `config.yaml`. Key groups:
 
 | Key | Description | Configured Value |
 |---|---|---|
-| `version` | Pipeline version | `1.0.116` |
+| `version` | Pipeline version | `1.0.117` |
 | `llm.model` | Model for summarization | `gemma4-e2b` |
 | `llm.host` | vLLM API endpoint | `http://192.168.4.52:8007` |
 | `directories.log_dir` | Log output directory | `.../Shared_AI/vault/OpenCode/Daily_Brief_v01/Dev/logs` |
@@ -69,7 +69,7 @@ Each report contains YAML frontmatter with tags, a weather section (forecast, cl
 
 ```
 config.yaml                 # All runtime configuration
-src/daily_brief/            # Modular source code
+daily_brief/                # All source code (root package)
   pipeline.py               # Async orchestrator
   sources/                  # Weather, RSS, lakes, article extraction
   llm/                      # LLM client, batch summarization
@@ -79,12 +79,14 @@ src/daily_brief/            # Modular source code
   config_validator.py       # Configuration validation
   tagging.py                # Keyword tagging engine
   categorization.py         # Category ordering
+  validation_harness.py     # Post-run validation (was Test_validate_run.py)
+  benchmark_llm_batches.py  # LLM batch benchmark harness
+  capture_corpus.py         # Corpus capture utility
 tests/                      # 1039 tests (1039 passing, 21 smoke deselected)
 PROJECT.md                  # Architecture and status
 SUMMARY.md                  # Changelog
 TODOS.md                    # Live task board
 PLAN.md                     # Optimization strategy and findings
-reports/                    # Benchmark results and performance data
 ```
 
 ## Performance
@@ -109,6 +111,16 @@ reports/                    # Benchmark results and performance data
 - v1.0.115 (P0): pipeline exit-code contract — 0=PASS, 1=WARN/CONFIG, 2=FAIL/VALIDATION, 3=ERROR/SKIPPED. 991/991 tests passing.
 - v1.0.116 (P1): summary recovery correctness — canonical `_is_valid_summary()` gate for batch and recovery. 1009/1009 tests passing.
 - v1.0.117 (P1): config safety (raw loader, typed builder, CLI imports), validator hardening, LLM core (`max_retries=0`, `aclose()`, recovery concurrency=2, deadline), weather rendering resilience, 63 async mock migrations, test validity fixes. 1039/1039 tests passing (21 smoke deselected), 0 warnings.
+- v1.0.118 (Migration): repository structure migration — `src/daily_brief/` to `daily_brief/` root package, `Test_validate_run.py` to `daily_brief/validation_harness.py`, scripts moved into package, `reports/` removed (benchmark output uses LOG_DIR), all 32 test files updated. 1039/1039 tests passing. Benchmark via `daily_brief.benchmark_llm_batches`.
+
+## Module Commands
+
+```bash
+python3 -m daily_brief  # main pipeline
+python3 -m daily_brief.validation_harness --help
+python3 -m daily_brief.capture_corpus --help
+python3 -m daily_brief.benchmark_llm_batches --help
+```
 
 ## Tracking
 

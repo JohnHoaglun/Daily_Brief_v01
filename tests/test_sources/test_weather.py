@@ -3,14 +3,10 @@ Unit tests for src/daily_brief/sources/weather.py.
 NWS forecast JSON parsing, date extraction, label generation, and fetch orchestration.
 """
 import asyncio
-import os
-import sys
 from datetime import datetime, timedelta, timezone
 from unittest import TestCase, mock
 from unittest.mock import AsyncMock
 from zoneinfo import ZoneInfo
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 
 import aiohttp
 

@@ -5,14 +5,10 @@ Dedup, age-filtering, widening, and fetch_and_dedup orchestration.
 from __future__ import annotations
 
 import asyncio
-import os
-import sys
 from datetime import datetime, timedelta, timezone
 from typing import Any, List, Optional, Tuple
 from unittest import TestCase, mock
 from zoneinfo import ZoneInfo
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 
 from daily_brief.pipelines.rss_dedup import (
     dedup_entries,

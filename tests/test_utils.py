@@ -1,11 +1,7 @@
 """
-Tier 1 unit tests for utility functions in src/daily_brief/utils.py.
+Tier 1 unit tests for utility functions in daily_brief/utils.py.
 """
-import os
-import sys
 from unittest import TestCase
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from daily_brief.utils import (
     _safe_text,

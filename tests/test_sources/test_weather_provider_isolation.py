@@ -3,14 +3,10 @@ Unit tests for B.8: Weather provider isolation and deterministic merge.
 NWS failure with independent collection, merge policy, and fallback behavior.
 """
 import asyncio
-import os
-import sys
 from datetime import datetime, timedelta, timezone
 from unittest import TestCase, mock
 from unittest.mock import AsyncMock
 from zoneinfo import ZoneInfo
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 
 from daily_brief.sources.weather import (
     fetch_nws_forecast,

@@ -1,13 +1,9 @@
 """Regression tests characterizing current external behavior of batch_summarize_all().
 Must pass with current code before and after C.4 refactoring."""
 import asyncio
-import os
-import sys
 import time
 from unittest import TestCase, mock
 from unittest.mock import AsyncMock, MagicMock
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from daily_brief.llm.summarizer import (
     StoryPipelineState,

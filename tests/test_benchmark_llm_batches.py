@@ -11,14 +11,12 @@ Run:  python -m unittest tests.test_benchmark_llm_batches
 import asyncio
 import json
 import os
-import sys
 import statistics
 import tempfile
 from unittest import TestCase, mock
 from unittest.mock import AsyncMock, MagicMock
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
+from daily_brief import benchmark_llm_batches as bench
 from daily_brief.llm.summarizer import (
     StoryPipelineState,
     build_context,
@@ -581,9 +579,6 @@ class TestQualityGates(TestCase):
         }
 
     def _get_bench(self):
-        import sys, os
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
-        import benchmark_llm_batches as bench
         return bench
 
     def test_baseline_missing_no_winner(self):
@@ -634,18 +629,11 @@ class TestQualityGates(TestCase):
     def test_classify_uses_production_validators(self):
         bench = self._get_bench()
         self.assertTrue(hasattr(bench, '_is_refusal'))
-        source_file = os.path.join(os.path.dirname(__file__), "..", "scripts", "benchmark_llm_batches.py")
+        source_file = os.path.join(os.path.dirname(__file__), "..", "daily_brief", "benchmark_llm_batches.py")
         with open(source_file) as f:
             source = f.read()
         self.assertIn("from daily_brief.llm.summarizer import", source)
         self.assertIn("_is_valid_summary", source)
-
-
-# ---------------------------------------------------------------------------
-# Import the benchmark script for direct unit testing
-# ---------------------------------------------------------------------------
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
-import benchmark_llm_batches as bench
 
 
 # ---------------------------------------------------------------------------

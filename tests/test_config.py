@@ -13,8 +13,6 @@ from unittest import mock, TestCase
 
 import yaml
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
 from daily_brief.config import (
     _get_nested,
     BASE_DIR,
@@ -937,7 +935,6 @@ class TestRawConfigSafety(TestCase):
         try:
             env = os.environ.copy()
             env["DAILY_BRIEF_CONFIG"] = config_path
-            env["PYTHONPATH"] = str(Path(__file__).resolve().parent.parent / "src")
             result = subprocess.run(
                 [sys.executable, "-m", "daily_brief", "config", "validate"],
                 cwd=Path(__file__).resolve().parent.parent,

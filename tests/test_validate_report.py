@@ -4,11 +4,8 @@ Unit tests for src/daily_brief/validation.py — report-level validation.
 Tests 7 report-level checks + existing per-story check regression.
 """
 import os
-import sys
 import tempfile
 from unittest import TestCase, mock
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from daily_brief.validation import validate_report
 

@@ -1,13 +1,9 @@
 """
-Unit tests for src/daily_brief/llm/client.py.
+Unit tests for daily_brief/llm/client.py.
 """
 import asyncio
-import os
-import sys
 from unittest import TestCase, mock
 from unittest.mock import AsyncMock
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from daily_brief.llm.client import LLMClient, create_llm_client
 

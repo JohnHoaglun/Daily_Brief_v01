@@ -11,8 +11,6 @@ import os
 import sys
 from unittest import TestCase
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
 from daily_brief.llm.summarizer import parse_batch_summary_response
 
 # Import fixture module

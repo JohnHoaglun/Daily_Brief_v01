@@ -1,4 +1,4 @@
-# Project: Daily Brief v01 (v1.0.117)
+# Project: Daily Brief v01 (v1.0.118)
 
 ## Purpose
 Daily Brief aggregates RSS stories from configured categories, enriches them with weather and lake data, summarizes them through a vLLM OpenAI-compatible endpoint, and writes a Markdown report.
@@ -32,13 +32,16 @@ Daily Brief aggregates RSS stories from configured categories, enriches them wit
 - **Summary recovery correctness** (v1.0.116): Extended `_is_valid_summary()` as the sole quality gate for batch and individual LLM recovery — now also rejects refused output and internal fallback markers ([Auto], [Summary Unavailable]). Individual recovery uses `_is_valid_summary(retry, s.title)` instead of a weaker inline condition. [Auto] headline output no longer incorrectly increments `individual_recovered`. 20 new tests (11 unit, 9 recovery integration). 1009/1009 passing, config validate PASS, live smoke exit 1 (WARN, 52.68s, 76 stories).
 
 ## Architecture
-- `src/daily_brief/pipeline.py`: asynchronous pipeline orchestration.
-- `src/daily_brief/sources/`: NWS, Wunderground, Open-Meteo/climate.gov, reservoir, RSS, and article extraction integrations.
-- `src/daily_brief/llm/`: Async `AsyncOpenAI` client, async batch summarization (configurable batch/concurrency), structured `SummaryMetrics`.
-- `src/daily_brief/pipelines/rss_dedup.py`: RSS filtering, deduplication, and widening.
-- `src/daily_brief/rendering/`: weather table generation, report assembly, and output cleanup.
-- `src/daily_brief/config.py` and `config.yaml`: runtime configuration and defaults.
-- `src/daily_brief/config_validator.py`: startup and CLI configuration validation.
+- `daily_brief/pipeline.py`: asynchronous pipeline orchestration.
+- `daily_brief/sources/`: NWS, Wunderground, Open-Meteo/climate.gov, reservoir, RSS, and article extraction integrations.
+- `daily_brief/llm/`: Async `AsyncOpenAI` client, async batch summarization (configurable batch/concurrency), structured `SummaryMetrics`.
+- `daily_brief/pipelines/rss_dedup.py`: RSS filtering, deduplication, and widening.
+- `daily_brief/rendering/`: weather table generation, report assembly, and output cleanup.
+- `daily_brief/config.py` and `config.yaml`: runtime configuration and defaults.
+- `daily_brief/config_validator.py`: startup and CLI configuration validation.
+- `daily_brief/validation_harness.py`: post-run validation (Phase 6).
+- `daily_brief/benchmark_llm_batches.py`: LLM batch benchmark harness.
+- `daily_brief/capture_corpus.py`: corpus capture utility.
 - `tests/`: unit, mocked-source, integration, coverage, and pipeline tests.
 
 ## Configuration
@@ -52,8 +55,4 @@ Daily Brief aggregates RSS stories from configured categories, enriches them wit
 - `SUMMARY.md`: completed, dated change history.
 
 ## Current Priorities
-1. ~~Execute Phase A (10 correctness/quick-wins items).~~ — Complete.
-2. ~~Execute Phase B (weather + RSS concurrency) before attempting LLM changes.~~ — Complete.
-3. ~~Produce live LLM batch benchmark and adopt winning settings.~~ — Complete (v1.0.94, 55.6% speedup).
-4. ~~Resolve alert-system disposition blocker before Phase C.5.~~ — Completed via retirement (v1.0.97).
-5. ~~Execute Phase C remaining: C.3 (centralized HTTP retry), C.4 (batch retry/fallback/metrics), C.5 (alert end-to-end).~~ — Phase C complete (v1.0.97).
+All Phases A–C and P0–P1 items complete. Active P2 work tracked in `TODOS.md`.

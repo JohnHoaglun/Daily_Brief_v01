@@ -6,17 +6,13 @@ Python 3.9 compatible, no network calls.
 
 import json
 import os
-import sys
 import textwrap
 import unittest
 from unittest import mock
 
-# Ensure project root and src/ are importable
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(PROJECT_ROOT, "scripts"))
-sys.path.insert(0, os.path.join(PROJECT_ROOT, "src"))
 
-import capture_corpus
+from daily_brief import capture_corpus
 
 
 class TestCaptureOutputPath(unittest.TestCase):
@@ -241,7 +237,7 @@ class TestCaptureNoLLM(unittest.TestCase):
 
     def test_no_llm_module_import(self):
         # Check the source file directly for LLM-related imports
-        source_file = os.path.join(PROJECT_ROOT, "scripts", "capture_corpus.py")
+        source_file = os.path.join(PROJECT_ROOT, "daily_brief", "capture_corpus.py")
         with open(source_file, "r") as f:
             source = f.read()
         # The script imports StoryPipelineState and build_context from summarizer, which is fine.
@@ -253,7 +249,7 @@ class TestCaptureNoLLM(unittest.TestCase):
         self.assertNotIn("batch_summarize", source)
 
     def test_imports_only_expected_from_summarizer(self):
-        source_file = os.path.join(PROJECT_ROOT, "scripts", "capture_corpus.py")
+        source_file = os.path.join(PROJECT_ROOT, "daily_brief", "capture_corpus.py")
         with open(source_file, "r") as f:
             source = f.read()
         # Should import StoryPipelineState and build_context — not other summarizer functions
@@ -266,7 +262,7 @@ class TestCaptureNoLLM(unittest.TestCase):
             self.assertNotIn("parse_batch", import_line)
 
     def test_no_asyncio_gather_on_llm_functions(self):
-        source_file = os.path.join(PROJECT_ROOT, "scripts", "capture_corpus.py")
+        source_file = os.path.join(PROJECT_ROOT, "daily_brief", "capture_corpus.py")
         with open(source_file, "r") as f:
             source = f.read()
         # asyncio.gather is only used for stage_extract_article, not LLM

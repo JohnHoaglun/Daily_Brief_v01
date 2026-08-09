@@ -3,11 +3,8 @@ Extended validation tests — edge cases for frontmatter, story parsing,
 and per-story validation logic.
 """
 import os
-import sys
 import tempfile
 from unittest import TestCase, mock
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from daily_brief.validation import (
     _parse_frontmatter,

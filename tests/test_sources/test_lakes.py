@@ -3,13 +3,9 @@ Unit tests for src/daily_brief/sources/lakes.py.
 Reservoir level scraping: table parsing, label matching, date fallback, and regex fallback.
 """
 import asyncio
-import os
-import sys
 from datetime import datetime, timedelta
 from unittest import TestCase, mock
 from unittest.mock import AsyncMock
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 
 from daily_brief.sources.lakes import _extract_lake_value
 

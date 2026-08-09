@@ -4,13 +4,9 @@ All tests use mocked LLM responses — no live LLM calls.
 Used by C.4 failure-path tests and any new tests that need batch failure scenarios.
 """
 import asyncio
-import os
-import sys
 import time
 from unittest import TestCase, mock
 from unittest.mock import AsyncMock, MagicMock, patch
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from daily_brief.llm.summarizer import (
     StoryPipelineState,

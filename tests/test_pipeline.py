@@ -1,5 +1,5 @@
 """
-Tests for src/daily_brief/pipeline.py — helpers and main().
+Tests for daily_brief/pipeline.py — helpers and main().
 Uses @mock.patch extensively for dependency isolation.
 """
 import asyncio
@@ -10,8 +10,6 @@ import tempfile
 import io
 from unittest import TestCase, mock
 from unittest.mock import AsyncMock, MagicMock, patch
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from daily_brief.pipeline import _coerce_temperature_f, log, _normalize_weather_for_rendering
 

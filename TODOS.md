@@ -1,10 +1,10 @@
-# TODO: Daily Brief v01 - v1.0.117
+# TODO: Daily Brief v01 - v1.0.118
 
 ## Status
-v1.0.117: Full P1 reliability, configuration safety, and test-validity backlog completed. 1039/1039 passing (21 smoke deselected), config validate PASS, 0 warnings.
+v1.0.118: Repository structure migration complete. Root package `daily_brief/`, no `src/`. 1039/1039 passing (21 smoke deselected), config validate PASS, 0 warnings.
 
 ## Priority 0 - Correct Run Outcomes
-- [x] Make `pipeline.main()` return an explicit run result or exit code. Update `__main__.py` to exit nonzero for internal report-validation failure and harness `FAIL`/`ERROR`; decide and document the policy for `WARN` and `SKIPPED`. Evidence: `src/daily_brief/pipeline.py:276-297`, `src/daily_brief/__main__.py:39-55`.
+- [x] Make `pipeline.main()` return an explicit run result or exit code. Update `__main__.py` to exit nonzero for internal report-validation failure and harness `FAIL`/`ERROR`; decide and document the policy for `WARN` and `SKIPPED`. Evidence: `daily_brief/pipeline.py:276-297`, `daily_brief/__main__.py:39-55`.
   - Completed v1.0.115. Exit codes: 0=PASS, 1=WARN/CONFIG, 2=FAIL/VALIDATION, 3=ERROR/SKIPPED.
 - [x] Add process-level tests for validation failure and each harness status. Verify the live runner does not log successful completion when the process status is failing.
   - Completed v1.0.115. 7 new tests in `tests/test_pipeline.py`. Live smoke confirmed exit 1 (WARN).
@@ -53,35 +53,35 @@ v1.0.117: Full P1 reliability, configuration safety, and test-validity backlog c
   - Completed v1.0.117. `pytest.ini` filterwarnings for `RuntimeWarning` and `DeprecationWarning` as errors on `daily_brief` module.
 
 ## Priority 2 - Parser, Rendering, And Data Integrity
-- [ ] Make batch-summary parser assignment one-to-one: never overwrite occupied output slots; leave ambiguous output unresolved for recovery. Evidence: `src/daily_brief/llm/summarizer.py:160-165,188-193,250-269,380-381`.
+- [ ] Make batch-summary parser assignment one-to-one: never overwrite occupied output slots; leave ambiguous output unresolved for recovery. Evidence: `daily_brief/llm/summarizer.py:160-165,188-193,250-269,380-381`.
 - [ ] Add parser properties and fixtures for malformed/reordered `STORY_N` responses, duplicate headline excerpts, empty titles, and no-headline input.
-- [ ] Correct bracket-tag slicing from `tag[2:-2]` to `tag[1:-1]`, and replace the test that codifies the truncation bug. Evidence: `src/daily_brief/rendering/report.py:127-135`, `tests/test_report.py:417-431`.
-- [ ] Escape or normalize external Markdown values, especially pipes/newlines in table cells and Markdown-special story titles. Evidence: `src/daily_brief/rendering/report.py:159-175`, `src/daily_brief/rendering/weather_table.py:27-37`.
-- [ ] Improve RSS dedup identity. Avoid first-dash truncation and 80-character title-only keys; prefer normalized full titles and canonical destination URLs. Evidence: `src/daily_brief/sources/rss.py:32-40`, `src/daily_brief/pipelines/rss_dedup.py:129-140`.
-- [ ] Remove or implement the misleading no-op `widen_category` compatibility wrapper. Evidence: `src/daily_brief/pipelines/rss_dedup.py:298-316`.
-- [ ] Correct `_fetch_json()` type contract to allow any valid JSON value, or constrain runtime behavior to objects. Evidence: `src/daily_brief/http_client.py:108-115`, `tests/test_http_client.py:306-311`.
+- [ ] Correct bracket-tag slicing from `tag[2:-2]` to `tag[1:-1]`, and replace the test that codifies the truncation bug. Evidence: `daily_brief/rendering/report.py:127-135`, `tests/test_report.py:417-431`.
+- [ ] Escape or normalize external Markdown values, especially pipes/newlines in table cells and Markdown-special story titles. Evidence: `daily_brief/rendering/report.py:159-175`, `daily_brief/rendering/weather_table.py:27-37`.
+- [ ] Improve RSS dedup identity. Avoid first-dash truncation and 80-character title-only keys; prefer normalized full titles and canonical destination URLs. Evidence: `daily_brief/sources/rss.py:32-40`, `daily_brief/pipelines/rss_dedup.py:129-140`.
+- [ ] Remove or implement the misleading no-op `widen_category` compatibility wrapper. Evidence: `daily_brief/pipelines/rss_dedup.py:298-316`.
+- [ ] Correct `_fetch_json()` type contract to allow any valid JSON value, or constrain runtime behavior to objects. Evidence: `daily_brief/http_client.py:108-115`, `tests/test_http_client.py:306-311`.
 
 ## Priority 2 - Performance, Backpressure, And Network Safety
-- [ ] Start independent weather providers concurrently rather than waiting for NWS, then climate/rainfall, then lakes. Evidence: `src/daily_brief/sources/weather.py:354-362`.
-- [ ] Fetch independent Wunderground and weather.gov rainfall sources concurrently. Evidence: `src/daily_brief/sources/wunderground.py:96-118`.
-- [ ] Start Phase 1 weather and Phase 2 RSS concurrently while retaining separate timing and failure metrics. Evidence: `src/daily_brief/pipeline.py:165-198`.
-- [ ] Add configurable bounded concurrency for article extraction and RSS feeds; capture and report gathered exceptions. Evidence: `src/daily_brief/pipeline.py:212-217`, `src/daily_brief/pipelines/rss_dedup.py:50-54`.
-- [ ] Add defensible RSS candidate-pool limits that still support seven-day widening. Evidence: `src/daily_brief/sources/rss.py:134-155`.
-- [ ] Stream HTTP bodies with source-specific byte limits and reject excessive `Content-Length` before parsing. Evidence: `src/daily_brief/http_client.py:80-84`, `src/daily_brief/sources/article.py:45-49`.
+- [ ] Start independent weather providers concurrently rather than waiting for NWS, then climate/rainfall, then lakes. Evidence: `daily_brief/sources/weather.py:354-362`.
+- [ ] Fetch independent Wunderground and weather.gov rainfall sources concurrently. Evidence: `daily_brief/sources/wunderground.py:96-118`.
+- [ ] Start Phase 1 weather and Phase 2 RSS concurrently while retaining separate timing and failure metrics. Evidence: `daily_brief/pipeline.py:165-198`.
+- [ ] Add configurable bounded concurrency for article extraction and RSS feeds; capture and report gathered exceptions. Evidence: `daily_brief/pipeline.py:212-217`, `daily_brief/pipelines/rss_dedup.py:50-54`.
+- [ ] Add defensible RSS candidate-pool limits that still support seven-day widening. Evidence: `daily_brief/sources/rss.py:134-155`.
+- [ ] Stream HTTP bodies with source-specific byte limits and reject excessive `Content-Length` before parsing. Evidence: `daily_brief/http_client.py:80-84`, `daily_brief/sources/article.py:45-49`.
 - [ ] Move large HTML parsing off the event loop if benchmarked loop lag warrants it.
-- [ ] Correct climate-normal semantics: use the configured/report reference date and an actual historical-normal calculation, not one ERA5 day for current UTC date. Evidence: `src/daily_brief/sources/climate.py:28-43`, `src/daily_brief/sources/weather.py:43-53`.
-- [ ] Harden connectivity checks: preserve TLS verification, use production-equivalent headers, and parse configured URLs safely. Evidence: `src/daily_brief/connectivity.py:38-40,71-73,123-126`.
+- [ ] Correct climate-normal semantics: use the configured/report reference date and an actual historical-normal calculation, not one ERA5 day for current UTC date. Evidence: `daily_brief/sources/climate.py:28-43`, `daily_brief/sources/weather.py:43-53`.
+- [ ] Harden connectivity checks: preserve TLS verification, use production-equivalent headers, and parse configured URLs safely. Evidence: `daily_brief/connectivity.py:38-40,71-73,123-126`.
 - [ ] Benchmark concurrent weather/RSS and bounded extraction against the current 50.41s live baseline before adopting settings.
 
 ## Priority 2 - Output Lifecycle And Shared State
-- [ ] Make report/log version allocation atomic for overlapping runs and write reports via temporary file plus `os.replace`. Evidence: `src/daily_brief/pipeline.py:140-149`, `src/daily_brief/rendering/report.py:56-68`.
-- [ ] Correct retention ordering so exactly `max_log_versions` reports remain after the new report is written. Evidence: `src/daily_brief/pipeline.py:245-260`, `src/daily_brief/rendering/cleanup.py:12-21`.
-- [ ] Replace mutable pipeline module globals (`RUN_LOGFILE`, `PHASE_TIMINGS`, `_llm_client`) with a per-run context to support repeated and concurrent invocation. Evidence: `src/daily_brief/pipeline.py:60-64`.
-- [ ] Consolidate direct pipeline logging and standard logging; correct failure output to report `RUN_LOGFILE` directly rather than an unset environment variable. Evidence: `src/daily_brief/pipeline.py:75-87,283`, `src/daily_brief/__main__.py:14-36`.
-- [ ] Replace hard-coded `77316` weather-section checks with configuration-driven location/section identity. Evidence: `src/daily_brief/pipeline.py:250-251`, `src/daily_brief/rendering/report.py:149-151`, `src/daily_brief/rendering/weather_table.py:23`.
+- [ ] Make report/log version allocation atomic for overlapping runs and write reports via temporary file plus `os.replace`. Evidence: `daily_brief/pipeline.py:140-149`, `daily_brief/rendering/report.py:56-68`.
+- [ ] Correct retention ordering so exactly `max_log_versions` reports remain after the new report is written. Evidence: `daily_brief/pipeline.py:245-260`, `daily_brief/rendering/cleanup.py:12-21`.
+- [ ] Replace mutable pipeline module globals (`RUN_LOGFILE`, `PHASE_TIMINGS`, `_llm_client`) with a per-run context to support repeated and concurrent invocation. Evidence: `daily_brief/pipeline.py:60-64`.
+- [ ] Consolidate direct pipeline logging and standard logging; correct failure output to report `RUN_LOGFILE` directly rather than an unset environment variable. Evidence: `daily_brief/pipeline.py:75-87,283`, `daily_brief/__main__.py:14-36`.
+- [ ] Replace hard-coded `77316` weather-section checks with configuration-driven location/section identity. Evidence: `daily_brief/pipeline.py:250-251`, `daily_brief/rendering/report.py:149-151`, `daily_brief/rendering/weather_table.py:23`.
 
 ## Priority 3 - Packaging, CI, And Repository Hygiene
-- [ ] Establish one canonical version source and add a release-consistency check for package/runtime/YAML/README/tracking files. Current stale values include `src/daily_brief/config.py:19`, `src/daily_brief/__init__.py:2`, `src/daily_brief/__main__.py:2`, `PLAN.md:1`, and README current-status references.
+- [ ] Establish one canonical version source and add a release-consistency check for package/runtime/YAML/README/tracking files. Current stale values include `daily_brief/config.py:19`, `daily_brief/__init__.py:2`, `daily_brief/__main__.py:2`, `PLAN.md:1`, and README current-status references.
 - [ ] Add `pyproject.toml` with `src` package discovery and declared runtime/test dependencies; replace per-test/script `sys.path` mutation with editable installation.
 - [ ] Add dependency locking appropriate to the selected package manager and CI for supported Python versions, tests, config validation, lint/format/type checks, warnings policy, and opt-in integration checks.
 - [ ] Repair `scripts/run_tests.sh` unreachable failure reporting caused by `set -e`; add a measured coverage threshold to `scripts/run_coverage.sh`.

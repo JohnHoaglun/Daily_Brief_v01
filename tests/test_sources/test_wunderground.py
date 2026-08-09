@@ -3,13 +3,9 @@ Unit tests for src/daily_brief/sources/wunderground.py.
 Wunderground station scraping, precipitation parsing, and metrics fetching.
 """
 import asyncio
-import os
-import sys
 from datetime import datetime
 from unittest import TestCase, mock
 from unittest.mock import AsyncMock
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 
 from daily_brief.sources.wunderground import (
     _parse_wu_monthly_precipitation,

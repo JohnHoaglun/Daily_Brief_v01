@@ -1,9 +1,5 @@
-"""Unit tests for src/daily_brief/llm/summary_metrics.py."""
-import os
-import sys
+"""Unit tests for daily_brief/llm/summary_metrics.py."""
 from unittest import TestCase
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from daily_brief.llm.summary_metrics import (
     SummaryMetrics,

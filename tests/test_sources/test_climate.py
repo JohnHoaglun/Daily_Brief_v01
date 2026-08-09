@@ -3,13 +3,9 @@ Unit tests for src/daily_brief/sources/climate.py.
 ERA5 climate normal fetch and climate.gov HTML summary parsing.
 """
 import asyncio
-import os
-import sys
 from datetime import datetime, timezone
 from unittest import TestCase, mock
 from unittest.mock import AsyncMock
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 
 from daily_brief.sources.climate import (
     _fetch_climate_normal_high,

@@ -1,11 +1,7 @@
 """
-Unit tests for src/daily_brief/rendering/weather_table.py.
+Unit tests for daily_brief/rendering/weather_table.py.
 """
-import os
-import sys
 from unittest import TestCase, mock
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from daily_brief.rendering.weather_table import build_weather_markdown
 

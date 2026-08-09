@@ -9,8 +9,6 @@ import sys
 import io
 from unittest import TestCase, mock
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
 import aiohttp
 from aioresponses import aioresponses
 from daily_brief.connectivity import (

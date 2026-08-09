@@ -5,11 +5,7 @@ Article extraction and context building.
 from __future__ import annotations
 
 import asyncio
-import os
-import sys
 from unittest import TestCase, mock
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 
 from daily_brief.sources.article import stage_extract_article
 from daily_brief.utils import build_context

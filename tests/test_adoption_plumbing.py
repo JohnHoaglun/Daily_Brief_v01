@@ -3,8 +3,6 @@ import unittest
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
 
 class TestConfigDefaults(unittest.TestCase):
     def test_batch_size_default(self):
@@ -27,7 +25,7 @@ class TestConfigDefaults(unittest.TestCase):
 class TestPipelineForwardsSettings(unittest.TestCase):
     def test_pipeline_uses_config_constants(self):
         """Verify pipeline source imports and passes the config constants."""
-        source_file = os.path.join(os.path.dirname(__file__), "..", "src", "daily_brief", "pipeline.py")
+        source_file = os.path.join(os.path.dirname(__file__), "..", "daily_brief", "pipeline.py")
         with open(source_file) as f:
             source = f.read()
         self.assertIn("LLM_SUMMARY_BATCH_SIZE", source)
@@ -68,7 +66,7 @@ class TestConfigValidation(unittest.TestCase):
 class TestPipelineSchedulerLogging(unittest.TestCase):
     def test_pipeline_logs_scheduler_settings(self):
         """Verify pipeline source logs resolved scheduler settings."""
-        source_file = os.path.join(os.path.dirname(__file__), "..", "src", "daily_brief", "pipeline.py")
+        source_file = os.path.join(os.path.dirname(__file__), "..", "daily_brief", "pipeline.py")
         with open(source_file) as f:
             source = f.read()
         self.assertIn("Phase 3 LLM scheduler: batch_size=", source)

@@ -1,14 +1,10 @@
 """
-Tests for src/daily_brief/cli.py — parser building, run(), and subcommands.
+Tests for daily_brief/cli.py — parser building, run(), and subcommands.
 """
 import asyncio
-import os
-import sys
-import io
 import sys as sysmod
+import io
 from unittest import TestCase, mock
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from unittest.mock import AsyncMock
 from daily_brief.cli import build_parser, run, cmd_validate, cmd_show, cmd_list_categories, cmd_list_lakes, cmd_show_prompt, cmd_check_connectivity

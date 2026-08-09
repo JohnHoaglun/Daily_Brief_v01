@@ -3,15 +3,11 @@ Extended unit tests for weather/climate/wunderground/lakes sources.
 Covers remaining uncovered lines in weather.py, climate.py, wunderground.py, lakes.py.
 """
 import asyncio
-import os
-import sys
 import logging
 from datetime import datetime, timedelta, timezone
 from unittest import TestCase, mock
 from unittest.mock import AsyncMock
 from zoneinfo import ZoneInfoNotFoundError
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 
 import aiohttp
 

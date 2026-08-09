@@ -4,6 +4,15 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.118 — Repository structure migration
+- Moved src/daily_brief/ to daily_brief/ (root package). No PYTHONPATH or src/ needed.
+- Moved Test_validate_run.py to daily_brief/validation_harness.py. Phase 6 uses `-m daily_brief.validation_harness`.
+- Moved scripts/benchmark_llm_batches.py and scripts/capture_corpus.py into daily_brief/ package.
+- Removed src/, scripts/, and reports/ directories.
+- Benchmark output now uses configured LOG_DIR, not tracked reports/ directory.
+- All 32 test files updated: removed sys.path src insertion, updated module imports.
+- 1039/1039 tests passing.
+
 ### v1.0.117 — Full P1 reliability/config/test-validity release
 - `src/daily_brief/config.py`: Split config into three layers — `load_raw_config()` (safe YAML loader), legacy `load_config_yaml()` (backward-compatible), `build_runtime_config()` (typed coercion). Invalid numeric YAML now returns `{}` instead of crashing on import.
 - `src/daily_brief/config_validator.py`: Tightened all validators — non-empty string for required fields, type guards before numeric comparisons, safe URL/path checks. Malformed values produce diagnostic errors instead of `TypeError` crashes.

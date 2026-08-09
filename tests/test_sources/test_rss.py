@@ -5,15 +5,11 @@ RSS feed URL construction, title normalization, date parsing, sorting, and async
 from __future__ import annotations
 
 import asyncio
-import os
-import sys
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from unittest import TestCase, mock
 from unittest.mock import AsyncMock
 from zoneinfo import ZoneInfo
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 
 import aiohttp
 import feedparser

@@ -2,12 +2,8 @@
 Tier 1 unit tests for tagging.py — keyword matching, scoring, thresholds,
 category boosts, tag deduplication, and min-tag promotion.
 """
-import os
-import sys
 from contextlib import contextmanager
 from unittest import mock, TestCase
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from daily_brief.tagging import (
     _word_boundary_match,

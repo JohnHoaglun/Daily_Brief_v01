@@ -10,12 +10,8 @@ Verifies the real pipeline startup order without crashing:
 - PHASE_TIMINGS populated through Phase 4
 """
 import os
-import sys
 import asyncio
 import tempfile
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
 import pytest
 import daily_brief.pipeline as pipeline_mod
 from daily_brief import config as config_mod

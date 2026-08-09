@@ -1,9 +1,4 @@
-import sys
-import os
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from Test_validate_run import parse_log, parse_output, run_checks
+from daily_brief.validation_harness import parse_log, parse_output, run_checks
 
 
 VALID_LOG_FIXTURE = """\

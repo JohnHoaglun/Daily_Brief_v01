@@ -1,14 +1,10 @@
 """
-Unit tests for src/daily_brief/llm/summarizer.py.
+Unit tests for daily_brief/llm/summarizer.py.
 """
 import asyncio
-import os
-import sys
 import time
 from unittest import TestCase, mock
 from unittest.mock import AsyncMock, MagicMock
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from daily_brief.llm.summarizer import (
     _safe_sentence_summary,

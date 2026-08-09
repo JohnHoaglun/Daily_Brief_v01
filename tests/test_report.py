@@ -1,13 +1,10 @@
 """
-Unit tests for src/daily_brief/rendering/report.py.
+Unit tests for daily_brief/rendering/report.py.
 """
 import os
-import sys
 import tempfile
 from unittest import TestCase, mock
 from datetime import datetime, timezone
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from daily_brief.rendering.report import (
     build_sections_from_stories,

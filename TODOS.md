@@ -1,7 +1,7 @@
-# TODO: Daily Brief v01 - v1.0.130 (Version Bump + Stale Reference Fix) ✅ COMPLETE
+# TODO: Daily Brief v01 - v1.0.131 (Stale Reference Cleanup + Registry Fix) ✅ COMPLETE
 
 ## Status
-v1.0.130: All stale v1.0.127 references in README.md, dashboard_pipeline.py, versions_locations.md updated to v1.0.130. 530/530 tests passing.
+v1.0.131: All stale version references across entire codebase updated to v1.0.131 per versions_locations.md registry. 530/530 tests passing.
 
 ## Active Work
 ### Agent A — Atomic report writes ✅

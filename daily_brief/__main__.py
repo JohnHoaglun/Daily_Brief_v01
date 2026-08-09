@@ -1,5 +1,5 @@
 """
-Daily Brief v1.0.127 — Entry Point
+Daily Brief v1.0.131 — Entry Point
 ===================================
 Run the daily brief pipeline via `python -m daily_brief`.
 """

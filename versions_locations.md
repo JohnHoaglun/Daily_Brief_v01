@@ -2,7 +2,7 @@
 
 ## Canonical Version
 
-**Current release: `v1.0.130`**
+**Current release: `v1.0.131`**
 
 ## Required Release Process
 
@@ -23,6 +23,7 @@ not be rewritten during later version bumps.
 | `TODOS.md` | Title and status | `vX.Y.Z` |
 | `config.yaml` | `version` key | `X.Y.Z` |
 | `daily_brief/__init__.py` | Package docstring and `__version__` | `vX.Y.Z` and `X.Y.Z` |
+| `daily_brief/config.py` | `DEFAULTS["version"]` | `X.Y.Z` |
 | `daily_brief/__main__.py` | Module docstring | `vX.Y.Z` |
 | `dashboard_pipeline.py` | Launcher docstring | `vX.Y.Z` |
 | `daily_brief/capture_corpus.py` | Module docstring | `vX.Y.Z` |
@@ -39,4 +40,6 @@ not be rewritten during later version bumps.
 | `daily_brief/sources/weather.py` | Module docstring | `vX.Y.Z` |
 | `daily_brief/sources/wunderground.py` | Module docstring | `vX.Y.Z` |
 | `daily_brief/lifecycle.py` | Module docstring | `vX.Y.Z` |
+| `PLAN.md` | Title and status | `vX.Y.Z` |
+| `SUMMARY.md` | Latest changelog entry | `vX.Y.Z` |
 | `versions_locations.md` | Canonical Version | `vX.Y.Z` |

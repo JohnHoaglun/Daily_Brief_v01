@@ -9,3 +9,7 @@ daily_brief.log
 final_run.txt
 pipeline.pid
 pipeline_output.log
+
+# Coverage artifacts
+.coverage
+coverage_html/

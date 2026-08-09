@@ -13,12 +13,10 @@ USAGE:
                                     F.2 cross-run comparison checks. If omitted,
                                     the script auto-detects the most recent
                                     earlier run_log_*.md in the same log_dir.
-    --no-write                     Print the report to stdout only; don't
-                                    write validation_log_<date>_<version>.md
 
 OUTPUT:
-    Writes validation_log_<date>_<version>.md next to run_log_<date>_<version>.md
-    (in config.yaml's directories.log_dir). Prints the same report to stdout.
+    Prints the validation report to stdout. Run results are already logged
+    in the run_log_*.md file — no duplicate validation_log file is written.
 
 EXIT CODES:
     0 = PASS (no FAIL-level findings)
@@ -686,7 +684,6 @@ def main():
     ap.add_argument("--version", required=True, help="Run version, e.g. v01")
     ap.add_argument("--prev-date", help="Explicit previous run date for F.2 comparison")
     ap.add_argument("--prev-version", help="Explicit previous run version for F.2 comparison")
-    ap.add_argument("--no-write", action="store_true", help="Print report only, don't write validation_log file")
     args = ap.parse_args()
 
     config = load_config(args.config)
@@ -722,12 +719,6 @@ def main():
     report = build_report(args.date, args.version, results, log_data)
 
     print(report)
-
-    if not args.no_write:
-        validation_path = os.path.join(log_dir, f"validation_log_{args.date}_{args.version}.md")
-        with open(validation_path, "w", encoding="utf-8") as f:
-            f.write(report + "\n")
-        print(f"\nWritten to: {validation_path}")
 
     status = results.status()
     sys.exit({"PASS": 0, "WARN": 1, "FAIL": 2}[status])

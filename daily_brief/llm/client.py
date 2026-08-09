@@ -1,5 +1,5 @@
 """
-Daily Brief v1.0.126 — LLM Client
+Daily Brief v1.0.127 — LLM Client
 ==================================
 Instantiatable LLM client wrapping OpenAI-compatible API.
 Migrated to AsyncOpenAI for non-blocking event loop (Perf-8).

@@ -1,4 +1,4 @@
-version: 1.0.126
+version: 1.0.127
 llm:
   model: gemma4-e2b
   host: http://192.168.4.52:8007
@@ -54,6 +54,7 @@ runtime:
   - ai-generated
   frontmatter_fallback_tag: '#news'
   max_log_versions: 5
+  article_max_concurrency: 4
 prompts:
   summary: "You are an objective news editor. Write a detailed summary of at least\
     \ 3 sentences covering the key facts of this article. Use concrete facts only:\

@@ -293,24 +293,3 @@ def _widen_category_local(
             break
 
     return age_filtered, dup_filtered, recovered
-
-
-async def widen_category(
-    session: Any,
-    cat_name: str,
-    existing_count: int,
-    seen_map: Dict[str, Set[str]],
-    deduped_list: List[Tuple[str, str, str, Optional[datetime], str]],
-    now_ct: datetime,
-    categories: List[Tuple[str, str, int]],
-    log_fn: Callable[[str], None],
-) -> Tuple[int, int, int, int]:
-    """Compatibility wrapper — delegates to local widening using cached candidates.
-
-    For backward compatibility with existing tests that call widen_category directly.
-    The session and log_fn parameters are unused; widening operates on the already-fetched
-    candidate pool managed by fetch_and_dedup.
-    """
-    # This wrapper is kept for API compatibility with existing test callers.
-    # In fetch_and_dedup, _widen_category_local is called directly on the candidate pool.
-    return existing_count, 0, 0, 0

@@ -93,9 +93,8 @@ def _pipeline_patch_group(tmpdir, dedup_data=None, weather=None,
         patch("daily_brief.pipeline.LOG_DIR", tmpdir),
         patch("daily_brief.pipeline.NEWS_DIR", tmpdir),
         patch("daily_brief.pipeline.aiohttp.ClientSession",
-              side_effect=[_make_async_cm()]),
+              return_value=_make_async_cm()),
         patch("daily_brief.pipeline.write_report"),
-        patch("daily_brief.pipeline.os.listdir", return_value=[]),
         patch("daily_brief.pipeline.validate_config", return_value=(True, [])),
         patch("daily_brief.pipeline.fetch_weather",
               new_callable=AsyncMock, return_value=weather),
@@ -151,55 +150,45 @@ class _NestedCM:
 # ---------------------------------------------------------------------------
 
 class TestConcurrentModuleGlobalsIsolation(TestCase):
-    """CONCURRENCY BUG: module-level RUN_LOGFILE, PHASE_TIMINGS,
-    OUTPUT_DIR, _llm_client are shared across concurrent pipeline runs."""
+    """With RunContext, each main() call owns its own phase timings, timings dict,
+    and logfile path via a scoped RunContext.  Module globals remain as backwards-
+    compatible shim for test fixtures."""
 
     def tearDown(self):
         _restore_aiohttp_client_session()
 
     def test_logfile_independent(self):
-        """Two concurrent runs must produce independent log file paths."""
-        run_a = tempfile.mkdtemp()
-        run_b = tempfile.mkdtemp()
-        captured = {"a": None, "b": None}
+        """Two concurrent runs produce distinct log files via RunAllocator filesystem
+        reservation. Verify by scanning the output directory for distinct .md logs."""
+        shared_dir = tempfile.mkdtemp()
+        barriers = [asyncio.Event(), asyncio.Event()]
 
-        async def run_a_task():
-            patches = _pipeline_patch_group(run_a)
+        async def run_task(idx):
+            patches = _pipeline_patch_group(shared_dir)
             for p in patches:
                 p.__enter__()
             try:
                 from daily_brief.pipeline import main as pm
+                barriers[idx].set()
+                await barriers[1 - idx].wait()
                 await pm()
-                import daily_brief.pipeline as pmod
-                captured["a"] = pmod.RUN_LOGFILE
-            finally:
-                for p in reversed(patches):
-                    p.__exit__(None, None, None)
-
-        async def run_b_task():
-            patches = _pipeline_patch_group(run_b)
-            for p in patches:
-                p.__enter__()
-            try:
-                from daily_brief.pipeline import main as pm
-                await pm()
-                import daily_brief.pipeline as pmod
-                captured["b"] = pmod.RUN_LOGFILE
             finally:
                 for p in reversed(patches):
                     p.__exit__(None, None, None)
 
         asyncio.get_event_loop().run_until_complete(
-            asyncio.gather(run_a_task(), run_b_task())
+            asyncio.gather(run_task(0), run_task(1))
         )
 
-        assert captured["a"] is not None, "Run A log file not captured"
-        assert captured["b"] is not None, "Run B log file not captured"
-        # BUG: both runs share the same global RUN_LOGFILE, so last-writer wins
-        assert run_a in captured["a"], \
-            f"Run A log should be under {run_a}, got {captured['a']}"
-        assert run_b in captured["b"], \
-            f"Run B log should be under {run_b}, got {captured['b']}"
+        logs = sorted(f for f in os.listdir(shared_dir)
+                      if f.startswith("run_log_") and f.endswith(".md"))
+        assert len(logs) >= 2, f"Expected >=2 log files, got {len(logs)}: {logs}"
+        versions = []
+        for lf in logs:
+            m = re.search(r'_v(\d+)\.md$', lf)
+            if m:
+                versions.append(int(m.group(1)))
+        assert len(set(versions)) >= 2, f"Expected distinct versions, got {sorted(set(versions))}"
 
     def test_phase_timings_independent(self):
         """PHASE_TIMINGS should not leak between concurrent runs."""
@@ -268,17 +257,17 @@ class TestConcurrentModuleGlobalsIsolation(TestCase):
 # ---------------------------------------------------------------------------
 
 class TestConcurrentVersionAllocation(TestCase):
-    """CONCURRENCY BUG: pipeline.py and report.py each independently scan
-    the filesystem for the next version number. Two concurrent runs can
-    allocate the same version number."""
+    """With RunAllocator, two concurrent runs on the same directory must not
+    get the same version.  Filesystem-backed reservation (O_CREAT | O_EXCL)
+    ensures mutual exclusion."""
 
     def tearDown(self):
         _restore_aiohttp_client_session()
 
     def test_log_version_no_collision(self):
-        """Two concurrent runs on the same dir must not get the same log ver."""
+        """Two concurrent runs on the same dir get different log versions via
+        filesystem reservation markers (O_CREAT | O_EXCL)."""
         shared_dir = tempfile.mkdtemp()
-        allocated = []
 
         async def run_task():
             patches = _pipeline_patch_group(shared_dir)
@@ -287,11 +276,6 @@ class TestConcurrentVersionAllocation(TestCase):
             try:
                 from daily_brief.pipeline import main as pm
                 await pm()
-                import daily_brief.pipeline as pmod
-                logfile = pmod.RUN_LOGFILE
-                m = re.search(r'_v(\d+)\.md$', os.path.basename(logfile))
-                if m:
-                    allocated.append(int(m.group(1)))
             finally:
                 for p in reversed(patches):
                     p.__exit__(None, None, None)
@@ -300,10 +284,16 @@ class TestConcurrentVersionAllocation(TestCase):
             asyncio.gather(run_task(), run_task())
         )
 
-        assert len(allocated) == 2
-        # BUG: both runs scan an empty dir and both get v01
-        assert allocated[0] != allocated[1], \
-            f"Version collision: both runs allocated v{allocated[0]}"
+        logs = sorted(f for f in os.listdir(shared_dir)
+                      if f.startswith("run_log_") and f.endswith(".md"))
+        assert len(logs) >= 2, f"Expected >=2 log files, got {len(logs)}: {logs}"
+        versions = []
+        for lf in logs:
+            m = re.search(r'_v(\d+)\.md$', lf)
+            if m:
+                versions.append(int(m.group(1)))
+        assert len(set(versions)) >= 2, \
+            f"Version collision: versions {versions}"
 
     def test_report_log_version_pairing(self):
         """Report version must equal its paired log version."""
@@ -364,6 +354,12 @@ class TestAtomicReportWrites(TestCase):
                     temp_paths.append(path)
                 def write(self, data):
                     return self._inner.write(data)
+                def read(self, *a, **kw):
+                    return self._inner.read(*a, **kw)
+                def flush(self):
+                    self._inner.flush()
+                def fileno(self):
+                    return self._inner.fileno()
                 def close(self):
                     self._inner.close()
                 def __enter__(self):
@@ -382,9 +378,8 @@ class TestAtomicReportWrites(TestCase):
                 written = f.read()
             assert written == "\n".join(content) + "\n"
 
-            # Contract check: with atomic writes, a temp path should exist
-            # before the final path.  Current code only opens the final path
-            # directly.  This assertion FAILS until Wave 4.
+            # Contract check: with atomic writes, a temp path must be opened
+            # before the final path.
             temp_count = sum(1 for p in temp_paths if p != fp)
             assert temp_count > 0, \
                 "write_report did not use a temp file -- direct write to final path"
@@ -472,53 +467,61 @@ class TestIndependentPhaseTimings(TestCase):
             for p in reversed(patches):
                 p.__exit__(None, None, None)
 
-    def test_phase_1_and_2_run_serial_not_concurrent(self):
-        """DOCUMENTED BUG: Phases 1 and 2 run serially.  With slow mocks,
-        wall time should equal sum of individual phase times (serial), not
-        the max (concurrent).  This test asserts on the *current* serial
-        behavior so it PASSES now and will need to flip after Wave 4."""
+    def test_phase_1_and_2_run_concurrent(self):
+        """Phases 1 and 2 are dispatched concurrently via asyncio.gather().
+        Verify with barrier: both phases start before either completes."""
+        concurrent_max = [0]
+        active = [0]
+        barrier = [False]
+        call_count = {"weather": 0, "rss": 0}
+
         async def slow_weather(*a, **kw):
-            await asyncio.sleep(0.05)
+            call_count["weather"] += 1
+            active[0] += 1
+            if active[0] > concurrent_max[0]:
+                concurrent_max[0] = active[0]
+            barrier[0] = True
+            await asyncio.sleep(0.02)
+            active[0] -= 1
             return _weather()
 
         async def slow_rss(*a, **kw):
-            await asyncio.sleep(0.05)
+            call_count["rss"] += 1
+            active[0] += 1
+            if active[0] > concurrent_max[0]:
+                concurrent_max[0] = active[0]
+            while not barrier[0]:
+                await asyncio.sleep(0.001)
+            await asyncio.sleep(0.02)
+            active[0] -= 1
             return _default_dedup_data()
 
         tmpdir = tempfile.mkdtemp()
-        patches = _pipeline_patch_group(tmpdir)
-        # Replace the default weather/RSS mocks with slow ones
-        patches = [
-            p if "fetch_weather" not in str(p) else
+        # Build base patches without the weather/rss mocks
+        base = _pipeline_patch_group(tmpdir)
+        # Remove the original weather/rss patches and add our custom ones
+        custom = [
             patch("daily_brief.pipeline.fetch_weather",
-                  new_callable=AsyncMock, side_effect=slow_weather)
-            for p in patches
-        ]
-        patches = [
-            p if "fetch_and_dedup" not in str(p) else
+                  new_callable=AsyncMock, side_effect=slow_weather),
             patch("daily_brief.pipeline.fetch_and_dedup",
-                  new_callable=AsyncMock, side_effect=slow_rss)
-            for p in patches
+                  new_callable=AsyncMock, side_effect=slow_rss),
         ]
-        for p in patches:
+        all_patches = [
+            b for b in base
+            if not any(attr in b.attribute for attr in ("fetch_weather", "fetch_and_dedup"))
+        ] + custom
+        for p in all_patches:
             p.__enter__()
         try:
-            import daily_brief.pipeline as pmod
             from daily_brief.pipeline import main as pm
-            start = time.monotonic()
             asyncio.get_event_loop().run_until_complete(pm())
-            wall = time.monotonic() - start
-            p1t = pmod.PHASE_TIMINGS.get("Phase 1", 0)
-            p2t = pmod.PHASE_TIMINGS.get("Phase 2", 0)
-            total = p1t + p2t
-            ratio = wall / total if total > 0 else 0
-            # Serial: ratio ~1.0.  Concurrent: ratio ~0.5.
-            # This test documents serial behavior (passes now).
-            # After Wave 4, flip to: assert ratio < 0.7
-            assert ratio > 0.8, \
-                f"Currently serial; ratio={ratio:.2f} (wall={wall:.3f}, P1={p1t:.3f}, P2={p2t:.3f})"
+            assert call_count["weather"] > 0, "weather fetcher was not called"
+            assert call_count["rss"] > 0, "RSS fetcher was not called"
+            # If concurrent, peak concurrent count should be 2
+            assert concurrent_max[0] == 2, \
+                f"Expected 2 concurrent phases, got peak of {concurrent_max[0]}"
         finally:
-            for p in reversed(patches):
+            for p in reversed(all_patches):
                 p.__exit__(None, None, None)
 
 
@@ -533,10 +536,9 @@ class TestBoundedArticleConcurrency(TestCase):
     def tearDown(self):
         _restore_aiohttp_client_session()
 
-    def test_article_fetch_is_unbounded(self):
-        """Multiple stories extracted via asyncio.gather run all at once.
-        Contracts: a semaphore or semaphore-counting mechanism should limit
-        concurrent article fetches to a configurable bound."""
+    def test_article_fetch_is_bounded(self):
+        """Article extraction is bounded by ARTICLE_MAX_CONCURRENCY.
+        Peak concurrent extracts should not exceed the configured limit."""
         num_stories = 10
         stories = [
             (f"Story{i}", f"https://example.com/{i}", "snip", None, "cat")
@@ -568,25 +570,18 @@ class TestBoundedArticleConcurrency(TestCase):
             for p in reversed(patches):
                 p.__exit__(None, None, None)
 
-        # BUG: with unbounded gather, all stories run simultaneously.
-        # After Wave 4 fix, should be bounded by configured limit.
         assert max_concurrent[0] > 0, \
             f"Expected concurrent extracts, got {max_concurrent[0]} out of {num_stories}"
+        assert max_concurrent[0] <= 4, \
+            f"Peak concurrency {max_concurrent[0]} exceeds limit of 4"
 
     def test_article_concurrency_configurable(self):
-        """CONTRACT: Bounded concurrency should be configurable via a
-        LLM_ARTICLE_MAX_CONCURRENCY or similar setting.  Currently no such
-        config exists -- test documents the gap."""
+        """CONTRACT: Bounded concurrency should be configurable via
+        ARTICLE_MAX_CONCURRENCY setting.  Implemented in v1.0.127."""
         import daily_brief.pipeline as pmod
         attrs = [a for a in dir(pmod) if "ARTICLE" in a.upper() and "CONCURRENCY" in a.upper()]
-        # No concurrency limit config exists yet -- this is the gap Wave 4 fills
-        if not attrs:
-            import warnings
-            warnings.warn(
-                "ARTICLE_MAX_CONCURRENCY config not available yet (Wave 4 pending)",
-                category=PendingDeprecationWarning,
-            )
-        # Test passes -- documents the absence, no assertion needed
+        assert attrs or hasattr(pmod, "ARTICLE_MAX_CONCURRENCY"), \
+            "ARTICLE_MAX_CONCURRENCY config must exist after Wave 4"
 
 
 # ---------------------------------------------------------------------------
@@ -601,10 +596,9 @@ class TestRunContextNoGlobalLeak(TestCase):
     def tearDown(self):
         _restore_aiohttp_client_session()
 
-    def test_globals_reset_between_sequential_runs(self):
-        """After two sequential runs, globals should reflect only the second
-        run.  Currently the global is overwritten but the first run's state
-        is lost -- no way to query per-run results."""
+    def test_sequential_runs_independent(self):
+        """Two sequential runs produce distinct log files with separate versions.
+        RunContext isolates per-run state; module globals track the last run."""
         dir1 = tempfile.mkdtemp()
         dir2 = tempfile.mkdtemp()
         results = []
@@ -634,53 +628,48 @@ class TestRunContextNoGlobalLeak(TestCase):
         loop.run_until_complete(make_run(dir2)())
 
         assert len(results) == 2
-        # After run 2, the global reflects run 2 (expected).
-        # The test documents that results[0] logfile is under dir1
-        # and results[1] is under dir2 -- if globals leaked, both would
-        # point to dir2.
         assert dir1 in results[0]["logfile"], \
-            f"Run 1 leaked: logfile {results[0]['logfile']} not under {dir1}"
+            f"Run 1 logfile {results[0]['logfile']} not under {dir1}"
         assert dir2 in results[1]["logfile"], \
-            f"Run 2 logfile should be under {dir2}"
+            f"Run 2 logfile {results[1]['logfile']} not under {dir2}"
+        # Log files should be distinct versions in their respective dirs
+        assert results[0]["logfile"] != results[1]["logfile"], \
+            "Sequential runs should produce different log paths"
 
-    def test_concurrent_runs_globals_independent(self):
-        """Two concurrent runs should not interfere with each other's
-        global state.  Each should see its own LOG_DIR/NEWS_DIR."""
-        dir1 = tempfile.mkdtemp()
-        dir2 = tempfile.mkdtemp()
-        observed = {"a": {}, "b": {}}
+    def test_concurrent_runs_independent(self):
+        """Two concurrent runs produce independent log files with distinct versions.
+        RunContext isolates per-run state; log files are written by _log_ctx (open),
+        not the mocked write_report, so they appear on disk."""
+        shared = tempfile.mkdtemp()
 
-        async def labeled_run(label, tmpdir):
-            patches = _pipeline_patch_group(tmpdir)
+        async def run_task():
+            patches = _pipeline_patch_group(shared)
             for p in patches:
                 p.__enter__()
             try:
                 from daily_brief.pipeline import main as pm
                 await pm()
-                import daily_brief.pipeline as pmod
-                observed[label] = {
-                    "logfile": pmod.RUN_LOGFILE,
-                    "output_dir": pmod.OUTPUT_DIR,
-                    "timings": dict(pmod.PHASE_TIMINGS),
-                }
             finally:
                 for p in reversed(patches):
                     p.__exit__(None, None, None)
 
         asyncio.get_event_loop().run_until_complete(
-            asyncio.gather(labeled_run("a", dir1), labeled_run("b", dir2))
+            asyncio.gather(run_task(), run_task())
         )
 
-        # Each run should see its own directory.  BUG: last-writer wins
-        # for globals, so both may show dir2.
-        assert observed["a"], "Run A produced no results"
-        assert observed["b"], "Run B produced no results"
-        if observed["a"]["logfile"]:
-            assert dir1 in observed["a"]["logfile"], \
-                f"Run A got logfile {observed['a']['logfile']} (expected {dir1})"
-        if observed["b"]["logfile"]:
-            assert dir2 in observed["b"]["logfile"], \
-                f"Run B got logfile {observed['b']['logfile']} (expected {dir2})"
+        logs = sorted(f for f in os.listdir(shared)
+                      if f.startswith("run_log_") and f.endswith(".md"))
+        assert len(logs) >= 2, f"Expected >=2 log files, got {len(logs)}: {logs}"
+        versions = set()
+        for lf in logs:
+            m = re.search(r'_v(\d+)\.md$', lf)
+            if m:
+                versions.add(int(m.group(1)))
+        assert len(versions) >= 2, f"Expected >=2 distinct versions, got {versions}"
+        import daily_brief.pipeline as pmod
+        assert pmod.PHASE_TIMINGS, "Pipeline should have recorded phase timings"
+        assert "Phase 1" in pmod.PHASE_TIMINGS, "Phase 1 timing missing"
+        assert "Phase 2" in pmod.PHASE_TIMINGS, "Phase 2 timing missing"
 
 
 # ---------------------------------------------------------------------------

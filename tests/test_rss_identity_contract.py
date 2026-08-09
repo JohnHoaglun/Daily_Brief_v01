@@ -1,14 +1,12 @@
 """
 Test fixtures documenting the desired RSS dedup identity contract (Wave 0).
 
-Fixtures expose known bugs in normalize_title() and widen_category():
+Fixtures expose known bugs in normalize_title():
   - Bug A: Splits on first " - " separator, stripping site suffix.
            "Tech News - Source A" and "Tech News - Source B" both normalize
            to "tech news" and are incorrectly treated as the same story.
   - Bug B: 80-character truncation.  Distinct titles that diverge only after
            character 80 collide because both are truncated to the same prefix.
-  - Bug C: widen_category() is a no-op wrapper returning (existing_count, 0, 0, 0)
-           — dead code never called from fetch_and_dedup.
 
 Desired contract:
   - Full Unicode-normalized, lower-cased title is the primary dedup key.
@@ -25,7 +23,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Set, Tuple
 from unittest import TestCase
 
-from daily_brief.pipelines.rss_dedup import widen_category
 from daily_brief.sources.rss import normalize_title
 
 
@@ -145,64 +142,6 @@ class TestTruncationBug(TestCase):
         normalized = _normalize(title)
         self.assertEqual(len(normalized), 81)
         self.assertEqual(normalized, title.lower())  # full title preserved
-
-
-# ---------------------------------------------------------------------------
-# Bug C: widen_category is a no-op
-# ---------------------------------------------------------------------------
-
-class TestWidenCategoryNoOp(TestCase):
-    """widen_category() is dead code — returns (existing_count, 0, 0, 0)."""
-
-    async def _call_widen(self, existing_count: int):
-        return await widen_category(
-            session=None,
-            cat_name="TestCat",
-            existing_count=existing_count,
-            seen_map={},
-            deduped_list=[],
-            now_ct=datetime.now(timezone.utc),
-            categories=[],
-            log_fn=lambda *_: None,
-        )
-
-    def test_noop_returns_existing_count(self):
-        """First element of return tuple is the existing_count passed in."""
-        result = _await(self._call_widen(5))
-        # Shape: (existing_count, age_filtered, dup_filtered, recovered)
-        self.assertEqual(result[0], 5)
-        self.assertEqual(result[1], 0)
-        self.assertEqual(result[2], 0)
-        self.assertEqual(result[3], 0)
-
-    def test_noop_returns_existing_count_zero(self):
-        result = _await(self._call_widen(0))
-        self.assertEqual(result, (0, 0, 0, 0))
-
-    def test_noop_returns_existing_count_large(self):
-        result = _await(self._call_widen(99))
-        self.assertEqual(result, (99, 0, 0, 0))
-
-    def test_noop_ignores_deduped_list(self):
-        """widen_category does not read or mutate deduped_list."""
-        seen: Dict[str, Set[str]] = {"TestCat": {"seen"}}
-        deduped: List[Tuple[str, str, str, datetime, str]] = []
-        result = _await(
-            widen_category(
-                session=None,
-                cat_name="TestCat",
-                existing_count=3,
-                seen_map=seen,
-                deduped_list=deduped,
-                now_ct=datetime.now(timezone.utc),
-                categories=[],
-                log_fn=lambda *_: None,
-            )
-        )
-        # No mutation
-        self.assertEqual(len(deduped), 0)
-        self.assertEqual(len(seen["TestCat"]), 1)
-        self.assertEqual(result, (3, 0, 0, 0))
 
 
 # ---------------------------------------------------------------------------

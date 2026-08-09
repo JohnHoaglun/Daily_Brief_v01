@@ -16,7 +16,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Defaults — single nested structure matching the canonical YAML shape
 # ---------------------------------------------------------------------------
 DEFAULTS = {
-    "version": "1.0.126",
+    "version": "1.0.127",
     "llm": {
         "model": "gemma4-e2b",
         "host": "http://localhost:11434/v1",
@@ -56,6 +56,7 @@ DEFAULTS = {
         "frontmatter_tag_segments": ["daily-intelligently", "news-summary", "ai-generated"],
         "frontmatter_fallback_tag": "#news",
         "max_log_versions": 5,
+        "article_max_concurrency": 4,
     },
     "tagging_config": {"max_tags": 5, "score_cap": 5.0, "score_threshold": 0.3},
 }
@@ -165,6 +166,7 @@ def build_runtime_config(raw_cfg):
         "TIMEZONE": value("runtime.timezone", DEFAULTS["runtime"]["timezone"], str),
         "PREFLIGHT_CHECKS_ENABLED": value("runtime.preflight_checks_enabled", False, bool),
         "MAX_LOG_VERSIONS": number("runtime.max_log_versions", DEFAULTS["runtime"]["max_log_versions"], int),
+        "ARTICLE_MAX_CONCURRENCY": number("runtime.article_max_concurrency", DEFAULTS["runtime"]["article_max_concurrency"], int),
         "FRONTMATTER_TAG_SEEDS": list(value("runtime.frontmatter_tag_segments", DEFAULTS["runtime"]["frontmatter_tag_segments"], list)),
         "FRONTMATTER_FALLBACK_TAG": value("runtime.frontmatter_fallback_tag", DEFAULTS["runtime"]["frontmatter_fallback_tag"], str),
         "LLM_SUMMARY_OPTIONS": summary_options,
@@ -219,6 +221,7 @@ USER_AGENT = _RUNTIME_CONFIG["USER_AGENT"]
 TIMEZONE = _RUNTIME_CONFIG["TIMEZONE"]
 PREFLIGHT_CHECKS_ENABLED = _RUNTIME_CONFIG["PREFLIGHT_CHECKS_ENABLED"]
 MAX_LOG_VERSIONS = _RUNTIME_CONFIG["MAX_LOG_VERSIONS"]
+ARTICLE_MAX_CONCURRENCY = _RUNTIME_CONFIG["ARTICLE_MAX_CONCURRENCY"]
 FRONTMATTER_TAG_SEEDS = _RUNTIME_CONFIG["FRONTMATTER_TAG_SEEDS"]
 FRONTMATTER_FALLBACK_TAG = _RUNTIME_CONFIG["FRONTMATTER_FALLBACK_TAG"]
 LLM_SUMMARY_OPTIONS = _RUNTIME_CONFIG["LLM_SUMMARY_OPTIONS"]

@@ -1,10 +1,38 @@
-# TODO: Daily Brief v01 - v1.0.126
+# TODO: Daily Brief v01 - v1.0.127 (Wave 4 Concurrency)
 
 ## Status
-v1.0.126: Phase 6 harness fix — tag conflict invariant (international+local re-add on min-tag promotion), Phase 6 diagnostics (harness stdout/stderr persisted to run log). 514/518 passing (4 concurrency contract failures, Wave 4 pending). Known issue resolved.
+v1.0.127: Wave 4 concurrency safety — RunContext pattern, filesystem run reservation, atomic report writes, Phase 1/2 parallelism, bounded article extraction, widen_category dead code removal. Target: 26/26 tests in test_concurrency_contract.py passing (currently 22 pass, 4 fail). IN PROGRESS.
+
+## Active Work
+### Agent A — Atomic report writes
+- [ ] `write_report()` uses temp file in target dir + `os.replace();` cleanup temp on failure.
+- [ ] Test: interrupted write leaves previous report byte-for-byte intact.
+
+### Agent B — Filesystem-backed run allocator
+- [ ] New `daily_brief/lifecycle.py`: `RunAllocator` class with atomic `O_CREAT | O_EXCL` reservation.
+- [ ] Paired log/report version allocation — one reservation identity for both artifacts.
+- [ ] Tests: concurrent allocation produces distinct versions; reservation cleaned after commit.
+
+### Agent C — Article concurrency config
+- [ ] `runtime.article_max_concurrency` in `DEFAULTS`, `config.yaml`, runtime config, validator.
+- [ ] Positive integer, default 4, validates range [1, 50].
+- [ ] Tests: config load, typed export, validator range, default.
+
+### Agent D — Remove dead widen_category
+- [ ] Delete `widen_category` from `rss_dedup.py:298-316`; remove `TestWidenCategoryNoOp` from `test_rss_identity_contract.py`.
+- [ ] Verify actual widening path tests (`TestCachedWidening`) remain intact.
+
+### Integration owner (sequential after A-D)
+- [ ] `RunContext` dataclass in `pipeline.py:log():log()` — scoped log file, timings, output dir, LLM client, allocator reservation.
+- [ ] Replace mutable globals: `RUN_LOGFILE`, `PHASE_TIMINGS`, `OUTPUT_DIR`, `_llm_client`.
+- [ ] Integrate allocator: reserve before Phase 1, pass version to report, release after cleanup.
+- [ ] Phase 1/2 concurrent dispatch with `asyncio.gather()` wrappers; independent timing per phase.
+- [ ] Bounded article extraction: `asyncio.Semaphore(ARTICLE_MAX_CONCURRENCY)` around `stage_extract_article`.
+- [ ] Flip 4 failing contract tests to passing; add barrier-based concurrency assertions.
+- [ ] Update startup, pipeline, RSS dedup tests for new patterns.
 
 ## Known Issues
-- None active. v1.0.125 live harness FAIL (exit code 2, check 3.7 tag conflict) resolved in v1.0.126 via `tagging.py` fix. Confirmed by live smoke v09 (79 stories, 56.99s, WARN, zero FAILs).
+- None active. Live smoke v09 at v1.0.127: WARN, zero FAILs, 79 stories, 56.99s.
 
 ## Wave 4 - Concurrency Contract (acceptance criteria established)
 - [x] Wave 0: Create `tests/test_concurrency_contract.py` with concurrency, output lifecycle, and pipeline ownership fixtures. 13 tests, 4 failing (documenting bugs). Completed v1.0.123.
@@ -20,11 +48,11 @@ v1.0.126: Phase 6 harness fix — tag conflict invariant (international+local re
 - [x] RSS identity: NFKD, no truncation, no suffix stripping
 - [x] Climate reference date, `_fetch_json` type widening, hardcoded 77316 removal
 
-## Phase 6 Fix — Harness Correctness (v1.0.126)
+## Phase 6 Fix — Harness Correctness (v1.0.127)
 - [x] Fix tag conflict invariant: minimum-tag promotion cannot restore a tag rejected by `tag_conflicts`.
-  - Completed v1.0.126. `tagging.py` tracks `conflict_losers` set after conflict resolution. Minimum-tag promotion loop excludes conflict losers. 4 new regression tests, 0 regressions.
+  - Completed v1.0.127. `tagging.py` tracks `conflict_losers` set after conflict resolution. Minimum-tag promotion loop excludes conflict losers. 4 new regression tests, 0 regressions.
 - [x] Persist Phase 6 harness findings in the run log.
-  - Completed v1.0.126. `pipeline.py` writes each `HarnessResult.stdout_lines`/`stderr_lines` entry prefixed with `[Harness]`/`[Harness err]`. 4 new tests (2 pipeline diagnostics, 2 harness output preservation).
+  - Completed v1.0.127. `pipeline.py` writes each `HarnessResult.stdout_lines`/`stderr_lines` entry prefixed with `[Harness]`/`[Harness err]`. 4 new tests (2 pipeline diagnostics, 2 harness output preservation).
 
 ## Priority 0 - Correct Run Outcomes
 - [x] Make `pipeline.main()` return an explicit run result or exit code. Update `__main__.py` to exit nonzero for internal report-validation failure and harness `FAIL`/`ERROR`; decide and document the policy for `WARN` and `SKIPPED`. Evidence: `daily_brief/pipeline.py:276-297`, `daily_brief/__main__.py:39-55`.

@@ -13,6 +13,7 @@ from daily_brief.config import (
     _get_nested, BASE_DIR, DEFAULTS, build_runtime_config, load_raw_config,
     load_config_yaml, LLM_MODEL, OLLAMA_HOST, VERSION, WEATHER_LAT,
     WEATHER_LON, CATEGORIES, WEATHER_LAKE_URLS, PROMPTS,
+    ARTICLE_MAX_CONCURRENCY,
 )
 from daily_brief.config_validator import (
     ConfigValidationError, check_required_keys, check_types, check_ranges,
@@ -306,3 +307,46 @@ class TestConfigRoundtrip(TestCase):
         r1 = build_runtime_config(cfg)
         r2 = build_runtime_config(cfg)
         self.assertEqual(r1, r2)
+
+
+# ---------------------------------------------------------------------------
+# 7.  Article max concurrency
+# ---------------------------------------------------------------------------
+
+class TestArticleMaxConcurrency(TestCase):
+
+    def test_default_is_four(self):
+        self.assertEqual(DEFAULTS["runtime"]["article_max_concurrency"], 4)
+
+    def test_typed_coerce_integer(self):
+        r = build_runtime_config({"runtime": {"article_max_concurrency": 8}})
+        self.assertIsInstance(r["ARTICLE_MAX_CONCURRENCY"], int)
+        self.assertEqual(r["ARTICLE_MAX_CONCURRENCY"], 8)
+
+    def test_typed_coerce_string_fallback(self):
+        r = build_runtime_config({"runtime": {"article_max_concurrency": "eight"}})
+        self.assertEqual(r["ARTICLE_MAX_CONCURRENCY"], DEFAULTS["runtime"]["article_max_concurrency"])
+
+    def test_valid_range_config(self):
+        for val in (1, 25, 50):
+            cfg = {"runtime": {"article_max_concurrency": val}}
+            passed, _ = validate_config(cfg)
+            # Types and ranges for this key alone — may fail other required keys
+            issues = check_types(cfg) + check_ranges(cfg)
+            self.assertFalse(any("article_max_concurrency" in i for i in issues),
+                             f"Value {val} should pass validation")
+
+    def test_below_range_config(self):
+        cfg = {"runtime": {"article_max_concurrency": 0}}
+        issues = check_ranges(cfg)
+        self.assertTrue(any("article_max_concurrency" in i for i in issues))
+
+    def test_above_range_config(self):
+        cfg = {"runtime": {"article_max_concurrency": 51}}
+        issues = check_ranges(cfg)
+        self.assertTrue(any("article_max_concurrency" in i for i in issues))
+
+    def test_non_integer_config(self):
+        cfg = {"runtime": {"article_max_concurrency": "four"}}
+        issues = check_types(cfg)
+        self.assertTrue(any("article_max_concurrency" in i for i in issues))

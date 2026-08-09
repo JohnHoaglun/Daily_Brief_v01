@@ -205,6 +205,9 @@ def check_types(config: dict):
     mlv = _get(runtime, "max_log_versions")
     if mlv is not None and not _is_int(mlv):
         issues.append("'runtime.max_log_versions' must be an integer")
+    amc = _get(runtime, "article_max_concurrency")
+    if amc is not None and not _is_int(amc):
+        issues.append("'runtime.article_max_concurrency' must be an integer")
     pfc = _get(runtime, "preflight_checks_enabled")
     if pfc is not None and not _is_bool(pfc):
         issues.append("'runtime.preflight_checks_enabled' must be a boolean")
@@ -323,6 +326,9 @@ def check_ranges(config: dict):
     mlv = _get(runtime, "max_log_versions")
     if require_int("runtime.max_log_versions", mlv) and mlv < 1:
         issues.append(f"'runtime.max_log_versions' must be >= 1: {mlv}")
+    amc = _get(runtime, "article_max_concurrency")
+    if require_int("runtime.article_max_concurrency", amc) and (amc < 1 or amc > 50):
+        issues.append(f"'runtime.article_max_concurrency' must be in [1, 50]: {amc}")
 
     # tagging_config ranges
     tc = _get(config, "tagging_config", {})

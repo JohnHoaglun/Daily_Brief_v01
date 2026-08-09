@@ -293,3 +293,91 @@ class TestWriteReport(TestCase):
             with open(fp, "r", encoding="utf-8") as f:
                 content = f.read()
             assert content == "header\n\nbody\nfooter\n"
+
+    def test_write_report_uses_temp_file_and_rename(self):
+        """Atomic write: temp file opened before final path via os.replace."""
+        import builtins
+        opened_paths = []
+        original_open = builtins.open
+
+        def tracking_open(path, *args, **kwargs):
+            opened_paths.append(path)
+            return original_open(path, *args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as td:
+            fp = os.path.join(td, "test.md")
+            with mock.patch("builtins.open", side_effect=tracking_open):
+                write_report(fp, ["line1", "line2"])
+        tmp_path = fp + ".tmp"
+        assert tmp_path in opened_paths
+        tmp_idx = opened_paths.index(tmp_path)
+        assert tmp_idx < len(opened_paths) - 1
+
+    def test_write_report_failure_preserves_previous(self):
+        """On write failure, the original file remains intact."""
+        with tempfile.TemporaryDirectory() as td:
+            fp = os.path.join(td, "test.md")
+            old_content = "original content\n"
+            with open(fp, "w", encoding="utf-8") as f:
+                f.write(old_content)
+
+            call_count = [0]
+            original_open = __builtins__["open"] if isinstance(__builtins__, dict) else __builtins__.open
+
+            def failing_open(path, *args, **kwargs):
+                call_count[0] += 1
+                if call_count[0] == 1:
+                    raise IOError("simulated write failure")
+                return original_open(path, *args, **kwargs)
+
+            try:
+                with mock.patch("builtins.open", side_effect=failing_open):
+                    write_report(fp, ["new", "content"])
+            except IOError:
+                pass
+
+            assert os.path.exists(fp)
+            with open(fp, "r", encoding="utf-8") as f:
+                assert f.read() == old_content
+
+    def test_write_report_cleanup_temp_on_failure(self):
+        """On write failure, no .tmp artifact remains."""
+        with tempfile.TemporaryDirectory() as td:
+            fp = os.path.join(td, "test.md")
+            tmp_path = fp + ".tmp"
+
+            call_count = [0]
+            original_open = __builtins__["open"] if isinstance(__builtins__, dict) else __builtins__.open
+
+            def failing_open(path, *args, **kwargs):
+                call_count[0] += 1
+                if call_count[0] == 1:
+                    raise IOError("simulated write failure")
+                return original_open(path, *args, **kwargs)
+
+            try:
+                with mock.patch("builtins.open", side_effect=failing_open):
+                    write_report(fp, ["new", "content"])
+            except IOError:
+                pass
+
+            assert not os.path.exists(tmp_path)
+
+    def test_write_report_same_dir_temp(self):
+        """The temp file path is in the same directory as the target."""
+        import builtins
+        opened_paths = []
+        original_open = builtins.open
+
+        def tracking_open(path, *args, **kwargs):
+            opened_paths.append(path)
+            return original_open(path, *args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as td:
+            fp = os.path.join(td, "sub", "test.md")
+            os.makedirs(os.path.join(td, "sub"), exist_ok=True)
+            with mock.patch("builtins.open", side_effect=tracking_open):
+                write_report(fp, ["line1"])
+        tmp_path = os.path.join(td, "sub", "test.md.tmp")
+        assert tmp_path in opened_paths
+        assert os.path.dirname(tmp_path) == os.path.dirname(fp)

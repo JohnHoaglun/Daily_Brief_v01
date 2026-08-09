@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Corpus capture module for Daily Brief v1.0.126.
+Corpus capture module for Daily Brief v1.0.127.
 
 Runs the pipeline through Phases 1-3A (config validation, RSS fetch/dedup,
 article extraction), then captures story metadata and the exact

@@ -184,13 +184,32 @@ def build_markdown(stories, weather, sections_map, ordered_cats, config_kwargs):
 
 
 def write_report(filepath, md):
-    """Write md string list to file.
+    """Write md string list to file atomically.
+
+    Writes to a temp file in the same directory, then atomically replaces
+    the final path. On failure the original file is left intact and the
+    temp file is cleaned up.
 
     Args:
         filepath: output file path
         md: list of md strings
     """
-    with open(filepath, "w", encoding="utf-8") as fh:
-        fh.write("\n".join(md) + "\n")
-
-    logger.info(f"File written to {filepath}")
+    tmp_path = filepath + ".tmp"
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(md) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+        with open(tmp_path, "r", encoding="utf-8") as fh:
+            written = fh.read()
+        expected = "\n".join(md) + "\n"
+        if written != expected:
+            raise IOError(f"Verification failed: written content does not match expected for {filepath}")
+        os.replace(tmp_path, filepath)
+        logger.info(f"File written to {filepath}")
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise

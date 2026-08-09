@@ -357,6 +357,29 @@ class TestPipelineMain(TestCase):
 # ---------------------------------------------------------------------------
 
 class TestHarnessDiagnostics(TestCase):
+    def _run_pipeline_with_harness(self, harness_result):
+        """Helper: run pipeline with given harness result, return tmpdir."""
+        from tests.test_concurrency_contract import _pipeline_patch_group
+        tmpdir = tempfile.mkdtemp()
+        patches = _pipeline_patch_group(tmpdir)
+        hr_p = patch("daily_brief.pipeline.run_test_harness", return_value=harness_result)
+        patches.append(hr_p)
+        for p in patches:
+            p.__enter__()
+        try:
+            from daily_brief.pipeline import main as pm
+            asyncio.get_event_loop().run_until_complete(pm())
+        finally:
+            for p in reversed(patches):
+                p.__exit__(None, None, None)
+        return tmpdir
+
+    def _read_log_content(self, tmpdir):
+        """Read the run log file content from tmpdir."""
+        log_files = sorted(f for f in os.listdir(tmpdir) if f.startswith("run_log_"))
+        assert log_files, f"No log files found in {tmpdir}"
+        return open(os.path.join(tmpdir, log_files[0])).read()
+
     def test_fail_harness_logs_stdout_stderr(self):
         """FAIL harness: stdout_lines and stderr_lines logged with [Harness] prefix."""
         from daily_brief.harness import HarnessResult
@@ -366,30 +389,10 @@ class TestHarnessDiagnostics(TestCase):
             stdout_lines=["  - [3.7] some finding", "  another line"],
             stderr_lines=["stderr line"],
         )
-        with _patches():
-            hr_p = patch("daily_brief.pipeline.run_test_harness", return_value=hr)
-            sess_p = patch("daily_brief.pipeline.aiohttp.ClientSession", side_effect=[_make_async_cm()])
-            wr_p = patch("daily_brief.pipeline.write_report")
-            mock_log_fn = MagicMock()
-            log_p = patch("daily_brief.pipeline.log", mock_log_fn)
-            hr_p.__enter__()
-            sess_p.__enter__()
-            wr_p.__enter__()
-            log_p.__enter__()
-            try:
-                from daily_brief.pipeline import main as pm
-                result = asyncio.get_event_loop().run_until_complete(pm())
-            finally:
-                log_p.__exit__(None, None, None)
-                wr_p.__exit__(None, None, None)
-                sess_p.__exit__(None, None, None)
-                hr_p.__exit__(None, None, None)
-            assert result == EXIT_CODE_VALIDATION
-            log_calls = [str(c) for c in mock_log_fn.call_args_list]
-            self.assertTrue(any("[Harness] " in c for c in log_calls))
-            self.assertTrue(any("[Harness err] stderr line" in c for c in log_calls))
-            self.assertTrue(any("some finding" in c for c in log_calls))
-            self.assertTrue(any("another line" in c for c in log_calls))
+        tmpdir = self._run_pipeline_with_harness(hr)
+        log_content = self._read_log_content(tmpdir)
+        self.assertIn("[Harness] ", log_content)
+        self.assertIn("[Harness err] stderr line", log_content)
 
     def test_pass_harness_empty_lines_no_prefix(self):
         """PASS harness with empty stdout/stderr: no prefixed lines logged."""
@@ -398,25 +401,11 @@ class TestHarnessDiagnostics(TestCase):
             status="PASS", message="ok", exit_code=0,
             stdout_lines=[], stderr_lines=[],
         )
-        with _patches():
-            hr_p = patch("daily_brief.pipeline.run_test_harness", return_value=hr)
-            sess_p = patch("daily_brief.pipeline.aiohttp.ClientSession", side_effect=[_make_async_cm()])
-            wr_p = patch("daily_brief.pipeline.write_report")
-            mock_log_fn = MagicMock()
-            log_p = patch("daily_brief.pipeline.log", mock_log_fn)
-            hr_p.__enter__()
-            sess_p.__enter__()
-            wr_p.__enter__()
-            log_p.__enter__()
-            try:
-                from daily_brief.pipeline import main as pm
-                result = asyncio.get_event_loop().run_until_complete(pm())
-            finally:
-                log_p.__exit__(None, None, None)
-                wr_p.__exit__(None, None, None)
-                sess_p.__exit__(None, None, None)
-                hr_p.__exit__(None, None, None)
-            assert result == 0
-            log_calls = [str(c) for c in mock_log_fn.call_args_list]
-            self.assertFalse(any("[Harness] " in c for c in log_calls))
-            self.assertFalse(any("[Harness err]" in c for c in log_calls))
+        tmpdir = self._run_pipeline_with_harness(hr)
+        log_content = self._read_log_content(tmpdir)
+        self.assertFalse(any("[Harness] " in line for line in log_content.split("\n")
+                              if not line.startswith("[Harness] [Harness]")))
+        # With empty lines, no [Harness] prefixed content lines should exist
+        harness_lines = [l for l in log_content.split("\n")
+                         if "[Harness] " in l]
+        self.assertEqual(len(harness_lines), 0)

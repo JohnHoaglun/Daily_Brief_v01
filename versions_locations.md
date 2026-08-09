@@ -2,7 +2,7 @@
 
 ## Canonical Version
 
-**Current release: `v1.0.126`**
+**Current release: `v1.0.127`**
 
 ## Required Release Process
 
@@ -38,4 +38,5 @@ not be rewritten during later version bumps.
 | `daily_brief/sources/climate.py` | Module docstring | `vX.Y.Z` |
 | `daily_brief/sources/weather.py` | Module docstring | `vX.Y.Z` |
 | `daily_brief/sources/wunderground.py` | Module docstring | `vX.Y.Z` |
+| `daily_brief/lifecycle.py` | Module docstring | `vX.Y.Z` |
 | `versions_locations.md` | Canonical Version | `vX.Y.Z` |

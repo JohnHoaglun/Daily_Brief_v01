@@ -1,7 +1,7 @@
-# TODO: Daily Brief v01 - v1.0.128 (Weather Label + No-Fallback Fix) ✅ COMPLETE
+# TODO: Daily Brief v01 - v1.0.130 (Version Bump + Stale Reference Fix) ✅ COMPLETE
 
 ## Status
-v1.0.128: Weather provider isolation tests adapted for day-of-week labels + removed forecast fallback. 530/530 tests passing. Committed 2ee5da2, pushed to origin/dev_opencode.
+v1.0.130: All stale v1.0.127 references in README.md, dashboard_pipeline.py, versions_locations.md updated to v1.0.130. 530/530 tests passing.
 
 ## Active Work
 ### Agent A — Atomic report writes ✅

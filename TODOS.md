@@ -1,10 +1,12 @@
-# TODO: Daily Brief v01 - v1.0.142 (Logging Consolidation) ACTIVE
+# TODO: Daily Brief v01 - v1.0.143 (Benchmark Driver) COMPLETE
 
 ## Status
-v1.0.142: Logging consolidation — retired legacy `log()` global, replaced `_log_ctx()` direct file writes with run-scoped `daily_brief` logger. 585/585 passing.
+v1.0.143: Benchmark driver — `daily_brief/benchmark_pipeline_concurrency.py` with configurable concurrency settings, serial/concurrent Phase 1/2 toggle, extraction metrics aggregation, structured JSON output, configuration provenance. 50/50 deterministic tests. 635 total (585 existing + 50 new).
 - [x] `write_report()` uses temp file + `os.replace();` cleanup on failure.
 - [x] Test: interrupted write leaves previous report byte-for-byte intact.
 - [x] Harden connectivity checks: preserve TLS verification, use production-equivalent headers, parse configured URLs safely. `daily_brief/connectivity.py` — Completed v1.0.141.
+- [x] Run-scoped logging consolidation — retired legacy `log()` global. `daily_brief/pipeline.py` — Completed v1.0.142.
+- [x] Benchmark pipeline concurrency driver. `daily_brief/benchmark_pipeline_concurrency.py` — Completed v1.0.143.
 
 ### Agent B — Filesystem-backed run allocator ✅
 - [x] New `daily_brief/lifecycle.py`: `RunAllocator` class with atomic `O_CREAT | O_EXCL` reservation.
@@ -136,7 +138,8 @@ v1.0.142: Logging consolidation — retired legacy `log()` global, replaced `_lo
   - Completed v1.0.125. `_fetch_climate_normal_high(session, lat, lon, reference_date)`. Remaining Wave 2 work: full 30-year averaging endpoint.
 - [x] Harden connectivity checks: preserve TLS verification, use production-equivalent headers, and parse configured URLs safely. Evidence: `daily_brief/connectivity.py:38-40,71-73,123-126`.
   - Completed v1.0.141. Removed `ssl=False` from LLM probe. All probes send `USER_AGENT`. RSS query uses `quote_plus` encoding. Lake URL display uses `urlsplit`. 24 tests (11 new). 585/585 passing.
-- [ ] Benchmark concurrent weather/RSS and bounded extraction against the current 50.41s live baseline before adopting settings.
+- [x] Benchmark concurrent weather/RSS and bounded extraction against the current 50.41s live baseline before adopting settings.
+  - Completed v1.0.143. `daily_brief/benchmark_pipeline_concurrency.py` — dedicated benchmark driver with configurable concurrency, serial/concurrent Phase 1/2 toggle, structured JSON output, configuration provenance. 50 deterministic tests.
 
 ## Priority 2 - Output Lifecycle And Shared State
 - [x] Make report/log version allocation atomic for overlapping runs and write reports via temporary file plus `os.replace`.

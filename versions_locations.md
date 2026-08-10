@@ -2,7 +2,7 @@
 
 ## Canonical Version
 
-**Current release: `v1.0.142`**
+**Current release: `v1.0.143`**
 
 ## Required Release Process
 
@@ -41,6 +41,7 @@ not be rewritten during later version bumps.
 | `daily_brief/sources/wunderground.py` | Module docstring | `vX.Y.Z` |
 | `daily_brief/lifecycle.py` | Module docstring | `vX.Y.Z` |
 | `daily_brief/pipeline.py` | Module docstring | `vX.Y.Z` |
+| `daily_brief/benchmark_pipeline_concurrency.py` | Module docstring | `vX.Y.Z` |
 | `PLAN.md` | Title and status | `vX.Y.Z` |
 | `SUMMARY.md` | Latest changelog entry | `vX.Y.Z` |
 | `versions_locations.md` | Canonical Version | `vX.Y.Z` |

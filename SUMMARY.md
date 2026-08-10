@@ -4,6 +4,18 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.143 — Pipeline Concurrency Benchmark Driver
+- **Dedicated benchmark driver** (`daily_brief/benchmark_pipeline_concurrency.py`): standalone module that runs full pipeline passes with configurable `article_max_concurrency` settings and serial/concurrent Phase 1/2 dispatch mode. Does not modify production pipeline, log output, or report locations.
+- **Benchmark-only serial/concurrent toggle**: `phase_mode="serial"` or `"concurrent"` allows controlled before/after comparison of Phase 1/2 dispatch. Production always runs concurrent.
+- **Extraction metrics aggregation**: `ExtractionMetrics` dataclass with fetch/parse/bytes distributions (min, max, mean, p50, p95, p99), failure and skipped counts, observed max concurrency. Uses `_stats_from_list()` for distribution summary.
+- **Structured JSON output**: `CellResult` with extraction stats, loop lag percentiles, phase timings, report validation, harness status, process exit code. `BenchmarkRun` with provenance, multiple cells, summary with medians and best concurrency.
+- **Configuration provenance**: `_build_provenance()` captures version, LLM settings, weather config, categories, and timestamp. Each cell result includes full provenance.
+- **Single `asyncio.run()`**: `_run_async_benchmark()` orchestrates all warmups and measured cells in one event loop, avoiding Python 3.9 event loop churn between cells.
+- **CLI subcommand**: `build_benchmark_parser()` with `--concurrency`, `--cells`, `--warmups`, `--phase-mode`, `--output`, `--log-dir`, `--news-dir` flags.
+- **Concurrency tracker**: `_ConcurrencyTracker` with async enter/exit and peak property. Tracks observed max concurrent extraction count.
+- **Tests**: 50 deterministic tests across 13 test classes — stats from list (5), percentile (5), extraction metrics aggregation (3), loop lag metrics (2), phase timings (2), cell result shape (3), benchmark run shape (2), concurrency tracker (3), run benchmark orchestrator (11), provenance (5), story metrics extraction (2), CLI (6), JSON result end-to-end (1). 50/50 passing.
+- **Config validate**: PASS. 635 total tests (585 existing + 50 new).
+
 ### v1.0.142 — Logging Consolidation
 - **Run-scoped logger**: replaced direct `_log_ctx()` file writes with a dedicated per-run `logging.Logger` instance. Each pipeline invocation creates a new logger with file + stderr handlers, configured after `RunAllocator.reserve()` sets the log path. Handlers are closed/removed in `finally` via `_teardown_run_logger()` to prevent cross-run contamination during concurrent invocations.
 - **Retired legacy `log()` global**: the module-level `log()` function and `log_lock` are removed. `_coerce_temperature_f()` now writes extreme-temperature warnings directly to `sys.stderr`.

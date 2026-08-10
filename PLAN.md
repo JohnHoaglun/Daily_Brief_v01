@@ -1,6 +1,6 @@
-# PLAN: v1.0.142 — Priority 2 Hardening (In Progress)
+# PLAN: v1.0.143 — Priority 2 Hardening (Benchmark Driver)
 
-## Status: IN PROGRESS — connectivity hardening, logging consolidation, benchmark driver.
+## Status: COMPLETE — benchmark driver with phase mode toggle, extraction metrics, JSON output, and configuration provenance. 635/635 passing (50 new).
 
 ## Objective
 Priority 2 hardening: connectivity checks, pipeline logging consolidation, and pipeline concurrency benchmark driver. Each slice increments the version by exactly `+0.0.1`.
@@ -47,7 +47,7 @@ Priority 2 hardening: connectivity checks, pipeline logging consolidation, and p
 - `python3 -m pytest` (full suite)
 - `python3 -m daily_brief config validate`
 
-## 3. Benchmark Driver
+## 3. Benchmark Driver — COMPLETE v1.0.143
 ### Changes
 - `daily_brief/benchmark_pipeline_concurrency.py` (new module)
   - Dedicated, non-default benchmark driver
@@ -55,6 +55,7 @@ Priority 2 hardening: connectivity checks, pipeline logging consolidation, and p
   - Aggregates extraction metrics (fetch/parse/bytes distributions, failure/skipped counts, observed max concurrency)
   - Structured JSON results output
   - Configuration provenance capture
+  - Single `asyncio.run()` via `_run_async_benchmark()` for all cells — avoids event loop churn
 
 ### Tests
 - Deterministic tests for benchmark overrides, metric aggregation, phase mode selection, JSON result shape

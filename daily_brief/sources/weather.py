@@ -1,5 +1,5 @@
 """
-Daily Brief v1.0.142 — Weather Source
+Daily Brief v1.0.143 — Weather Source
 =====================================
 NWS forecast fetch, parse, and orchestration of all weather data sources.
 """

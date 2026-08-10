@@ -1,5 +1,5 @@
 """
-Daily Brief v1.0.142 — Pipeline Orchestration
+Daily Brief v1.0.143 — Pipeline Orchestration
 The main() orchestrator — 6 phases: weather, RSS, LLM, render, validate, harness.
 """
 

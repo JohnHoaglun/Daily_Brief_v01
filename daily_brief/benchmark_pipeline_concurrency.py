@@ -26,26 +26,24 @@ Or as a library:
 
 from __future__ import annotations
 
-import asyncio
 import argparse
+import asyncio
 import json
-import math
 import os
-import sys
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from daily_brief.config import (
     ARTICLE_MAX_CONCURRENCY,
     CATEGORIES,
-    CONFIG_YAML,
     DEFAULT_AGE_LIMIT_HOURS,
-    LOG_DIR,
+    FRONTMATTER_TAG_SEEDS,
     LLM_MODEL,
     LLM_SUMMARY_BATCH_SIZE,
     LLM_SUMMARY_MAX_CONCURRENCY,
+    LOG_DIR,
     MAX_LOG_VERSIONS,
     NEWS_DIR,
     OLLAMA_HOST,
@@ -56,20 +54,19 @@ from daily_brief.config import (
     WEATHER_LAT,
     WEATHER_LON,
     WEATHER_SECTION_TITLE,
-    FRONTMATTER_TAG_SEEDS,
 )
-from daily_brief.lifecycle import RunAllocator, RunReservation
-from daily_brief.config_validator import validate_config
+from daily_brief.lifecycle import RunAllocator
 from daily_brief.tagging import precompile_tagging
-
 
 # ---------------------------------------------------------------------------
 # Data structures
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ExtractionMetrics:
     """Aggregated extraction metrics for one benchmark cell."""
+
     total_stories: int = 0
     extracted_count: int = 0
     failed_count: int = 0
@@ -93,6 +90,7 @@ class ExtractionMetrics:
 @dataclass
 class LoopLagMetrics:
     """Event-loop lag percentiles for one benchmark cell."""
+
     samples: int = 0
     p50_ms: float = 0.0
     p95_ms: float = 0.0
@@ -116,6 +114,7 @@ class LoopLagMetrics:
 @dataclass
 class PhaseTimings:
     """Phase timings for one benchmark cell."""
+
     phase1_s: float = 0.0
     phase2_s: float = 0.0
     phase3a_s: float = 0.0
@@ -132,6 +131,7 @@ class PhaseTimings:
 @dataclass
 class CellResult:
     """Result of a single benchmark cell (one concurrency setting + one run)."""
+
     concurrency: int = 0
     phase_mode: str = "concurrent"
     story_count: int = 0
@@ -169,6 +169,7 @@ class CellResult:
 @dataclass
 class BenchmarkRun:
     """Complete benchmark run with provenance and multiple cells."""
+
     started_at: str = ""
     completed_at: str = ""
     duration_s: float = 0.0
@@ -191,10 +192,19 @@ class BenchmarkRun:
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _stats_from_list(values: list[float]) -> Dict[str, float]:
     """Compute min, max, mean, p50, p95, p99, count for a list of numbers."""
     if not values:
-        return {"min": 0.0, "max": 0.0, "mean": 0.0, "p50": 0.0, "p95": 0.0, "p99": 0.0, "count": 0}
+        return {
+            "min": 0.0,
+            "max": 0.0,
+            "mean": 0.0,
+            "p50": 0.0,
+            "p95": 0.0,
+            "p99": 0.0,
+            "count": 0,
+        }
     s = sorted(values)
     n = len(s)
     return {
@@ -243,6 +253,7 @@ def _build_provenance() -> Dict[str, Any]:
 # Concurrency tracking instrument
 # ---------------------------------------------------------------------------
 
+
 class _ConcurrencyTracker:
     """Track observed max concurrency during a bounded extraction run."""
 
@@ -269,9 +280,12 @@ class _ConcurrencyTracker:
 # Benchmark pipeline runner (mirrors pipeline.main with instrumentation)
 # ---------------------------------------------------------------------------
 
+
 class _LatencyTracker:
     """Lightweight timing tracker exposed on each extracted story."""
-    __slots__ = ("fetch", "parse", "bytes")
+
+    __slots__ = ("bytes", "fetch", "parse")
+
     def __init__(self):
         self.fetch: Optional[float] = None
         self.parse: Optional[float] = None
@@ -305,7 +319,8 @@ async def _run_async_benchmark(
         for _ in range(warmups):
             try:
                 await _run_benchmark_cell(
-                    conc, phase_mode,
+                    conc,
+                    phase_mode,
                     benchmark_log_dir=benchmark_log_dir,
                     benchmark_news_dir=benchmark_news_dir,
                 )
@@ -314,7 +329,8 @@ async def _run_async_benchmark(
         for cell_idx in range(cells):
             try:
                 cell_result = await _run_benchmark_cell(
-                    conc, phase_mode,
+                    conc,
+                    phase_mode,
                     benchmark_log_dir=benchmark_log_dir,
                     benchmark_news_dir=benchmark_news_dir,
                 )
@@ -322,12 +338,14 @@ async def _run_async_benchmark(
                 cell_dict["cell_index"] = cell_idx
                 all_cells.append(cell_dict)
             except Exception as e:
-                all_cells.append({
-                    "concurrency": conc,
-                    "phase_mode": phase_mode,
-                    "cell_index": cell_idx,
-                    "error": str(e),
-                })
+                all_cells.append(
+                    {
+                        "concurrency": conc,
+                        "phase_mode": phase_mode,
+                        "cell_index": cell_idx,
+                        "error": str(e),
+                    }
+                )
     return all_cells
 
 
@@ -343,29 +361,33 @@ async def _run_benchmark_cell(
     (which manages its own RunContext). Instead it replicates the pipeline
     phases with instrumentation hooks.
     """
-    from daily_brief.sources.weather import fetch_weather
-    from daily_brief.pipelines.rss_dedup import fetch_and_dedup
-    from daily_brief.sources.article import stage_extract_article
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+
+    import aiohttp
+
+    from daily_brief.categorization import ordered_categories_for_render
+    from daily_brief.harness import run_test_harness
     from daily_brief.llm import create_llm_client
     from daily_brief.llm.summarizer import (
-        batch_summarize_all as llm_batch_summarize_all,
         StoryPipelineState,
     )
-    from daily_brief.categorization import ordered_categories_for_render
+    from daily_brief.llm.summarizer import (
+        batch_summarize_all as llm_batch_summarize_all,
+    )
+    from daily_brief.pipeline import _normalize_weather_for_rendering
+    from daily_brief.pipelines.rss_dedup import fetch_and_dedup
+    from daily_brief.rendering import cleanup_old_files
     from daily_brief.rendering.report import (
-        build_sections_from_stories,
         build_markdown,
+        build_sections_from_stories,
         compute_output_path,
         write_report,
     )
-    from daily_brief.rendering import cleanup_old_files
-    from daily_brief.validation import validate_report
-    from daily_brief.harness import run_test_harness
+    from daily_brief.sources.article import stage_extract_article
     from daily_brief.sources.rss import format_pub_date
-    from daily_brief.pipeline import _normalize_weather_for_rendering
-    import aiohttp
-    from zoneinfo import ZoneInfo
-    from datetime import timedelta
+    from daily_brief.sources.weather import fetch_weather
+    from daily_brief.validation import validate_report
 
     result = CellResult(
         concurrency=article_max_concurrency,
@@ -387,13 +409,16 @@ async def _run_benchmark_cell(
         active_tz = ZoneInfo(TIMEZONE)
     except Exception:
         from datetime import timezone as dt_tz
+
         active_tz = dt_tz.utc
 
     now_ct = datetime.now(active_tz)
     cutoff = now_ct - timedelta(hours=DEFAULT_AGE_LIMIT_HOURS)
 
     # Run reservation
-    today_str = datetime.now(dt_tz.timezone.utc if 'dt_tz' in dir() else __import__('datetime').timezone.utc).strftime("%Y-%m-%d")
+    today_str = datetime.now(
+        dt_tz.timezone.utc if "dt_tz" in dir() else __import__("datetime").timezone.utc
+    ).strftime("%Y-%m-%d")
     allocator = RunAllocator(b_log_dir, b_news_dir, today_str)
     reservation = allocator.reserve()
 
@@ -411,7 +436,6 @@ async def _run_benchmark_cell(
             headers={"User-Agent": USER_AGENT},
             timeout=aiohttp.ClientTimeout(total=30),
         ) as session:
-
             # --- Phase 1 + Phase 2 (weather + RSS) ---
             weather_data = None
             deduped: list = []
@@ -428,7 +452,9 @@ async def _run_benchmark_cell(
 
                 t2 = time.monotonic()
                 try:
-                    deduped, dedup_stats = await fetch_and_dedup(session, CATEGORIES, lambda *a, **k: None)
+                    deduped, dedup_stats = await fetch_and_dedup(
+                        session, CATEGORIES, lambda *a, **k: None
+                    )
                 except Exception:
                     deduped = []
                     dedup_stats = {"total_after": 0}
@@ -471,8 +497,11 @@ async def _run_benchmark_cell(
             stories: list = []
             for title, link, snippet, pub_dt, cat in deduped:
                 s = StoryPipelineState(
-                    title=title, link=link, snippet=snippet,
-                    pub_dt=pub_dt, category=cat,
+                    title=title,
+                    link=link,
+                    snippet=snippet,
+                    pub_dt=pub_dt,
+                    category=cat,
                 )
                 stories.append(s)
             total = len(stories)
@@ -546,7 +575,8 @@ async def _run_benchmark_cell(
             t3b = time.monotonic()
             try:
                 summary_metrics = await llm_batch_summarize_all(
-                    llm_client, stories,
+                    llm_client,
+                    stories,
                     batch_size=LLM_SUMMARY_BATCH_SIZE,
                     max_concurrency=LLM_SUMMARY_MAX_CONCURRENCY,
                 )
@@ -562,15 +592,24 @@ async def _run_benchmark_cell(
             filepath, file_ver = compute_output_path(report_dir, file_ver=reservation.log_ver)
             ordered_cats = ordered_categories_for_render([c[0] for c in CATEGORIES if c[1]])
             sections_map = {cn: sections.get(cn, []) for cn in ordered_cats}
-            rendered_cat_count = sum(1 for cn in ordered_cats
-                if cn != WEATHER_SECTION_TITLE and cn != "Weather Forecast 77316")
-            md = build_markdown(stories, safe_weather, sections_map, ordered_cats, {
-                "total_after_dedup": dedup_stats.get("total_after", 0),
-                "rendered_cat_count": rendered_cat_count,
-                "DEFAULT_CONTENT_AGE_WINDOW_HOURS": DEFAULT_AGE_LIMIT_HOURS,
-                "FRONTMATTER_TAG_SEEDS": FRONTMATTER_TAG_SEEDS,
-                "WEATHER_SECTION_TITLE": WEATHER_SECTION_TITLE,
-            })
+            rendered_cat_count = sum(
+                1
+                for cn in ordered_cats
+                if cn != WEATHER_SECTION_TITLE and cn != "Weather Forecast 77316"
+            )
+            md = build_markdown(
+                stories,
+                safe_weather,
+                sections_map,
+                ordered_cats,
+                {
+                    "total_after_dedup": dedup_stats.get("total_after", 0),
+                    "rendered_cat_count": rendered_cat_count,
+                    "DEFAULT_CONTENT_AGE_WINDOW_HOURS": DEFAULT_AGE_LIMIT_HOURS,
+                    "FRONTMATTER_TAG_SEEDS": FRONTMATTER_TAG_SEEDS,
+                    "WEATHER_SECTION_TITLE": WEATHER_SECTION_TITLE,
+                },
+            )
             write_report(filepath, md)
             cleanup_old_files(report_dir, b_log_dir, MAX_LOG_VERSIONS)
             timings["phase4"] = time.monotonic() - t4
@@ -626,6 +665,7 @@ async def _run_benchmark_cell(
 # Benchmark orchestrator
 # ---------------------------------------------------------------------------
 
+
 def run_benchmark(
     concurrencies: List[int] | None = None,
     cells: int = 3,
@@ -661,11 +701,16 @@ def run_benchmark(
     )
 
     bench_start = time.monotonic()
-    all_cells = asyncio.run(_run_async_benchmark(
-        concurrencies, cells, warmups, phase_mode,
-        benchmark_log_dir=benchmark_log_dir,
-        benchmark_news_dir=benchmark_news_dir,
-    ))
+    all_cells = asyncio.run(
+        _run_async_benchmark(
+            concurrencies,
+            cells,
+            warmups,
+            phase_mode,
+            benchmark_log_dir=benchmark_log_dir,
+            benchmark_news_dir=benchmark_news_dir,
+        )
+    )
 
     run.cells = all_cells
     run.completed_at = datetime.now(timezone.utc).isoformat()
@@ -683,10 +728,7 @@ def run_benchmark(
             "total_cells": len(all_cells),
             "concurrencies_tested": sorted(by_conc.keys()),
             "best_median_concurrency": best_conc,
-            "medians": {
-                str(k): round(sorted(v)[len(v) // 2], 3)
-                for k, v in by_conc.items()
-            },
+            "medians": {str(k): round(sorted(v)[len(v) // 2], 3) for k, v in by_conc.items()},
         }
 
     if output_file:
@@ -701,38 +743,57 @@ def run_benchmark(
 # CLI subcommand
 # ---------------------------------------------------------------------------
 
+
 def build_benchmark_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="daily_brief benchmark",
         description="Pipeline concurrency benchmark",
     )
     parser.add_argument(
-        "--concurrency", "-c",
-        nargs="+", type=int, default=[1, 2, 4],
+        "--concurrency",
+        "-c",
+        nargs="+",
+        type=int,
+        default=[1, 2, 4],
         help="Article concurrency values to test (default: 1 2 4)",
     )
     parser.add_argument(
-        "--cells", "-n", type=int, default=1,
+        "--cells",
+        "-n",
+        type=int,
+        default=1,
         help="Number of measured runs per setting (default: 1)",
     )
     parser.add_argument(
-        "--warmups", "-w", type=int, default=1,
+        "--warmups",
+        "-w",
+        type=int,
+        default=1,
         help="Warmup runs per setting (default: 1)",
     )
     parser.add_argument(
-        "--phase-mode", choices=["concurrent", "serial"], default="concurrent",
+        "--phase-mode",
+        choices=["concurrent", "serial"],
+        default="concurrent",
         help="Phase 1/2 dispatch mode (default: concurrent)",
     )
     parser.add_argument(
-        "--output", "-o", type=str, default=None,
+        "--output",
+        "-o",
+        type=str,
+        default=None,
         help="JSON output file path",
     )
     parser.add_argument(
-        "--log-dir", type=str, default=None,
+        "--log-dir",
+        type=str,
+        default=None,
         help="Override benchmark log directory",
     )
     parser.add_argument(
-        "--news-dir", type=str, default=None,
+        "--news-dir",
+        type=str,
+        default=None,
         help="Override benchmark news directory",
     )
     return parser

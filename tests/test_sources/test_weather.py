@@ -2,19 +2,18 @@
 Consolidated unit tests for daily_brief/sources/weather.py.
 NWS forecast parsing, date extraction, label generation, fetch orchestration.
 """
+
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from unittest import TestCase, mock
 from unittest.mock import AsyncMock
 from zoneinfo import ZoneInfo
 
-import aiohttp
-
 from daily_brief.sources.weather import (
     _parse_date_for_weather,
-    get_weather_label_for_offset,
-    get_reference_datetime,
     fetch_weather,
+    get_reference_datetime,
+    get_weather_label_for_offset,
 )
 
 CHICTZ = ZoneInfo("America/Chicago")
@@ -25,32 +24,84 @@ def _make_forecast(today, tomorrow):
     return {
         "properties": {
             "periods": [
-                {"number": 1, "name": "Saturday", "startTime": (today + timedelta(hours=6)).isoformat(),
-                 "endTime": (today + timedelta(hours=18)).isoformat(), "isDaytime": True, "temperature": 92,
-                 "temperatureUnit": "F", "shortForecast": "Sunny and Hot", "windSpeed": "10 mph",
-                 "windDirection": "S", "probabilityOfPrecipitation": {"value": 10}},
-                {"number": 2, "name": "Saturday Night", "startTime": (today + timedelta(hours=18)).isoformat(),
-                 "endTime": (tomorrow + timedelta(hours=6)).isoformat(), "isDaytime": False, "temperature": 78,
-                 "temperatureUnit": "F", "shortForecast": "Mostly Clear", "windSpeed": "5 mph",
-                 "windDirection": "SE", "probabilityOfPrecipitation": {"value": 5}},
-                {"number": 3, "name": "Sunday", "startTime": (tomorrow + timedelta(hours=6)).isoformat(),
-                 "endTime": (tomorrow + timedelta(hours=18)).isoformat(), "isDaytime": True, "temperature": 90,
-                 "temperatureUnit": "F", "shortForecast": "Partly Sunny", "windSpeed": "8 mph",
-                 "windDirection": "S", "probabilityOfPrecipitation": {"value": 30}},
-                {"number": 4, "name": "Sunday Night", "startTime": (tomorrow + timedelta(hours=18)).isoformat(),
-                 "endTime": (tomorrow + timedelta(days=1, hours=6)).isoformat(), "isDaytime": False, "temperature": 76,
-                 "temperatureUnit": "F", "shortForecast": "Partly Cloudy", "windSpeed": "6 mph",
-                 "windDirection": "S", "probabilityOfPrecipitation": {"value": 25}},
-                {"number": 5, "name": "Monday",
-                 "startTime": (tomorrow + timedelta(days=1, hours=6)).isoformat(),
-                 "endTime": (tomorrow + timedelta(days=1, hours=18)).isoformat(), "isDaytime": True, "temperature": 95,
-                 "temperatureUnit": "F", "shortForecast": "Hot", "windSpeed": "12 mph",
-                 "windDirection": "SW", "probabilityOfPrecipitation": {"value": 0}},
-                {"number": 6, "name": "Monday Night",
-                 "startTime": (tomorrow + timedelta(days=1, hours=18)).isoformat(),
-                 "endTime": (tomorrow + timedelta(days=2, hours=6)).isoformat(), "isDaytime": False, "temperature": 80,
-                 "temperatureUnit": "F", "shortForecast": "Clear", "windSpeed": "7 mph",
-                 "windDirection": "W", "probabilityOfPrecipitation": {"value": 0}},
+                {
+                    "number": 1,
+                    "name": "Saturday",
+                    "startTime": (today + timedelta(hours=6)).isoformat(),
+                    "endTime": (today + timedelta(hours=18)).isoformat(),
+                    "isDaytime": True,
+                    "temperature": 92,
+                    "temperatureUnit": "F",
+                    "shortForecast": "Sunny and Hot",
+                    "windSpeed": "10 mph",
+                    "windDirection": "S",
+                    "probabilityOfPrecipitation": {"value": 10},
+                },
+                {
+                    "number": 2,
+                    "name": "Saturday Night",
+                    "startTime": (today + timedelta(hours=18)).isoformat(),
+                    "endTime": (tomorrow + timedelta(hours=6)).isoformat(),
+                    "isDaytime": False,
+                    "temperature": 78,
+                    "temperatureUnit": "F",
+                    "shortForecast": "Mostly Clear",
+                    "windSpeed": "5 mph",
+                    "windDirection": "SE",
+                    "probabilityOfPrecipitation": {"value": 5},
+                },
+                {
+                    "number": 3,
+                    "name": "Sunday",
+                    "startTime": (tomorrow + timedelta(hours=6)).isoformat(),
+                    "endTime": (tomorrow + timedelta(hours=18)).isoformat(),
+                    "isDaytime": True,
+                    "temperature": 90,
+                    "temperatureUnit": "F",
+                    "shortForecast": "Partly Sunny",
+                    "windSpeed": "8 mph",
+                    "windDirection": "S",
+                    "probabilityOfPrecipitation": {"value": 30},
+                },
+                {
+                    "number": 4,
+                    "name": "Sunday Night",
+                    "startTime": (tomorrow + timedelta(hours=18)).isoformat(),
+                    "endTime": (tomorrow + timedelta(days=1, hours=6)).isoformat(),
+                    "isDaytime": False,
+                    "temperature": 76,
+                    "temperatureUnit": "F",
+                    "shortForecast": "Partly Cloudy",
+                    "windSpeed": "6 mph",
+                    "windDirection": "S",
+                    "probabilityOfPrecipitation": {"value": 25},
+                },
+                {
+                    "number": 5,
+                    "name": "Monday",
+                    "startTime": (tomorrow + timedelta(days=1, hours=6)).isoformat(),
+                    "endTime": (tomorrow + timedelta(days=1, hours=18)).isoformat(),
+                    "isDaytime": True,
+                    "temperature": 95,
+                    "temperatureUnit": "F",
+                    "shortForecast": "Hot",
+                    "windSpeed": "12 mph",
+                    "windDirection": "SW",
+                    "probabilityOfPrecipitation": {"value": 0},
+                },
+                {
+                    "number": 6,
+                    "name": "Monday Night",
+                    "startTime": (tomorrow + timedelta(days=1, hours=18)).isoformat(),
+                    "endTime": (tomorrow + timedelta(days=2, hours=6)).isoformat(),
+                    "isDaytime": False,
+                    "temperature": 80,
+                    "temperatureUnit": "F",
+                    "shortForecast": "Clear",
+                    "windSpeed": "7 mph",
+                    "windDirection": "W",
+                    "probabilityOfPrecipitation": {"value": 0},
+                },
             ]
         }
     }
@@ -59,6 +110,7 @@ def _make_forecast(today, tomorrow):
 # ---------------------------------------------------------------------------
 # 1. _parse_date_for_weather
 # ---------------------------------------------------------------------------
+
 
 class TestParseDateForWeather(TestCase):
     """NWS forecast date string parsing — representative cases."""
@@ -90,6 +142,7 @@ class TestParseDateForWeather(TestCase):
 # 2. get_weather_label_for_offset
 # ---------------------------------------------------------------------------
 
+
 class TestGetWeatherLabelForOffset(TestCase):
     """Weather label generation for forecast offsets."""
 
@@ -109,6 +162,7 @@ class TestGetWeatherLabelForOffset(TestCase):
 # ---------------------------------------------------------------------------
 # 3. get_reference_datetime
 # ---------------------------------------------------------------------------
+
 
 class TestGetReferenceDatetime(TestCase):
     """Reference datetime with optional override."""
@@ -133,6 +187,7 @@ class TestGetReferenceDatetime(TestCase):
 # 4. fetch_weather — consolidated happy path
 # ---------------------------------------------------------------------------
 
+
 class TestFetchWeatherHappyPath(TestCase):
     """fetch_weather successful NWS forecast parsing — all row assertions in one test."""
 
@@ -142,13 +197,24 @@ class TestFetchWeatherHappyPath(TestCase):
         self.forecast_url = "https://api.weather.gov/grid/.../forecast"
 
     async def _run(self, point_resp, forecast_resp):
-        with mock.patch("daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=[point_resp, forecast_resp])):
-            with mock.patch("daily_brief.sources.weather.get_reference_datetime", return_value=self.today):
-                with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new=AsyncMock(return_value=91)):
-                    with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall",
-                                    new=AsyncMock(return_value={"avg_monthly_rainfall": 3.2, "current_monthly_rainfall": 2.1})):
-                        with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
-                            return await fetch_weather(None, 30.286, -95.566)
+        with mock.patch(
+            "daily_brief.sources.weather._fetch_json",
+            new=AsyncMock(side_effect=[point_resp, forecast_resp]),
+        ), mock.patch(
+            "daily_brief.sources.weather.get_reference_datetime", return_value=self.today
+        ), mock.patch(
+            "daily_brief.sources.weather._fetch_climate_normal_high",
+            new=AsyncMock(return_value=91),
+        ), mock.patch(
+            "daily_brief.sources.weather._fetch_station_monthly_rainfall",
+            new=AsyncMock(
+                return_value={
+                    "avg_monthly_rainfall": 3.2,
+                    "current_monthly_rainfall": 2.1,
+                }
+            ),
+        ), mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
+            return await fetch_weather(None, 30.286, -95.566)
 
     def test_full_happy_path(self):
         point = {"properties": {"forecast": self.forecast_url}}
@@ -187,6 +253,7 @@ class TestFetchWeatherHappyPath(TestCase):
 # 5. fetch_weather — edge cases consolidated
 # ---------------------------------------------------------------------------
 
+
 class TestFetchWeatherEdgeCases(TestCase):
     """fetch_weather error handling and boundary conditions."""
 
@@ -195,21 +262,35 @@ class TestFetchWeatherEdgeCases(TestCase):
         self.forecast_url = "https://api.weather.gov/grid/.../forecast"
 
     async def _run(self, point_resp, forecast_resp):
-        with mock.patch("daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=[point_resp, forecast_resp])):
-            with mock.patch("daily_brief.sources.weather.get_reference_datetime", return_value=self.today):
-                with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new=AsyncMock(return_value=None)):
-                    with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall",
-                                    new=AsyncMock(return_value={"avg_monthly_rainfall": None, "current_monthly_rainfall": None})):
-                        with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
-                            return await fetch_weather(None, 30.286, -95.566)
+        with mock.patch(
+            "daily_brief.sources.weather._fetch_json",
+            new=AsyncMock(side_effect=[point_resp, forecast_resp]),
+        ), mock.patch(
+            "daily_brief.sources.weather.get_reference_datetime", return_value=self.today
+        ), mock.patch(
+            "daily_brief.sources.weather._fetch_climate_normal_high",
+            new=AsyncMock(return_value=None),
+        ), mock.patch(
+            "daily_brief.sources.weather._fetch_station_monthly_rainfall",
+            new=AsyncMock(
+                return_value={
+                    "avg_monthly_rainfall": None,
+                    "current_monthly_rainfall": None,
+                }
+            ),
+        ), mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
+            return await fetch_weather(None, 30.286, -95.566)
 
     def test_missing_point_and_empty_periods(self):
-        result = asyncio.get_event_loop().run_until_complete(self._run({"not_properties": True}, None))
+        result = asyncio.get_event_loop().run_until_complete(
+            self._run({"not_properties": True}, None)
+        )
         self.assertEqual(len(result["forecast"]), 0)
 
         forecast = {"properties": {"periods": []}}
         result2 = asyncio.get_event_loop().run_until_complete(
-            self._run({"properties": {"forecast": self.forecast_url}}, forecast))
+            self._run({"properties": {"forecast": self.forecast_url}}, forecast)
+        )
         self.assertEqual(result2["forecast"][0]["high"], "Dynamic")
 
         # Station unavailable fallback
@@ -221,42 +302,75 @@ class TestFetchWeatherEdgeCases(TestCase):
     def test_http_error_and_exception(self):
         async def none_side(*a, **k):
             return None
-        with mock.patch("daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=none_side)):
-            with mock.patch("daily_brief.sources.weather.get_reference_datetime", return_value=self.today):
-                with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new=AsyncMock(return_value=None)):
-                    with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall",
-                                    new=AsyncMock(return_value={"avg_monthly_rainfall": None, "current_monthly_rainfall": None})):
-                        with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
-                            result = asyncio.get_event_loop().run_until_complete(fetch_weather(None, 30.286, -95.566))
+
+        with mock.patch(
+            "daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=none_side)
+        ), mock.patch(
+            "daily_brief.sources.weather.get_reference_datetime", return_value=self.today
+        ), mock.patch(
+            "daily_brief.sources.weather._fetch_climate_normal_high",
+            new=AsyncMock(return_value=None),
+        ), mock.patch(
+            "daily_brief.sources.weather._fetch_station_monthly_rainfall",
+            new=AsyncMock(
+                return_value={
+                    "avg_monthly_rainfall": None,
+                    "current_monthly_rainfall": None,
+                }
+            ),
+        ), mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
+            result = asyncio.get_event_loop().run_until_complete(
+                fetch_weather(None, 30.286, -95.566)
+            )
         self.assertEqual(len(result["forecast"]), 0)
 
         async def err_side(*a, **k):
             raise ConnectionError("DNS failure")
-        with mock.patch("daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=err_side)):
-            with mock.patch("daily_brief.sources.weather.get_reference_datetime", return_value=self.today):
-                with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
-                    result2 = asyncio.get_event_loop().run_until_complete(fetch_weather(None, 30.286, -95.566))
+
+        with mock.patch(
+            "daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=err_side)
+        ), mock.patch(
+            "daily_brief.sources.weather.get_reference_datetime", return_value=self.today
+        ), mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
+            result2 = asyncio.get_event_loop().run_until_complete(
+                fetch_weather(None, 30.286, -95.566)
+            )
         self.assertEqual(len(result2["forecast"]), 0)
         self.assertEqual(len(result2["errors"]), 0)
 
     def test_point_url_constructed(self):
         calls = []
+
         async def capture(session, url, **k):
             calls.append(url)
             return {"properties": {"forecast": self.forecast_url}}
-        with mock.patch("daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=capture)):
-            with mock.patch("daily_brief.sources.weather.get_reference_datetime", return_value=self.today):
-                with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new=AsyncMock(return_value=None)):
-                    with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall",
-                                    new=AsyncMock(return_value={"avg_monthly_rainfall": None, "current_monthly_rainfall": None})):
-                        with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
-                            asyncio.get_event_loop().run_until_complete(fetch_weather(None, 30.286, -95.566))
+
+        with mock.patch(
+            "daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=capture)
+        ), mock.patch(
+            "daily_brief.sources.weather.get_reference_datetime", return_value=self.today
+        ), mock.patch(
+            "daily_brief.sources.weather._fetch_climate_normal_high",
+            new=AsyncMock(return_value=None),
+        ), mock.patch(
+            "daily_brief.sources.weather._fetch_station_monthly_rainfall",
+            new=AsyncMock(
+                return_value={
+                    "avg_monthly_rainfall": None,
+                    "current_monthly_rainfall": None,
+                }
+            ),
+        ), mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
+            asyncio.get_event_loop().run_until_complete(
+                fetch_weather(None, 30.286, -95.566)
+            )
         self.assertEqual(len(calls), 2)
         self.assertEqual(calls[0], "https://api.weather.gov/points/30.286,-95.566")
 
     def test_provided_forecast_url_used(self):
         point = {"properties": {"forecast": "https://api.weather.gov/grid/EAX/250,125"}}
         calls = []
+
         async def capture(session, url, **k):
             calls.append(url)
             if not hasattr(capture, "cc"):
@@ -265,13 +379,26 @@ class TestFetchWeatherEdgeCases(TestCase):
             if capture.cc == 1:
                 return point
             return {"properties": {"periods": []}}
-        with mock.patch("daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=capture)):
-            with mock.patch("daily_brief.sources.weather.get_reference_datetime", return_value=self.today):
-                with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new=AsyncMock(return_value=None)):
-                    with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall",
-                                    new=AsyncMock(return_value={"avg_monthly_rainfall": None, "current_monthly_rainfall": None})):
-                        with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
-                            asyncio.get_event_loop().run_until_complete(fetch_weather(None, 30.286, -95.566))
+
+        with mock.patch(
+            "daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=capture)
+        ), mock.patch(
+            "daily_brief.sources.weather.get_reference_datetime", return_value=self.today
+        ), mock.patch(
+            "daily_brief.sources.weather._fetch_climate_normal_high",
+            new=AsyncMock(return_value=None),
+        ), mock.patch(
+            "daily_brief.sources.weather._fetch_station_monthly_rainfall",
+            new=AsyncMock(
+                return_value={
+                    "avg_monthly_rainfall": None,
+                    "current_monthly_rainfall": None,
+                }
+            ),
+        ), mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
+            asyncio.get_event_loop().run_until_complete(
+                fetch_weather(None, 30.286, -95.566)
+            )
         self.assertEqual(len(calls), 2)
         self.assertEqual(calls[1], "https://api.weather.gov/grid/EAX/250,125")
 
@@ -290,13 +417,25 @@ class TestFetchWeatherEdgeCases(TestCase):
                 return point
             return forecast
 
-        with mock.patch("daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=side_effect)):
-            with mock.patch("daily_brief.sources.weather.get_reference_datetime", return_value=forecast_date):
-                with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new=AsyncMock(return_value=None)):
-                    with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall",
-                                    new=AsyncMock(return_value={"avg_monthly_rainfall": None, "current_monthly_rainfall": None})):
-                        with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
-                            result = asyncio.get_event_loop().run_until_complete(fetch_weather(None, 30.286, -95.566))
+        with mock.patch(
+            "daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=side_effect)
+        ), mock.patch(
+            "daily_brief.sources.weather.get_reference_datetime", return_value=forecast_date
+        ), mock.patch(
+            "daily_brief.sources.weather._fetch_climate_normal_high",
+            new=AsyncMock(return_value=None),
+        ), mock.patch(
+            "daily_brief.sources.weather._fetch_station_monthly_rainfall",
+            new=AsyncMock(
+                return_value={
+                    "avg_monthly_rainfall": None,
+                    "current_monthly_rainfall": None,
+                }
+            ),
+        ), mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
+            result = asyncio.get_event_loop().run_until_complete(
+                fetch_weather(None, 30.286, -95.566)
+            )
         self.assertEqual(len(result["forecast"]), 3)
         self.assertTrue(calls[1].rstrip("/").endswith("forecast"))
 
@@ -304,6 +443,7 @@ class TestFetchWeatherEdgeCases(TestCase):
 # ---------------------------------------------------------------------------
 # 6. fetch_weather — period extraction consolidated
 # ---------------------------------------------------------------------------
+
 
 class TestFetchWeatherPeriodExtraction(TestCase):
     """Period-specific parsing: day vs night slotting, malformed period handling."""
@@ -319,20 +459,44 @@ class TestFetchWeatherPeriodExtraction(TestCase):
             side_effect.cc += 1
             return point if side_effect.cc == 1 else forecast
 
-        with mock.patch("daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=side_effect)):
-            with mock.patch("daily_brief.sources.weather.get_reference_datetime", return_value=today):
-                with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", new=AsyncMock(return_value=None)):
-                    with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall",
-                                    new=AsyncMock(return_value={"avg_monthly_rainfall": None, "current_monthly_rainfall": None})):
-                        with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
-                            return await fetch_weather(None, 30.286, -95.566)
+        with mock.patch(
+            "daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=side_effect)
+        ), mock.patch(
+            "daily_brief.sources.weather.get_reference_datetime", return_value=today
+        ), mock.patch(
+            "daily_brief.sources.weather._fetch_climate_normal_high",
+            new=AsyncMock(return_value=None),
+        ), mock.patch(
+            "daily_brief.sources.weather._fetch_station_monthly_rainfall",
+            new=AsyncMock(
+                return_value={
+                    "avg_monthly_rainfall": None,
+                    "current_monthly_rainfall": None,
+                }
+            ),
+        ), mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
+            return await fetch_weather(None, 30.286, -95.566)
 
     def test_day_night_slotting(self):
         periods = [
-            {"number": 1, "isDaytime": True, "startTime": datetime(2026, 7, 18, 6, tzinfo=CHICTZ).isoformat(),
-             "temperature": 95, "temperatureUnit": "F", "shortForecast": "Sunny", "windSpeed": "10 mph"},
-            {"number": 2, "isDaytime": False, "startTime": datetime(2026, 7, 18, 18, tzinfo=CHICTZ).isoformat(),
-             "temperature": 75, "temperatureUnit": "F", "shortForecast": "Clear", "windSpeed": "5 mph"},
+            {
+                "number": 1,
+                "isDaytime": True,
+                "startTime": datetime(2026, 7, 18, 6, tzinfo=CHICTZ).isoformat(),
+                "temperature": 95,
+                "temperatureUnit": "F",
+                "shortForecast": "Sunny",
+                "windSpeed": "10 mph",
+            },
+            {
+                "number": 2,
+                "isDaytime": False,
+                "startTime": datetime(2026, 7, 18, 18, tzinfo=CHICTZ).isoformat(),
+                "temperature": 75,
+                "temperatureUnit": "F",
+                "shortForecast": "Clear",
+                "windSpeed": "5 mph",
+            },
         ]
         result = asyncio.get_event_loop().run_until_complete(self._run_with(periods))
         self.assertIn("95", result["forecast"][0]["high"])
@@ -341,12 +505,32 @@ class TestFetchWeatherPeriodExtraction(TestCase):
     def test_malformed_periods_fallback(self):
         periods = [
             "not_a_dict",
-            {"number": 99, "isDaytime": True, "startTime": "garbage", "temperature": 99, "temperatureUnit": "F",
-             "shortForecast": "Skip Me"},
-            {"number": 1, "isDaytime": True, "startTime": datetime(2026, 7, 18, 6, tzinfo=CHICTZ).isoformat(),
-             "temperature": 88, "temperatureUnit": "F", "shortForecast": "Good", "windSpeed": "5 mph"},
-            {"number": 2, "isDaytime": False, "startTime": datetime(2026, 7, 18, 18, tzinfo=CHICTZ).isoformat(),
-             "temperature": 72, "temperatureUnit": "F", "shortForecast": "Good", "windSpeed": "3 mph"},
+            {
+                "number": 99,
+                "isDaytime": True,
+                "startTime": "garbage",
+                "temperature": 99,
+                "temperatureUnit": "F",
+                "shortForecast": "Skip Me",
+            },
+            {
+                "number": 1,
+                "isDaytime": True,
+                "startTime": datetime(2026, 7, 18, 6, tzinfo=CHICTZ).isoformat(),
+                "temperature": 88,
+                "temperatureUnit": "F",
+                "shortForecast": "Good",
+                "windSpeed": "5 mph",
+            },
+            {
+                "number": 2,
+                "isDaytime": False,
+                "startTime": datetime(2026, 7, 18, 18, tzinfo=CHICTZ).isoformat(),
+                "temperature": 72,
+                "temperatureUnit": "F",
+                "shortForecast": "Good",
+                "windSpeed": "3 mph",
+            },
         ]
         result = asyncio.get_event_loop().run_until_complete(self._run_with(periods))
         self.assertEqual(len(result["forecast"]), 3)
@@ -354,10 +538,22 @@ class TestFetchWeatherPeriodExtraction(TestCase):
 
     def test_missing_keys_safe_fallback(self):
         periods = [
-            {"number": 1, "isDaytime": True, "startTime": datetime(2026, 7, 18, 6, tzinfo=CHICTZ).isoformat(),
-             "temperature": 90, "temperatureUnit": "F", "shortForecast": "Dry"},
-            {"number": 2, "isDaytime": False, "startTime": datetime(2026, 7, 18, 18, tzinfo=CHICTZ).isoformat(),
-             "temperature": 70, "temperatureUnit": "F", "shortForecast": "Dry"},
+            {
+                "number": 1,
+                "isDaytime": True,
+                "startTime": datetime(2026, 7, 18, 6, tzinfo=CHICTZ).isoformat(),
+                "temperature": 90,
+                "temperatureUnit": "F",
+                "shortForecast": "Dry",
+            },
+            {
+                "number": 2,
+                "isDaytime": False,
+                "startTime": datetime(2026, 7, 18, 18, tzinfo=CHICTZ).isoformat(),
+                "temperature": 70,
+                "temperatureUnit": "F",
+                "shortForecast": "Dry",
+            },
         ]
         result = asyncio.get_event_loop().run_until_complete(self._run_with(periods))
         self.assertEqual(result["forecast"][0]["precip"], "Dynamic")

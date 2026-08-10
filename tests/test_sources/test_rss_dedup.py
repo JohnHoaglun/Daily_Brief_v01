@@ -2,27 +2,32 @@
 Unit tests for daily_brief/pipelines/rss_dedup.py.
 Dedup, age-filtering, widening, and fetch_and_dedup orchestration.
 """
+
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
-from typing import Any, List, Optional, Tuple
+from datetime import datetime, timedelta
+from typing import List, Optional, Tuple
 from unittest import TestCase, mock
+from urllib.parse import unquote_plus
 from zoneinfo import ZoneInfo
 
 from daily_brief.pipelines.rss_dedup import (
     dedup_entries,
     fetch_and_dedup,
 )
-from daily_brief.sources.rss import build_rss_url, normalize_title
-from urllib.parse import unquote_plus
-
+from daily_brief.sources.rss import build_rss_url
 
 TZ = ZoneInfo("America/Chicago")
 NOW = datetime(2026, 7, 30, 14, 0, 0, tzinfo=TZ)
 
 
-def _entry(title: str, link: str = "https://example.com", snippet: str = "", pub_dt: Optional[datetime] = None) -> Tuple[str, str, str, Optional[datetime]]:
+def _entry(
+    title: str,
+    link: str = "https://example.com",
+    snippet: str = "",
+    pub_dt: Optional[datetime] = None,
+) -> Tuple[str, str, str, Optional[datetime]]:
     return (title, link, snippet, pub_dt)
 
 
@@ -34,9 +39,11 @@ def _await(coro):
 # helpers
 # ---------------------------------------------------------------------------
 
+
 class _DedupContent:
     def __init__(self, data: str):
         self._data = data.encode("utf-8")
+
     async def iter_any(self):
         yield self._data
 
@@ -44,9 +51,11 @@ class _DedupContent:
 class FakeResp:
     status = 200
     headers = {}
+
     def __init__(self, body):
         self._body = body
         self.content = _DedupContent(body)
+
     async def text(self):
         return self._body
 
@@ -54,8 +63,10 @@ class FakeResp:
 class _AsyncCM:
     def __init__(self, resp):
         self._resp = resp
+
     async def __aenter__(self):
         return self._resp
+
     async def __aexit__(self, *a):
         pass
 
@@ -71,7 +82,7 @@ def _rss_xml(items: List[dict]) -> str:
           <title>{title}</title>
           <link>{link}</link>
           <summary>{summary}</summary>
-          {'<pubDate>' + pub + '</pubDate>' if pub else ''}
+          {"<pubDate>" + pub + "</pubDate>" if pub else ""}
         </item>"""
     return f"""<?xml version="1.0"?>
     <rss version="2.0">
@@ -87,27 +98,33 @@ def _make_session(body_map: dict):
                 if k in url or k in decoded:
                     return _AsyncCM(FakeResp(v))
             return _AsyncCM(FakeResp(_rss_xml([])))
+
     return FakeSession()
 
 
 def _feed_run(session, cats, widen=True):
     """Run fetch_and_dedup with mocked datetime.now."""
     logs = []
+
     async def _r():
-        with mock.patch("daily_brief.sources.rss.build_rss_url_with_window", side_effect=lambda q, w: build_rss_url(q)):
-            with mock.patch("daily_brief.pipelines.rss_dedup.datetime", wraps=datetime) as dt_mock:
-                dt_mock.now.return_value = NOW
-                if widen:
-                    cat_windows = {c[0]: 720 for c in cats}
-                    with mock.patch("daily_brief.config.CATEGORY_SOURCE_WINDOWS", cat_windows):
-                        return await fetch_and_dedup(session, cats, logs.append)
-                return await fetch_and_dedup(session, cats, logs.append)
+        with mock.patch(
+            "daily_brief.sources.rss.build_rss_url_with_window",
+            side_effect=lambda q, w: build_rss_url(q),
+        ), mock.patch("daily_brief.pipelines.rss_dedup.datetime", wraps=datetime) as dt_mock:
+            dt_mock.now.return_value = NOW
+            if widen:
+                cat_windows = {c[0]: 720 for c in cats}
+                with mock.patch("daily_brief.config.CATEGORY_SOURCE_WINDOWS", cat_windows):
+                    return await fetch_and_dedup(session, cats, logs.append)
+            return await fetch_and_dedup(session, cats, logs.append)
+
     return _await(_r()), logs
 
 
 # ---------------------------------------------------------------------------
 # dedup_entries
 # ---------------------------------------------------------------------------
+
 
 class TestDedupEntries(TestCase):
     def test_age_filter_and_dup_filter(self):
@@ -153,15 +170,18 @@ class TestDedupEntries(TestCase):
 # fetch_and_dedup
 # ---------------------------------------------------------------------------
 
+
 class TestFetchAndDedup(TestCase):
     def test_all_feeds_fetched_stable_order(self):
         """Multi-feed fetch preserves category order in output."""
         fresh = "Thu, 30 Jul 2026 10:00:00 +0000"
-        session = _make_session({
-            "query a": _rss_xml([{"title": "A1", "pubDate": fresh}]),
-            "query b": _rss_xml([{"title": "B1", "pubDate": fresh}]),
-            "query c": _rss_xml([{"title": "C1", "pubDate": fresh}]),
-        })
+        session = _make_session(
+            {
+                "query a": _rss_xml([{"title": "A1", "pubDate": fresh}]),
+                "query b": _rss_xml([{"title": "B1", "pubDate": fresh}]),
+                "query c": _rss_xml([{"title": "C1", "pubDate": fresh}]),
+            }
+        )
         cats = [("CatA", "query a", 10), ("CatB", "query b", 10), ("CatC", "query c", 10)]
         (deduped, stats), _ = _feed_run(session, cats)
         self.assertIn("A1", [d[0] for d in deduped])
@@ -174,16 +194,30 @@ class TestFetchAndDedup(TestCase):
         fresh = "Thu, 30 Jul 2026 10:00:00 +0000"
         # Stats keys + total_after
         items = [{"title": f"Story {i}", "pubDate": fresh} for i in range(20)]
-        (_, stats), _ = _feed_run(_make_session({"query a": _rss_xml(items)}), [("CatA", "query a", 3)])
-        for k in ("total_before", "total_after", "age_filtered", "dup_filtered", "cross_dup_filtered"):
+        (_, stats), _ = _feed_run(
+            _make_session({"query a": _rss_xml(items)}), [("CatA", "query a", 3)]
+        )
+        for k in (
+            "total_before",
+            "total_after",
+            "age_filtered",
+            "dup_filtered",
+            "cross_dup_filtered",
+        ):
             self.assertIn(k, stats)
-        self.assertEqual(stats["total_after"], len([d for d in [] if False]) + stats["total_after"])  # smoke
+        self.assertEqual(
+            stats["total_after"], len([d for d in [] if False]) + stats["total_after"]
+        )  # smoke
         cat = [d for d in [] if False]
-        (_, stats2), _ = _feed_run(_make_session({"query a": _rss_xml(items)}), [("CatA", "query a", 3)])
+        (_, stats2), _ = _feed_run(
+            _make_session({"query a": _rss_xml(items)}), [("CatA", "query a", 3)]
+        )
         cat = [d for d in [] if False]  # reset
         self.assertEqual(stats2["total_after"], stats2["total_after"])
         # Cap
-        (deduped, _), _ = _feed_run(_make_session({"query a": _rss_xml(items)}), [("CatA", "query a", 3)])
+        (deduped, _), _ = _feed_run(
+            _make_session({"query a": _rss_xml(items)}), [("CatA", "query a", 3)]
+        )
         self.assertEqual(len([d for d in deduped if d[4] == "CatA"]), 3)
         # Empty
         (deduped, stats), _ = _feed_run(_make_session({}), [])
@@ -194,11 +228,13 @@ class TestFetchAndDedup(TestCase):
         """One failing feed doesn't crash others. Merged: feed_exception + isolation."""
         fresh = "Thu, 30 Jul 2026 10:00:00 +0000"
         xml_ok = _rss_xml([{"title": "OK Story", "pubDate": fresh}])
+
         class FailingSession:
             def get(self, url, **kw):
                 if "query fail" in url:
                     raise ConnectionError("network fail")
                 return _AsyncCM(FakeResp(xml_ok))
+
         cats = [("CatFail", "query fail", 10), ("CatOK", "query ok", 10)]
         (deduped, _), _ = _feed_run(FailingSession(), cats)
         self.assertIn("OK Story", [d[0] for d in deduped])
@@ -217,9 +253,12 @@ class TestFetchAndDedup(TestCase):
 
     def test_zoneinfo_configured_timezone(self):
         from daily_brief import config as cfg_mod
+
         logs = []
+
         async def _r():
             return await fetch_and_dedup(_make_session({}), [], logs.append)
+
         with mock.patch.object(cfg_mod, "TIMEZONE", "America/Chicago"):
             with mock.patch("daily_brief.pipelines.rss_dedup.ZoneInfo", wraps=ZoneInfo) as zi:
                 _await(_r())
@@ -227,21 +266,37 @@ class TestFetchAndDedup(TestCase):
 
     def test_candidate_pool_one_fetch(self):
         """Candidate pool: one fetch per category, even when underfilled or empty."""
+
         class CountingSession:
             get_count = 0
+
             def get(self, url, **kw):
                 CountingSession.get_count += 1
-                items = [{"title": f"Old {i}", "pubDate": (NOW - timedelta(hours=480 * (i or 1))).strftime("%a, %d %b %Y %H:%M:%S +0000")} for i in range(3)]
+                items = [
+                    {
+                        "title": f"Old {i}",
+                        "pubDate": (NOW - timedelta(hours=480 * (i or 1))).strftime(
+                            "%a, %d %b %Y %H:%M:%S +0000"
+                        ),
+                    }
+                    for i in range(3)
+                ]
                 return _AsyncCM(FakeResp(_rss_xml(items)))
+
         CountingSession.get_count = 0
-        _, _ = _await(fetch_and_dedup(CountingSession(), [("CatA", "query a", 5)], lambda *_: None))
+        _, _ = _await(
+            fetch_and_dedup(CountingSession(), [("CatA", "query a", 5)], lambda *_: None)
+        )
         self.assertEqual(CountingSession.get_count, 1)
+
         # Exhausted (empty pool) also one fetch
         class EmptySession:
             get_count = 0
+
             def get(self, url, **kw):
                 EmptySession.get_count += 1
                 return _AsyncCM(FakeResp(_rss_xml([])))
+
         EmptySession.get_count = 0
         _, _ = _await(fetch_and_dedup(EmptySession(), [("CatA", "query a", 5)], lambda *_: None))
         self.assertEqual(EmptySession.get_count, 1)
@@ -252,10 +307,12 @@ class TestFetchAndDedup(TestCase):
         too_old = NOW - timedelta(hours=480)
         dts = [too_old.strftime("%a, %d %b %Y %H:%M:%S +0000")] * 5
         dts.append(fresh.strftime("%a, %d %b %Y %H:%M:%S +0000"))
-        items = [
-            {"title": f"Story {i}", "pubDate": dts[i]} for i in range(5)
-        ] + [{"title": "Recovered Story", "pubDate": dts[5]}]
-        (deduped, _), _ = _feed_run(_make_session({"query a": _rss_xml(items)}), [("CatA", "query a", 10)])
+        items = [{"title": f"Story {i}", "pubDate": dts[i]} for i in range(5)] + [
+            {"title": "Recovered Story", "pubDate": dts[5]}
+        ]
+        (deduped, _), _ = _feed_run(
+            _make_session({"query a": _rss_xml(items)}), [("CatA", "query a", 10)]
+        )
         self.assertIn("Recovered Story", [d[0] for d in deduped])
 
     def test_widening_boundary_and_filter(self):
@@ -266,15 +323,21 @@ class TestFetchAndDedup(TestCase):
         old = NOW - timedelta(hours=48)
         too_old = NOW - timedelta(days=10)
         cats = [("CatA", "query a", 10)]
-        session = _make_session({"query a": _rss_xml([
-            {"title": "At24h", "pubDate": exactly_24h.strftime(d_fmt)},
-            {"title": "Fresh", "pubDate": fresh.strftime(d_fmt)},
-            {"title": "Dup Title", "pubDate": old.strftime(d_fmt)},
-            {"title": "Dup Title", "pubDate": old.strftime(d_fmt)},
-            {"title": "John Obituary", "pubDate": old.strftime(d_fmt)},
-            {"title": "House for sale $200k", "pubDate": old.strftime(d_fmt)},
-            {"title": "Too Old", "pubDate": too_old.strftime(d_fmt)},
-        ])})
+        session = _make_session(
+            {
+                "query a": _rss_xml(
+                    [
+                        {"title": "At24h", "pubDate": exactly_24h.strftime(d_fmt)},
+                        {"title": "Fresh", "pubDate": fresh.strftime(d_fmt)},
+                        {"title": "Dup Title", "pubDate": old.strftime(d_fmt)},
+                        {"title": "Dup Title", "pubDate": old.strftime(d_fmt)},
+                        {"title": "John Obituary", "pubDate": old.strftime(d_fmt)},
+                        {"title": "House for sale $200k", "pubDate": old.strftime(d_fmt)},
+                        {"title": "Too Old", "pubDate": too_old.strftime(d_fmt)},
+                    ]
+                )
+            }
+        )
         (deduped, _), _ = _feed_run(session, cats)
         titles = [d[0] for d in deduped]
         self.assertIn("At24h", titles)
@@ -286,15 +349,14 @@ class TestFetchAndDedup(TestCase):
 
     def test_widening_no_48h_for_24h_window(self):
         """With 24h source window, widening cap = 1 day, so range(2, 2) is empty."""
-        from daily_brief.pipelines.rss_dedup import _widen_category_local
         from unittest.mock import patch
+
+        from daily_brief.pipelines.rss_dedup import _widen_category_local
 
         old_36h = NOW - timedelta(hours=36)
         candidates = [_entry("At36h", pub_dt=old_36h)]
 
         with patch("daily_brief.config.CATEGORY_AGE_LIMITS", {"cat": 24}):
             with patch("daily_brief.config.CATEGORY_SOURCE_WINDOWS", {"cat": 24}):
-                _, _, recovered = _widen_category_local(
-                    "cat", candidates, [], NOW, {"cat": set()}
-                )
+                _, _, recovered = _widen_category_local("cat", candidates, [], NOW, {"cat": set()})
         self.assertEqual(recovered, 0)

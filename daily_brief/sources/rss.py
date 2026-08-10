@@ -11,14 +11,14 @@ import logging
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from functools import cmp_to_key
-from typing import Any, List, Optional, Tuple, Sequence
+from typing import Any, List, Optional, Tuple
+from urllib.parse import quote_plus
 from zoneinfo import ZoneInfo
 
 import aiohttp
 import feedparser
 
-from daily_brief.config import RSS_BASE, RSS_PARAMS, TIMEZONE, USER_AGENT, CATEGORY_SOURCE_WINDOWS
-from urllib.parse import quote_plus
+from daily_brief.config import RSS_BASE, RSS_PARAMS, TIMEZONE, USER_AGENT
 from daily_brief.http_client import _fetch_text
 from daily_brief.utils import strip_html
 
@@ -39,6 +39,7 @@ def normalize_title(title: str) -> str:
     and no site-suffix stripping.
     """
     import unicodedata
+
     normalized = unicodedata.normalize("NFKD", title)
     return normalized.strip().lower()
 
@@ -138,8 +139,11 @@ async def fetch_feed(
     """
     try:
         text = await _fetch_text(
-            session, rss_url, user_agent=USER_AGENT, timeout=10,
-            status_predicate=lambda s: 200 <= s < 300
+            session,
+            rss_url,
+            user_agent=USER_AGENT,
+            timeout=10,
+            status_predicate=lambda s: 200 <= s < 300,
         )
         if text is None:
             logger.warning(
@@ -151,11 +155,7 @@ async def fetch_feed(
         feed = feedparser.parse(text)
         entries: List[Tuple[str, str, str, Optional[datetime]]] = []
         for e in feed.entries:
-            title = (
-                (e.get("title", "") or "").strip()
-                if isinstance(e.get("title"), str)
-                else ""
-            )
+            title = (e.get("title", "") or "").strip() if isinstance(e.get("title"), str) else ""
             link = e.get("link") or "#"
             raw = (
                 (e.get("summary") or e.get("description") or "").strip()

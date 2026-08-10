@@ -2,6 +2,7 @@
 Unit tests for daily_brief/sources/lakes.py.
 Reservoir level scraping: table parsing, label matching, date fallback, regex fallback.
 """
+
 import asyncio
 from datetime import datetime
 from unittest import TestCase, mock
@@ -12,8 +13,14 @@ from daily_brief.sources.lakes import _extract_lake_value
 REF = datetime(2026, 7, 18, 10, 0, 0)
 
 
-def _table_html(today_pct="65.2", week_pct="60.0", month_pct="55.5",
-                label_today="Today", label_week="1 week ago", label_30="30 days ago"):
+def _table_html(
+    today_pct="65.2",
+    week_pct="60.0",
+    month_pct="55.5",
+    label_today="Today",
+    label_week="1 week ago",
+    label_30="30 days ago",
+):
     return (
         f"<table><tbody>"
         f"<tr><td>{label_today}</td><td>2026-07-18</td><td>{today_pct}%</td></tr>"
@@ -31,25 +38,38 @@ class TestExtractLakeValueLabelMatching(TestCase):
             return await _extract_lake_value(None, "lake1", "http://example.com", REF)
 
     def test_today_labels(self):
-        r1 = asyncio.get_event_loop().run_until_complete(self._run(_table_html(label_today="Today")))
+        r1 = asyncio.get_event_loop().run_until_complete(
+            self._run(_table_html(label_today="Today"))
+        )
         self.assertEqual(r1["today"], "65.2%")
 
-        r2 = asyncio.get_event_loop().run_until_complete(self._run(_table_html(today_pct="70.0", label_today="Current")))
+        r2 = asyncio.get_event_loop().run_until_complete(
+            self._run(_table_html(today_pct="70.0", label_today="Current"))
+        )
         self.assertEqual(r2["today"], "70.0%")
 
     def test_week_labels(self):
-        r1 = asyncio.get_event_loop().run_until_complete(self._run(_table_html(label_week="1 week ago")))
+        r1 = asyncio.get_event_loop().run_until_complete(
+            self._run(_table_html(label_week="1 week ago"))
+        )
         self.assertEqual(r1["one_week_ago"], "60.0%")
 
-        r2 = asyncio.get_event_loop().run_until_complete(self._run(_table_html(label_week="Week ago")))
+        r2 = asyncio.get_event_loop().run_until_complete(
+            self._run(_table_html(label_week="Week ago"))
+        )
         self.assertEqual(r2["one_week_ago"], "60.0%")
 
     def test_30_day_labels(self):
-        r1 = asyncio.get_event_loop().run_until_complete(self._run(_table_html(label_30="30 days ago")))
+        r1 = asyncio.get_event_loop().run_until_complete(
+            self._run(_table_html(label_30="30 days ago"))
+        )
         self.assertEqual(r1["thirty_days_ago"], "55.5%")
 
-        r2 = asyncio.get_event_loop().run_until_complete(self._run(_table_html(label_30="thirty days ago")))
+        r2 = asyncio.get_event_loop().run_until_complete(
+            self._run(_table_html(label_30="thirty days ago"))
+        )
         self.assertEqual(r2["thirty_days_ago"], "55.5%")
+
 
 class TestExtractLakeValueEdgeCases(TestCase):
     """Edge cases: no HTML, invalid content, malformed dates."""
@@ -66,7 +86,9 @@ class TestExtractLakeValueEdgeCases(TestCase):
         result2 = asyncio.get_event_loop().run_until_complete(self._run(""))
         self.assertIsNone(result2["today"])
 
-        html = "<table><tbody><tr><td>Today</td><td>2026-07-18</td><td>n/a</td></tr></tbody></table>"
+        html = (
+            "<table><tbody><tr><td>Today</td><td>2026-07-18</td><td>n/a</td></tr></tbody></table>"
+        )
         result3 = asyncio.get_event_loop().run_until_complete(self._run(html))
         self.assertIsNone(result3["today"])
 

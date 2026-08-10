@@ -7,16 +7,15 @@ selection, JSON result shape, concurrency tracking, and provenance.
 
 import asyncio
 import json
-import math
 import os
 import tempfile
 import unittest
-from dataclasses import asdict
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
+from unittest.mock import patch
 
 
 class MockStory:
     """Minimal story with extraction timing attributes."""
+
     def __init__(self, title="Test", link="https://example.com/a", category="Tech", context=None):
         self.title = title
         self.link = link
@@ -38,6 +37,7 @@ class MockStory:
 class TestStatsFromList(unittest.TestCase):
     def _import(self):
         from daily_brief.benchmark_pipeline_concurrency import _stats_from_list
+
         return _stats_from_list
 
     def test_empty_list_returns_zeros(self):
@@ -83,6 +83,7 @@ class TestStatsFromList(unittest.TestCase):
 class TestPercentileBenchmarkCopy(unittest.TestCase):
     def _import(self):
         from daily_brief.benchmark_pipeline_concurrency import _percentile
+
         return _percentile
 
     def test_p50(self):
@@ -115,6 +116,7 @@ class TestPercentileBenchmarkCopy(unittest.TestCase):
 class TestExtractionMetrics(unittest.TestCase):
     def _import(self):
         from daily_brief.benchmark_pipeline_concurrency import ExtractionMetrics
+
         return ExtractionMetrics
 
     def test_default_values(self):
@@ -168,6 +170,7 @@ class TestExtractionMetrics(unittest.TestCase):
 class TestLoopLagMetrics(unittest.TestCase):
     def _import(self):
         from daily_brief.benchmark_pipeline_concurrency import LoopLagMetrics
+
         return LoopLagMetrics
 
     def test_default_values(self):
@@ -194,6 +197,7 @@ class TestLoopLagMetrics(unittest.TestCase):
 class TestPhaseTimings(unittest.TestCase):
     def _import(self):
         from daily_brief.benchmark_pipeline_concurrency import PhaseTimings
+
         return PhaseTimings
 
     def test_to_dict_rounds(self):
@@ -207,8 +211,16 @@ class TestPhaseTimings(unittest.TestCase):
         fn = self._import()
         t = fn()
         d = t.to_dict()
-        expected_keys = {"phase1_s", "phase2_s", "phase3a_s", "phase3_s",
-                         "phase4_s", "phase5_s", "phase6_s", "total_s"}
+        expected_keys = {
+            "phase1_s",
+            "phase2_s",
+            "phase3a_s",
+            "phase3_s",
+            "phase4_s",
+            "phase5_s",
+            "phase6_s",
+            "total_s",
+        }
         self.assertEqual(set(d.keys()), expected_keys)
 
 
@@ -220,8 +232,12 @@ class TestPhaseTimings(unittest.TestCase):
 class TestCellResultShape(unittest.TestCase):
     def _import(self):
         from daily_brief.benchmark_pipeline_concurrency import (
-            CellResult, ExtractionMetrics, LoopLagMetrics, PhaseTimings,
+            CellResult,
+            ExtractionMetrics,
+            LoopLagMetrics,
+            PhaseTimings,
         )
+
         return CellResult, ExtractionMetrics, LoopLagMetrics, PhaseTimings
 
     def test_to_dict_has_all_top_level_keys(self):
@@ -241,10 +257,20 @@ class TestCellResultShape(unittest.TestCase):
         )
         d = r.to_dict()
         required = {
-            "concurrency", "phase_mode", "story_count", "rss_counts",
-            "weather_ok", "extraction", "loop_lag", "timings",
-            "report_validation", "harness_status", "harness_message",
-            "process_exit", "config", "error",
+            "concurrency",
+            "phase_mode",
+            "story_count",
+            "rss_counts",
+            "weather_ok",
+            "extraction",
+            "loop_lag",
+            "timings",
+            "report_validation",
+            "harness_status",
+            "harness_message",
+            "process_exit",
+            "config",
+            "error",
         }
         self.assertTrue(required.issubset(set(d.keys())))
 
@@ -271,6 +297,7 @@ class TestCellResultShape(unittest.TestCase):
 class TestBenchmarkRunShape(unittest.TestCase):
     def _import(self):
         from daily_brief.benchmark_pipeline_concurrency import BenchmarkRun
+
         return BenchmarkRun
 
     def test_to_dict_has_required_keys(self):
@@ -301,10 +328,12 @@ class TestBenchmarkRunShape(unittest.TestCase):
 class TestConcurrencyTracker(unittest.TestCase):
     def _import(self):
         from daily_brief.benchmark_pipeline_concurrency import _ConcurrencyTracker
+
         return _ConcurrencyTracker
 
     def _loop(self, coro):
         import asyncio
+
         return asyncio.get_event_loop().run_until_complete(coro)
 
     def test_peak_tracks_max_concurrent(self):
@@ -351,6 +380,7 @@ class TestConcurrencyTracker(unittest.TestCase):
 class TestRunBenchmark(unittest.TestCase):
     def _import(self):
         from daily_brief.benchmark_pipeline_concurrency import run_benchmark
+
         return run_benchmark
 
     def setUp(self):
@@ -367,9 +397,14 @@ class TestRunBenchmark(unittest.TestCase):
 
         async def _fake_cell(conc, mode, **kw):
             from daily_brief.benchmark_pipeline_concurrency import CellResult, PhaseTimings
-            return CellResult(concurrency=conc, phase_mode=mode, timings=PhaseTimings(total_s=float(conc)))
 
-        with patch("daily_brief.benchmark_pipeline_concurrency._run_benchmark_cell", new=_fake_cell):
+            return CellResult(
+                concurrency=conc, phase_mode=mode, timings=PhaseTimings(total_s=float(conc))
+            )
+
+        with patch(
+            "daily_brief.benchmark_pipeline_concurrency._run_benchmark_cell", new=_fake_cell
+        ):
             result = fn(cells=1, warmups=0)
             concs = [c["concurrency"] for c in result.cells]
             self.assertEqual(sorted(concs), [1, 2, 4, 6, 8])
@@ -379,9 +414,14 @@ class TestRunBenchmark(unittest.TestCase):
 
         async def _fake_cell(conc, mode, **kw):
             from daily_brief.benchmark_pipeline_concurrency import CellResult, PhaseTimings
-            return CellResult(concurrency=conc, phase_mode=mode, timings=PhaseTimings(total_s=float(conc)))
 
-        with patch("daily_brief.benchmark_pipeline_concurrency._run_benchmark_cell", new=_fake_cell):
+            return CellResult(
+                concurrency=conc, phase_mode=mode, timings=PhaseTimings(total_s=float(conc))
+            )
+
+        with patch(
+            "daily_brief.benchmark_pipeline_concurrency._run_benchmark_cell", new=_fake_cell
+        ):
             result = fn(concurrencies=[1, 8], cells=1, warmups=0)
             concs = [c["concurrency"] for c in result.cells]
             self.assertEqual(sorted(concs), [1, 8])
@@ -398,6 +438,7 @@ class TestRunBenchmark(unittest.TestCase):
         async def _capture(conc, mode="concurrent", **kw):
             actual_mode.append(mode)
             from daily_brief.benchmark_pipeline_concurrency import CellResult, PhaseTimings
+
             return CellResult(concurrency=conc, phase_mode=mode, timings=PhaseTimings(total_s=1.0))
 
         with patch("daily_brief.benchmark_pipeline_concurrency._run_benchmark_cell", new=_capture):
@@ -411,6 +452,7 @@ class TestRunBenchmark(unittest.TestCase):
         async def _capture(conc, mode="concurrent", **kw):
             actual_mode.append(mode)
             from daily_brief.benchmark_pipeline_concurrency import CellResult, PhaseTimings
+
             return CellResult(concurrency=conc, phase_mode=mode, timings=PhaseTimings(total_s=1.0))
 
         with patch("daily_brief.benchmark_pipeline_concurrency._run_benchmark_cell", new=_capture):
@@ -422,9 +464,12 @@ class TestRunBenchmark(unittest.TestCase):
 
         async def _fake_cell(conc, mode, **kw):
             from daily_brief.benchmark_pipeline_concurrency import CellResult, PhaseTimings
+
             return CellResult(concurrency=conc, phase_mode=mode, timings=PhaseTimings(total_s=1.0))
 
-        with patch("daily_brief.benchmark_pipeline_concurrency._run_benchmark_cell", new=_fake_cell):
+        with patch(
+            "daily_brief.benchmark_pipeline_concurrency._run_benchmark_cell", new=_fake_cell
+        ):
             result = fn(concurrencies=[2, 4], cells=3, warmups=0)
             self.assertEqual(len(result.cells), 6)
 
@@ -435,6 +480,7 @@ class TestRunBenchmark(unittest.TestCase):
         async def _counted(conc, mode, **kw):
             call_count[0] += 1
             from daily_brief.benchmark_pipeline_concurrency import CellResult, PhaseTimings
+
             return CellResult(concurrency=conc, phase_mode=mode, timings=PhaseTimings(total_s=1.0))
 
         with patch("daily_brief.benchmark_pipeline_concurrency._run_benchmark_cell", new=_counted):
@@ -449,16 +495,19 @@ class TestRunBenchmark(unittest.TestCase):
 
         async def _fake_cell(conc, mode, **kw):
             from daily_brief.benchmark_pipeline_concurrency import CellResult, PhaseTimings
+
             return CellResult(concurrency=conc, phase_mode=mode, timings=PhaseTimings(total_s=1.0))
 
         with (
             tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tf,
-            patch("daily_brief.benchmark_pipeline_concurrency._run_benchmark_cell", new=_fake_cell),
+            patch(
+                "daily_brief.benchmark_pipeline_concurrency._run_benchmark_cell", new=_fake_cell
+            ),
         ):
             tmp_path = tf.name
             try:
                 fn(concurrencies=[1], cells=1, warmups=0, output_file=tmp_path)
-                with open(tmp_path, "r") as f:
+                with open(tmp_path) as f:
                     data = json.load(f)
                 self.assertIn("cells", data)
                 self.assertIn("provenance", data)
@@ -472,9 +521,14 @@ class TestRunBenchmark(unittest.TestCase):
 
         async def _fake_cell(conc, mode, **kw):
             from daily_brief.benchmark_pipeline_concurrency import CellResult, PhaseTimings
-            return CellResult(concurrency=conc, phase_mode=mode, timings=PhaseTimings(total_s=float(conc) * 10))
 
-        with patch("daily_brief.benchmark_pipeline_concurrency._run_benchmark_cell", new=_fake_cell):
+            return CellResult(
+                concurrency=conc, phase_mode=mode, timings=PhaseTimings(total_s=float(conc) * 10)
+            )
+
+        with patch(
+            "daily_brief.benchmark_pipeline_concurrency._run_benchmark_cell", new=_fake_cell
+        ):
             result = fn(concurrencies=[1, 4], cells=1, warmups=0)
         self.assertIn("total_cells", result.summary)
         self.assertIn("medians", result.summary)
@@ -485,9 +539,12 @@ class TestRunBenchmark(unittest.TestCase):
 
         async def _fake_cell(conc, mode, **kw):
             from daily_brief.benchmark_pipeline_concurrency import CellResult, PhaseTimings
+
             return CellResult(concurrency=conc, phase_mode=mode, timings=PhaseTimings(total_s=1.0))
 
-        with patch("daily_brief.benchmark_pipeline_concurrency._run_benchmark_cell", new=_fake_cell):
+        with patch(
+            "daily_brief.benchmark_pipeline_concurrency._run_benchmark_cell", new=_fake_cell
+        ):
             result = fn(concurrencies=[2], cells=3, warmups=0)
         indices = [c["cell_index"] for c in result.cells]
         self.assertEqual(indices, [0, 1, 2])
@@ -497,9 +554,12 @@ class TestRunBenchmark(unittest.TestCase):
 
         async def _fake_cell(conc, mode, **kw):
             from daily_brief.benchmark_pipeline_concurrency import CellResult, PhaseTimings
+
             return CellResult(concurrency=conc, phase_mode=mode, timings=PhaseTimings(total_s=1.0))
 
-        with patch("daily_brief.benchmark_pipeline_concurrency._run_benchmark_cell", new=_fake_cell):
+        with patch(
+            "daily_brief.benchmark_pipeline_concurrency._run_benchmark_cell", new=_fake_cell
+        ):
             result = fn(concurrencies=[1], cells=1, warmups=0)
         prov = result.provenance
         self.assertIn("version", prov)
@@ -515,6 +575,7 @@ class TestRunBenchmark(unittest.TestCase):
 class TestBuildProvenance(unittest.TestCase):
     def _import(self):
         from daily_brief.benchmark_pipeline_concurrency import _build_provenance
+
         return _build_provenance
 
     def test_has_version(self):
@@ -557,7 +618,11 @@ class TestBuildProvenance(unittest.TestCase):
 
 class TestExtractStoryMetrics(unittest.TestCase):
     def _import(self):
-        from daily_brief.benchmark_pipeline_concurrency import _extract_story_metrics, _LatencyTracker
+        from daily_brief.benchmark_pipeline_concurrency import (
+            _extract_story_metrics,
+            _LatencyTracker,
+        )
+
         return _extract_story_metrics, _LatencyTracker
 
     def test_extracts_values(self):
@@ -590,7 +655,11 @@ class TestExtractStoryMetrics(unittest.TestCase):
 
 class TestBenchmarkCLI(unittest.TestCase):
     def _import(self):
-        from daily_brief.benchmark_pipeline_concurrency import build_benchmark_parser, cmd_benchmark
+        from daily_brief.benchmark_pipeline_concurrency import (
+            build_benchmark_parser,
+            cmd_benchmark,
+        )
+
         return build_benchmark_parser, cmd_benchmark
 
     def setUp(self):
@@ -637,13 +706,16 @@ class TestBenchmarkCLI(unittest.TestCase):
 
         async def _fake_cell(conc, mode, **kw):
             from daily_brief.benchmark_pipeline_concurrency import CellResult, PhaseTimings
+
             return CellResult(concurrency=conc, phase_mode=mode, timings=PhaseTimings(total_s=1.0))
 
-        with patch("daily_brief.benchmark_pipeline_concurrency._run_benchmark_cell", new=_fake_cell):
-            with patch("daily_brief.benchmark_pipeline_concurrency.run_benchmark") as mock_run:
-                from daily_brief.benchmark_pipeline_concurrency import BenchmarkRun
-                mock_run.return_value = BenchmarkRun(cells=[{"concurrency": 1}], duration_s=1.0)
-                exit_code = cb(["--concurrency", "1", "--cells", "1"])
+        with patch(
+            "daily_brief.benchmark_pipeline_concurrency._run_benchmark_cell", new=_fake_cell
+        ), patch("daily_brief.benchmark_pipeline_concurrency.run_benchmark") as mock_run:
+            from daily_brief.benchmark_pipeline_concurrency import BenchmarkRun
+
+            mock_run.return_value = BenchmarkRun(cells=[{"concurrency": 1}], duration_s=1.0)
+            exit_code = cb(["--concurrency", "1", "--cells", "1"])
         self.assertEqual(exit_code, 0)
 
 
@@ -669,8 +741,12 @@ class TestJSONResultEndToEnd(unittest.TestCase):
 
         async def _fake_cell(conc, mode, **kw):
             from daily_brief.benchmark_pipeline_concurrency import (
-                CellResult, ExtractionMetrics, LoopLagMetrics, PhaseTimings,
+                CellResult,
+                ExtractionMetrics,
+                LoopLagMetrics,
+                PhaseTimings,
             )
+
             return CellResult(
                 concurrency=conc,
                 phase_mode=mode,
@@ -712,7 +788,9 @@ class TestJSONResultEndToEnd(unittest.TestCase):
 
         with (
             tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tf,
-            patch("daily_brief.benchmark_pipeline_concurrency._run_benchmark_cell", new=_fake_cell),
+            patch(
+                "daily_brief.benchmark_pipeline_concurrency._run_benchmark_cell", new=_fake_cell
+            ),
         ):
             tmp_path = tf.name
             try:
@@ -728,7 +806,7 @@ class TestJSONResultEndToEnd(unittest.TestCase):
                 self.assertEqual(len(result.cells), 4)
 
                 # Verify file was written and parseable
-                with open(tmp_path, "r") as f:
+                with open(tmp_path) as f:
                     data = json.load(f)
 
                 # Top-level structure

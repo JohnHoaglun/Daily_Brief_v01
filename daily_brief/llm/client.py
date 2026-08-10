@@ -17,7 +17,9 @@ class LLMClient:
 
     def __init__(self, model: str, base_url: str, timeout: int = 180, max_retries: int = 0):
         self.model = model
-        self.client = AsyncOpenAI(api_key="not-needed", base_url=base_url, timeout=timeout, max_retries=max_retries)
+        self.client = AsyncOpenAI(
+            api_key="not-needed", base_url=base_url, timeout=timeout, max_retries=max_retries
+        )
 
     async def chat_completions_create(self, **kwargs):
         """Async wrap of self.client.chat.completions.create()."""
@@ -31,6 +33,8 @@ class LLMClient:
             pass  # Already closed or disconnected
 
 
-def create_llm_client(model: str, base_url: str, timeout: int = 180, max_retries: int = 0) -> LLMClient:
+def create_llm_client(
+    model: str, base_url: str, timeout: int = 180, max_retries: int = 0
+) -> LLMClient:
     """Factory: return a configured LLMClient instance."""
     return LLMClient(model=model, base_url=base_url, timeout=timeout, max_retries=max_retries)

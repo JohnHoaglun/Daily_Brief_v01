@@ -1,6 +1,7 @@
 """
 Unit tests for daily_brief/llm/client.py.
 """
+
 import asyncio
 from unittest import TestCase, mock
 from unittest.mock import AsyncMock

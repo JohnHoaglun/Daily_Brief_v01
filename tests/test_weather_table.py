@@ -1,22 +1,47 @@
 """
 Unit tests for daily_brief/rendering/weather_table.py.
 """
+
 from unittest import TestCase, mock
 
-from daily_brief.rendering.weather_table import build_weather_markdown, _normalize_weather
-
+from daily_brief.rendering.weather_table import _normalize_weather, build_weather_markdown
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 def _full_weather():
     """Weather dict with forecast, station, and lakes all populated."""
     return {
         "forecast": [
-            {"date": "Mon", "day": "Sunny", "night": "Clear", "high": "85", "low": "68", "precip": "0%", "wind": "5 mph"},
-            {"date": "Tue", "day": "Cloudy", "night": "Rain", "high": "80", "low": "65", "precip": "60%", "wind": "10 mph"},
-            {"date": "Wed", "day": "Partly Cloudy", "night": "Clear", "high": "82", "low": "66", "precip": "10%", "wind": "8 mph"},
+            {
+                "date": "Mon",
+                "day": "Sunny",
+                "night": "Clear",
+                "high": "85",
+                "low": "68",
+                "precip": "0%",
+                "wind": "5 mph",
+            },
+            {
+                "date": "Tue",
+                "day": "Cloudy",
+                "night": "Rain",
+                "high": "80",
+                "low": "65",
+                "precip": "60%",
+                "wind": "10 mph",
+            },
+            {
+                "date": "Wed",
+                "day": "Partly Cloudy",
+                "night": "Clear",
+                "high": "82",
+                "low": "66",
+                "precip": "10%",
+                "wind": "8 mph",
+            },
         ],
         "station": {
             "avg_temp_today": "83",
@@ -34,6 +59,7 @@ def _full_weather():
 # ---------------------------------------------------------------------------
 # _normalize_weather
 # ---------------------------------------------------------------------------
+
 
 class TestNormalizeWeather(TestCase):
     """_normalize_weather sanitizes all degraded inputs into safe dicts."""
@@ -64,7 +90,17 @@ class TestNormalizeWeather(TestCase):
     def test_valid_passthrough(self):
         """Valid forecast, station, and lakes objects are preserved as-is."""
         inp = {
-            "forecast": [{"date": "Mon", "day": "Sunny", "night": "Clear", "high": "90", "low": "70", "precip": "0%", "wind": "5"}],
+            "forecast": [
+                {
+                    "date": "Mon",
+                    "day": "Sunny",
+                    "night": "Clear",
+                    "high": "90",
+                    "low": "70",
+                    "precip": "0%",
+                    "wind": "5",
+                }
+            ],
             "station": {"avg_temp_today": "88"},
             "lakes": {"conroe": {"today": "78%"}},
         }
@@ -77,6 +113,7 @@ class TestNormalizeWeather(TestCase):
 # ---------------------------------------------------------------------------
 # Golden output — full data render
 # ---------------------------------------------------------------------------
+
 
 class TestGoldenOutput(TestCase):
     """Full-data render: structural headers, representative values, delimiters."""
@@ -92,7 +129,10 @@ class TestGoldenOutput(TestCase):
         self.assertEqual(result[1], "---")
         self.assertEqual(result[2], "## Weather Forecast")
         self.assertEqual(result[4], "**3 Day forecast:**")
-        self.assertEqual(result[6], "| **Date** | **Day Condition** | **Night Condition** | **High Temp** | **Low Temp** | **Precip. Chance** | **Wind** |")
+        self.assertEqual(
+            result[6],
+            "| **Date** | **Day Condition** | **Night Condition** | **High Temp** | **Low Temp** | **Precip. Chance** | **Wind** |",
+        )
         self.assertEqual(result[7], "| --- | --- | --- | --- | --- | --- | --- |")
         self.assertEqual(result[-1], "---")
 
@@ -116,6 +156,7 @@ class TestGoldenOutput(TestCase):
 # Empty-list forecast → 3× Dynamic rows
 # ---------------------------------------------------------------------------
 
+
 class TestEmptyForecast(TestCase):
     """Empty forecast list produces 3 Dynamic placeholder rows."""
 
@@ -129,6 +170,7 @@ class TestEmptyForecast(TestCase):
 # Missing / invalid forecast data → 3× Unavailable rows
 # ---------------------------------------------------------------------------
 
+
 class TestMissingForecast(TestCase):
     """Missing, None, or non-list forecast produces 3 Unavailable rows."""
 
@@ -137,37 +179,80 @@ class TestMissingForecast(TestCase):
             result = build_weather_markdown(inp)
             self.assertIsInstance(result, list)
             unavail_lines = [l for l in result if "| Unavailable |" in l]
-            self.assertGreaterEqual(len(unavail_lines), 3, f"Expected ≥3 Unavailable rows for input {inp!r}")
+            self.assertGreaterEqual(
+                len(unavail_lines), 3, f"Expected ≥3 Unavailable rows for input {inp!r}"
+            )
 
 
 # ---------------------------------------------------------------------------
 # Padding (1/2 rows) and truncation (>3 rows)
 # ---------------------------------------------------------------------------
 
+
 class TestPaddingAndTruncation(TestCase):
     """1–2 forecast rows pad to 3 with Dynamic; >3 rows truncate to 3."""
 
     def test_one_row_padded(self):
-        weather = {"forecast": [{"date": "Thu", "day": "Sunny", "night": "Clear", "high": "90", "low": "70", "precip": "0%", "wind": "3 mph"}]}
+        weather = {
+            "forecast": [
+                {
+                    "date": "Thu",
+                    "day": "Sunny",
+                    "night": "Clear",
+                    "high": "90",
+                    "low": "70",
+                    "precip": "0%",
+                    "wind": "3 mph",
+                }
+            ]
+        }
         result = build_weather_markdown(weather)
         self.assertTrue(any("| Thu |" in l for l in result))
         self.assertEqual(len([l for l in result if "| Dynamic |" in l]), 2)
 
     def test_two_rows_padded(self):
-        weather = {"forecast": [
-            {"date": "Fri", "day": "Rain", "night": "Storm", "high": "75", "low": "60", "precip": "90%", "wind": "20 mph"},
-            {"date": "Sat", "day": "Clear", "night": "Clear", "high": "80", "low": "62", "precip": "5%", "wind": "7 mph"},
-        ]}
+        weather = {
+            "forecast": [
+                {
+                    "date": "Fri",
+                    "day": "Rain",
+                    "night": "Storm",
+                    "high": "75",
+                    "low": "60",
+                    "precip": "90%",
+                    "wind": "20 mph",
+                },
+                {
+                    "date": "Sat",
+                    "day": "Clear",
+                    "night": "Clear",
+                    "high": "80",
+                    "low": "62",
+                    "precip": "5%",
+                    "wind": "7 mph",
+                },
+            ]
+        }
         result = build_weather_markdown(weather)
         self.assertTrue(any("| Fri |" in l for l in result))
         self.assertTrue(any("| Sat |" in l for l in result))
         self.assertEqual(len([l for l in result if "| Dynamic |" in l]), 1)
 
     def test_over_three_truncated(self):
-        weather = {"forecast": [
-            {"date": f"D{i}", "day": "A", "night": "B", "high": "80", "low": "60", "precip": "0%", "wind": "5"}
-            for i in range(4)
-        ]}
+        weather = {
+            "forecast": [
+                {
+                    "date": f"D{i}",
+                    "day": "A",
+                    "night": "B",
+                    "high": "80",
+                    "low": "60",
+                    "precip": "0%",
+                    "wind": "5",
+                }
+                for i in range(4)
+            ]
+        }
         result = build_weather_markdown(weather)
         self.assertTrue(any("| D0 |" in l for l in result))
         self.assertTrue(any("| D1 |" in l for l in result))
@@ -179,6 +264,7 @@ class TestPaddingAndTruncation(TestCase):
 # ---------------------------------------------------------------------------
 # Lake ordering and label formatting
 # ---------------------------------------------------------------------------
+
 
 class TestLakeOrderingAndLabels(TestCase):
     """Lake rows respect config order; labels are title-cased with 'Lake' prefix."""
@@ -200,12 +286,20 @@ class TestLakeOrderingAndLabels(TestCase):
         self.assertRegex(joined, r"\| Lake Travis \| 92% \|")
 
         # Hyphenated keys via mock
-        with mock.patch("daily_brief.rendering.weather_table.WEATHER_LAKE_URLS", {"corpus-christi": "http://x"}):
-            r2 = build_weather_markdown({"forecast": [], "lakes": {"corpus-christi": {"today": "70%"}}})
+        with mock.patch(
+            "daily_brief.rendering.weather_table.WEATHER_LAKE_URLS", {"corpus-christi": "http://x"}
+        ):
+            r2 = build_weather_markdown(
+                {"forecast": [], "lakes": {"corpus-christi": {"today": "70%"}}}
+            )
             self.assertTrue(any("Lake Corpus Christi" in l for l in r2))
 
         # Prefix not doubled for keys starting with "lake_"
-        with mock.patch("daily_brief.rendering.weather_table.WEATHER_LAKE_URLS", {"lake_travis": "http://x"}):
-            r3 = build_weather_markdown({"forecast": [], "lakes": {"lake_travis": {"today": "90%"}}})
+        with mock.patch(
+            "daily_brief.rendering.weather_table.WEATHER_LAKE_URLS", {"lake_travis": "http://x"}
+        ):
+            r3 = build_weather_markdown(
+                {"forecast": [], "lakes": {"lake_travis": {"today": "90%"}}}
+            )
             self.assertTrue(any("Lake Travis" in l for l in r3))
             self.assertFalse(any("Lake Lake" in l for l in r3))

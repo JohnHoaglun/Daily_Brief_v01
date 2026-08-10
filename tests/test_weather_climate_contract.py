@@ -12,13 +12,13 @@ Coverage:
   5. Leap-day (Feb 29) climate normal has a defined fallback
   6. Weather→climate reference date threading uses the same date
 """
+
 import asyncio
 import json
 import unittest
-from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
+from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock, patch
 from zoneinfo import ZoneInfo
-
 
 CHICTZ = ZoneInfo("America/Chicago")
 
@@ -26,6 +26,7 @@ CHICTZ = ZoneInfo("America/Chicago")
 class _TestContent:
     def __init__(self, data: str):
         self._data = data.encode("utf-8")
+
     async def iter_any(self):
         yield self._data
 
@@ -33,6 +34,7 @@ class _TestContent:
 # ---------------------------------------------------------------------------
 # 1. Climate normal is historical, not today's ERA5
 # ---------------------------------------------------------------------------
+
 
 class TestClimateNormalIsHistorical(unittest.TestCase):
     """The climate normal must represent a long-term average (e.g., 1991-2020
@@ -61,15 +63,19 @@ class TestClimateNormalIsHistorical(unittest.TestCase):
           - Document the discrepancy and rename the function.
         """
         from daily_brief.sources.climate import _fetch_climate_normal_high
-        doc = (_fetch_climate_normal_high.__doc__ or "")
+
+        doc = _fetch_climate_normal_high.__doc__ or ""
 
         # The docstring should reference a historical period (1991-2020, 30-year, etc.)
         # Currently it says "today's date" which is misleading.
         # After Wave 2, the docstring must mention a climatology period.
         self.assertNotIn(
-            "today's date", doc.lower(),
-            ("Climate normal docstring must not reference 'today's date' — "
-             "a climate normal is a multi-decade average, not a single day.")
+            "today's date",
+            doc.lower(),
+            (
+                "Climate normal docstring must not reference 'today's date' — "
+                "a climate normal is a multi-decade average, not a single day."
+            ),
         )
 
     def test_era5_single_day_is_not_a_climate_normal(self):
@@ -86,11 +92,14 @@ class TestClimateNormalIsHistorical(unittest.TestCase):
         from daily_brief.sources.climate import _fetch_climate_normal_high
 
         urls_hit = []
+
         async def capture_url(session, url, **k):
             urls_hit.append(url)
             return {"daily": {"temperature_2m_max": [91.0]}}
 
-        with patch("daily_brief.sources.climate._fetch_json", new=AsyncMock(side_effect=capture_url)):
+        with patch(
+            "daily_brief.sources.climate._fetch_json", new=AsyncMock(side_effect=capture_url)
+        ):
             asyncio.get_event_loop().run_until_complete(
                 _fetch_climate_normal_high(MagicMock(), 30.286, -95.566)
             )
@@ -111,6 +120,7 @@ class TestClimateNormalIsHistorical(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # 2. Climate normal accepts a reference date from the caller
 # ---------------------------------------------------------------------------
+
 
 class TestClimateNormalReferenceDate(unittest.TestCase):
     """_fetch_climate_normal_high must accept a reference date parameter
@@ -134,6 +144,7 @@ class TestClimateNormalReferenceDate(unittest.TestCase):
         DESIRED:     _fetch_climate_normal_high(session, lat, lon, ref_date)
         """
         import inspect
+
         from daily_brief.sources.climate import _fetch_climate_normal_high
 
         sig = inspect.signature(_fetch_climate_normal_high)
@@ -142,8 +153,9 @@ class TestClimateNormalReferenceDate(unittest.TestCase):
         # Currently: ['session', 'lat', 'lon']
         # After Wave 2: must include a date-like parameter
         self.assertIn(
-            "reference_date", params,
-            "_fetch_climate_normal_high must accept a reference_date parameter."
+            "reference_date",
+            params,
+            "_fetch_climate_normal_high must accept a reference_date parameter.",
         )
 
     def test_reference_date_used_for_query(self):
@@ -164,11 +176,11 @@ class TestClimateNormalReferenceDate(unittest.TestCase):
 
         async def run():
             from daily_brief.sources.climate import _fetch_climate_normal_high
-            with patch("daily_brief.sources.climate._fetch_json",
-                       new=AsyncMock(side_effect=capture)):
-                return await _fetch_climate_normal_high(
-                    MagicMock(), 30.286, -95.566, ref_date
-                )
+
+            with patch(
+                "daily_brief.sources.climate._fetch_json", new=AsyncMock(side_effect=capture)
+            ):
+                return await _fetch_climate_normal_high(MagicMock(), 30.286, -95.566, ref_date)
 
         result = asyncio.get_event_loop().run_until_complete(run())
         # The function now accepts reference_date and uses it for the query
@@ -195,6 +207,7 @@ class TestClimateNormalReferenceDate(unittest.TestCase):
 # 3. _fetch_json handles non-dict JSON payloads
 # ---------------------------------------------------------------------------
 
+
 class TestFetchJsonNonDictPayloads(unittest.TestCase):
     """_fetch_json has return type Optional[Dict[str, Any]] but json.loads
     can return ANY valid JSON: list, string, number, boolean, null.
@@ -214,6 +227,7 @@ class TestFetchJsonNonDictPayloads(unittest.TestCase):
         """The function's return type annotation must not promise a dict.
         json.loads returns str, int, float, list, dict, True, False, None."""
         import inspect
+
         from daily_brief.http_client import _fetch_json
 
         sig = inspect.signature(_fetch_json)
@@ -225,24 +239,31 @@ class TestFetchJsonNonDictPayloads(unittest.TestCase):
         # The current type is Optional[Dict[str, Any]] — this test documents
         # the gap.  After Wave 2, the hint should be Optional[Any].
         self.assertNotIn(
-            "Dict[str, Any]", hint_str,
-            ("_fetch_json return type must be Optional[Any], not "
-             "Optional[Dict[str, Any]].  json.loads can return any JSON value.")
+            "Dict[str, Any]",
+            hint_str,
+            (
+                "_fetch_json return type must be Optional[Any], not "
+                "Optional[Dict[str, Any]].  json.loads can return any JSON value."
+            ),
         )
 
     def test_docstring_warns_consumers(self):
         """The docstring must state that the return value may not be a dict.
         Consumers must check isinstance(result, dict) before calling .get()"""
         from daily_brief.http_client import _fetch_json
+
         doc = (_fetch_json.__doc__ or "").lower()
 
         # After Wave 2, the docstring should mention:
         # - "may return any valid JSON value" or equivalent
         # - "consumers must validate the return type" or equivalent
         self.assertIn(
-            "any", doc,
-            ("_fetch_json docstring must warn that the return value can be "
-             "any valid JSON value (not just dict).")
+            "any",
+            doc,
+            (
+                "_fetch_json docstring must warn that the return value can be "
+                "any valid JSON value (not just dict)."
+            ),
         )
 
     def test_array_payload_does_not_crash_consumer(self):
@@ -250,12 +271,14 @@ class TestFetchJsonNonDictPayloads(unittest.TestCase):
         gracefully.  We verify that _fetch_json actually returns the array
         (not crashing), and that consumers can check the type."""
         from daily_brief.http_client import _fetch_json
+
         test_json = json.dumps([1, 2, 3, {"key": "val"}])
 
         # We need a mock session
         class _TestContent:
             def __init__(self, data: str):
                 self._data = data.encode("utf-8")
+
             async def iter_any(self):
                 yield self._data
 
@@ -263,9 +286,15 @@ class TestFetchJsonNonDictPayloads(unittest.TestCase):
             status = 200
             headers = {}
             content = _TestContent(test_json)
-            async def __aenter__(self): return self
-            async def __aexit__(self, *a): pass
-            async def text(self): return test_json
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                pass
+
+            async def text(self):
+                return test_json
 
         session = MagicMock()
         session.get = MagicMock(return_value=MockResp())
@@ -289,15 +318,22 @@ class TestFetchJsonNonDictPayloads(unittest.TestCase):
     def test_string_payload(self):
         """A JSON string (e.g. '"ok"') is a valid return value."""
         from daily_brief.http_client import _fetch_json
+
         test_json = json.dumps("ok")
 
         class MockResp:
             status = 200
             headers = {}
             content = _TestContent(test_json)
-            async def __aenter__(self): return self
-            async def __aexit__(self, *a): pass
-            async def text(self): return test_json
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                pass
+
+            async def text(self):
+                return test_json
 
         session = MagicMock()
         session.get = MagicMock(return_value=MockResp())
@@ -313,15 +349,22 @@ class TestFetchJsonNonDictPayloads(unittest.TestCase):
         fetch failure (which also returns None).  This is a known ambiguity
         the function cannot resolve without an additional indicator."""
         from daily_brief.http_client import _fetch_json
+
         test_json = "null"
 
         class MockResp:
             status = 200
             headers = {}
             content = _TestContent(test_json)
-            async def __aenter__(self): return self
-            async def __aexit__(self, *a): pass
-            async def text(self): return test_json
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                pass
+
+            async def text(self):
+                return test_json
 
         session = MagicMock()
         session.get = MagicMock(return_value=MockResp())
@@ -361,11 +404,10 @@ class TestFetchJsonNonDictPayloads(unittest.TestCase):
 
         async def run():
             list_result = [1, 2, 3]
-            with patch("daily_brief.sources.climate._fetch_json",
-                       new=AsyncMock(return_value=list_result)):
-                return await _fetch_climate_normal_high(
-                    MagicMock(), 30.286, -95.566
-                )
+            with patch(
+                "daily_brief.sources.climate._fetch_json", new=AsyncMock(return_value=list_result)
+            ):
+                return await _fetch_climate_normal_high(MagicMock(), 30.286, -95.566)
 
         result = asyncio.get_event_loop().run_until_complete(run())
 
@@ -375,25 +417,32 @@ class TestFetchJsonNonDictPayloads(unittest.TestCase):
         # This is "working" coincidentally but wrong by design.
         self.assertIsNone(
             result,
-            ("The climate caller should handle non-dict results via "
-             "type checking, not exception masking.")
+            (
+                "The climate caller should handle non-dict results via "
+                "type checking, not exception masking."
+            ),
         )
 
         # Verify: the function's behavior is exception-driven, not
         # type-guard-driven.  We can confirm by checking the source
         # doesn't have isinstance at the right place.
         import inspect
+
         source = inspect.getsource(_fetch_climate_normal_high)
         self.assertNotIn(
-            "isinstance", source,
-            ("After Wave 2, _fetch_climate_normal_high should guard "
-             "against non-dict _fetch_json results with isinstance.")
+            "isinstance",
+            source,
+            (
+                "After Wave 2, _fetch_climate_normal_high should guard "
+                "against non-dict _fetch_json results with isinstance."
+            ),
         )
 
 
 # ---------------------------------------------------------------------------
 # 4. Weather labels are configuration-driven
 # ---------------------------------------------------------------------------
+
 
 class TestWeatherLabelsConfigurationDriven(unittest.TestCase):
     """The weather section title and location labels must not hard-code
@@ -412,52 +461,66 @@ class TestWeatherLabelsConfigurationDriven(unittest.TestCase):
     def test_weather_table_subtitle_not_hardcoded(self):
         """weather_table.py line 44: '**3 Day forecast for 77316:**'
         The '77316' must come from a config value."""
-        from daily_brief import rendering
-        import importlib
         import inspect
+
+        from daily_brief import rendering
 
         source = inspect.getsource(rendering.weather_table.build_weather_markdown)
         # The string "77316" should not appear as a hardcoded literal
         # After Wave 2, the location label comes from config
         # The subtitle line currently says: md.append("**3 Day forecast for 77316:**")
         self.assertNotIn(
-            '"77316"', source.replace(" ", "").replace("\n", ""),
-            ("weather_table.py must not hard-code '77316' in the forecast "
-             "subtitle.  Use a configuration value.")
+            '"77316"',
+            source.replace(" ", "").replace("\n", ""),
+            (
+                "weather_table.py must not hard-code '77316' in the forecast "
+                "subtitle.  Use a configuration value."
+            ),
         )
 
     def test_weather_station_labels_not_hardcoded(self):
         """weather_table.py line 63: default station rows contain '77316'.
         These fallback labels should reference a configurable location."""
-        from daily_brief import rendering
         import inspect
+
+        from daily_brief import rendering
+
         source = inspect.getsource(rendering.weather_table)
 
         # The default _default_station_rows currently contains "77316"
         # After Wave 2, defaults should use a config-sourced location
         self.assertNotIn(
-            '"77316"', source.replace(" ", "").replace("\n", ""),
-            ("weather_table.py default station row labels must not "
-             "hard-code '77316'.  Use a configuration value.")
+            '"77316"',
+            source.replace(" ", "").replace("\n", ""),
+            (
+                "weather_table.py default station row labels must not "
+                "hard-code '77316'.  Use a configuration value."
+            ),
         )
 
     def test_report_skip_category_not_hardcoded(self):
         """report.py line 150: `cn == "Weather Forecast 77316"` hard-codes
         the ZIP in the skip logic.  Should use WEATHER_SECTION_TITLE."""
-        from daily_brief import rendering
         import inspect
+
+        from daily_brief import rendering
+
         source = inspect.getsource(rendering.report.build_markdown)
 
         self.assertNotIn(
-            '"Weather Forecast 77316"', source.replace(" ", "").replace("\n", ""),
-            ("report.py must not hard-code 'Weather Forecast 77316' in the "
-             "category skip logic.  Use WEATHER_SECTION_TITLE from config.")
+            '"Weather Forecast 77316"',
+            source.replace(" ", "").replace("\n", ""),
+            (
+                "report.py must not hard-code 'Weather Forecast 77316' in the "
+                "category skip logic.  Use WEATHER_SECTION_TITLE from config."
+            ),
         )
 
     def test_weather_section_title_from_config(self):
         """WEATHER_SECTION_TITLE should be importable from config and used
         throughout weather rendering."""
         from daily_brief.config import WEATHER_SECTION_TITLE
+
         # Config provides the title — this is already correct
         self.assertIsInstance(WEATHER_SECTION_TITLE, str)
         self.assertTrue(len(WEATHER_SECTION_TITLE) > 0)
@@ -465,8 +528,10 @@ class TestWeatherLabelsConfigurationDriven(unittest.TestCase):
     def test_weather_table_uses_config_title(self):
         """build_weather_markdown must use WEATHER_SECTION_TITLE from config,
         not a hardcoded string."""
-        from daily_brief.rendering.weather_table import build_weather_markdown
         import inspect
+
+        from daily_brief.rendering.weather_table import build_weather_markdown
+
         source = inspect.getsource(build_weather_markdown)
 
         # It should reference WEATHER_SECTION_TITLE (which it does on line 42)
@@ -477,16 +542,14 @@ class TestWeatherLabelsConfigurationDriven(unittest.TestCase):
         lines = source.split("\n")
         for line in lines:
             stripped = line.strip()
-            if '3 Day forecast' in stripped and '77316' in stripped:
-                self.fail(
-                    "Subtitle must not hard-code location. "
-                    f"Offending line: {stripped}"
-                )
+            if "3 Day forecast" in stripped and "77316" in stripped:
+                self.fail(f"Subtitle must not hard-code location. Offending line: {stripped}")
 
 
 # ---------------------------------------------------------------------------
 # 5. Leap-day climate normal fallback
 # ---------------------------------------------------------------------------
+
 
 class TestLeapDayClimateNormal(unittest.TestCase):
     """When the reference date is February 29 (leap day), the climate normal
@@ -513,7 +576,6 @@ class TestLeapDayClimateNormal(unittest.TestCase):
 
         This test documents the gap.
         """
-        from datetime import date
 
         # Feb 29, 2024 is a valid date; Feb 29, 2023 is not.
         leap_date = datetime(2024, 2, 29, tzinfo=CHICTZ)
@@ -533,17 +595,22 @@ class TestLeapDayClimateNormal(unittest.TestCase):
 
         We verify the docstring or constants document this.
         """
-        from daily_brief.sources import climate
         import inspect
+
+        from daily_brief.sources import climate
+
         source = inspect.getsource(climate)
 
         # After Wave 2, the source code should mention leap day handling
         # Document the gap — currently neither "leap" nor "feb 29" appears
         # in the source, meaning there's no explicit handling.
         self.assertNotIn(
-            "leap", source.lower().replace(" ", ""),
-            ("After Wave 2, climate.py should document or implement "
-             "leap-day (Feb 29) handling.  For now, this documents the gap.")
+            "leap",
+            source.lower().replace(" ", ""),
+            (
+                "After Wave 2, climate.py should document or implement "
+                "leap-day (Feb 29) handling.  For now, this documents the gap."
+            ),
         )
 
     def test_feb28_and_mar1_average_strategy(self):
@@ -561,6 +628,7 @@ class TestLeapDayClimateNormal(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # 6. Weather→climate reference date threading
 # ---------------------------------------------------------------------------
+
 
 class TestWeatherClimateDateThreading(unittest.TestCase):
     """The weather orchestrator (fetch_weather) calls both
@@ -582,16 +650,21 @@ class TestWeatherClimateDateThreading(unittest.TestCase):
         """fetch_weather must pass the reference datetime to climate fetch.
         CURRENT:  _fetch_climate_normal_high(session, lat, lon) — no date.
         DESIRED:  _fetch_climate_normal_high(session, lat, lon, now_ref)"""
-        from daily_brief.sources import weather
         import inspect
+
+        from daily_brief.sources import weather
+
         source = inspect.getsource(weather.fetch_weather)
 
         # After Wave 2, the call to _fetch_climate_normal_high should
         # include the reference date.  Currently it does not.
         self.assertIn(
-            "reference_date", source,
-            ("fetch_weather must pass the reference date to "
-             "_fetch_climate_normal_high.  Currently it passes no date.")
+            "reference_date",
+            source,
+            (
+                "fetch_weather must pass the reference date to "
+                "_fetch_climate_normal_high.  Currently it passes no date."
+            ),
         )
 
     def test_date_override_affects_climate(self):
@@ -604,8 +677,7 @@ class TestWeatherClimateDateThreading(unittest.TestCase):
         """
         from daily_brief.sources.weather import get_reference_datetime
 
-        with patch("daily_brief.sources.weather.DATE_OVERRIDE",
-                   "2026-03-15T10:00:00"):
+        with patch("daily_brief.sources.weather.DATE_OVERRIDE", "2026-03-15T10:00:00"):
             ref = get_reference_datetime()
             self.assertEqual(ref.year, 2026)
             self.assertEqual(ref.month, 3)

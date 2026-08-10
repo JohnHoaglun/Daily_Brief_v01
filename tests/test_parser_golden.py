@@ -1,4 +1,5 @@
 """Golden-fixture + edge-case tests for parse_batch_summary_response()."""
+
 from __future__ import annotations
 
 import importlib.util
@@ -18,14 +19,19 @@ FIXTURES = _fixture_mod.FIXTURES
 
 def _run(self, fixture):
     result = parse_batch_summary_response(
-        fixture["response"], fixture["count"],
+        fixture["response"],
+        fixture["count"],
         story_headlines=fixture.get("headlines"),
     )
     expected = fixture["expected"]
-    self.assertEqual(len(result), fixture["count"],
-        f"[{fixture['id']}] len {len(result)} != {fixture['count']}")
-    self.assertEqual(len(result), len(expected),
-        f"[{fixture['id']}] expected len {len(expected)} != {fixture['count']}")
+    self.assertEqual(
+        len(result), fixture["count"], f"[{fixture['id']}] len {len(result)} != {fixture['count']}"
+    )
+    self.assertEqual(
+        len(result),
+        len(expected),
+        f"[{fixture['id']}] expected len {len(expected)} != {fixture['count']}",
+    )
     for i, (got, exp) in enumerate(zip(result, expected)):
         msg = f"[{fixture['id']}] slot {i}  got={got!r}  exp={exp!r}"
         self.assertEqual(got.strip(), exp.strip(), msg)
@@ -55,13 +61,13 @@ CURATED = [f for f in FIXTURES if f["id"] in KEEP_IDS]
 class TestParserGoldenFixtures(TestCase):
     pass
 
+
 for _f in CURATED:
     setattr(TestParserGoldenFixtures, f"test_golden__{_f['id']}", lambda s, f=_f: _run(s, f))
 del _f
 
 
 class TestParserEdgeCases(TestCase):
-
     def test_none_response(self):
         self.assertEqual(parse_batch_summary_response(None, 3), ["", "", ""])
 
@@ -86,28 +92,26 @@ class TestParserEdgeCases(TestCase):
             self.assertEqual(result[i].strip(), "")
 
     def test_pipe_in_content(self):
-        result = parse_batch_summary_response(
-            "STORY_0 | h=summary with a pipe: A | B. Done.", 1)
+        result = parse_batch_summary_response("STORY_0 | h=summary with a pipe: A | B. Done.", 1)
         self.assertEqual(len(result), 1)
         self.assertTrue(result[0].strip())
 
     def test_equal_in_summary_body(self):
-        result = parse_batch_summary_response(
-            "STORY_0 | h=summary with = sign. Done.", 1)
+        result = parse_batch_summary_response("STORY_0 | h=summary with = sign. Done.", 1)
         self.assertEqual(len(result), 1)
         self.assertIn("=", result[0])
 
     def test_single_story_preamble(self):
         result = parse_batch_summary_response(
             "Here are the summaries:\n\nThe summary has three sentences. The third ends here. Extra.",
-            1)
+            1,
+        )
         self.assertEqual(len(result), 1)
         self.assertTrue(result[0].strip())
         self.assertNotIn("Here are", result[0])
 
     def test_story_headlines_empty_list(self):
-        result = parse_batch_summary_response(
-            "STORY_0 | text\n1. Second", 2, story_headlines=[])
+        result = parse_batch_summary_response("STORY_0 | text\n1. Second", 2, story_headlines=[])
         self.assertEqual(len(result), 2)
 
     def test_numbered_variants(self):
@@ -120,21 +124,22 @@ class TestParserEdgeCases(TestCase):
 
     def test_bold_numbered_heading(self):
         r = parse_batch_summary_response(
-            "**1. Downtown fire**\nThree buildings destroyed. Contained by evening.", 1)
+            "**1. Downtown fire**\nThree buildings destroyed. Contained by evening.", 1
+        )
         self.assertEqual(len(r), 1)
         self.assertTrue(r[0].strip())
 
     def test_multiline_bold_heading(self):
         r = parse_batch_summary_response(
-            "### **2. Budget**\nMayor announced it. Schools get funding.", 3)
+            "### **2. Budget**\nMayor announced it. Schools get funding.", 3
+        )
         self.assertEqual(len(r), 3)
         self.assertEqual(r[0].strip(), "")
         self.assertTrue(r[1].strip())
         self.assertEqual(r[2].strip(), "")
 
     def test_three_sentence_trim(self):
-        r = parse_batch_summary_response(
-            "STORY_0 | h=One. Two. Three. Four. Five.", 1)
+        r = parse_batch_summary_response("STORY_0 | h=One. Two. Three. Four. Five.", 1)
         parts = [s.strip() for s in r[0].split(".") if s.strip()]
         self.assertLessEqual(len(parts), 3)
 
@@ -142,7 +147,8 @@ class TestParserEdgeCases(TestCase):
         r = parse_batch_summary_response(
             "Summary of Fire:\nDestroyed buildings. Contained.\n\n"
             "Summary of Budget:\nMayor announced. Funding schools.",
-            2)
+            2,
+        )
         self.assertEqual(len(r), 2)
         self.assertTrue(r[0].strip())
         self.assertTrue(r[1].strip())

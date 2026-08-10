@@ -1,19 +1,20 @@
 """
 Tests for daily_brief/cli.py — command dispatch and subcommands.
 """
-import sys as sysmod
-import io
+
 import asyncio
+import io
+import sys as sysmod
 import unittest
 from unittest import TestCase, mock
 from unittest.mock import AsyncMock
 
-from daily_brief.cli import run, cmd_validate, cmd_show_prompt, cmd_check_connectivity
-
+from daily_brief.cli import cmd_check_connectivity, cmd_show_prompt, cmd_validate, run
 
 # ---------------------------------------------------------------------------
 # run() dispatch
 # ---------------------------------------------------------------------------
+
 
 class TestRunDispatch(TestCase):
     """run() dispatches subcommands correctly."""
@@ -38,6 +39,7 @@ class TestRunDispatch(TestCase):
 # cmd_validate
 # ---------------------------------------------------------------------------
 
+
 class TestCmdValidate(TestCase):
     """cmd_validate returns exit code based on validation result."""
 
@@ -59,6 +61,7 @@ class TestCmdValidate(TestCase):
 # ---------------------------------------------------------------------------
 # cmd_show_prompt
 # ---------------------------------------------------------------------------
+
 
 class TestCmdShowPrompt(TestCase):
     """cmd_show_prompt prints prompt or error."""
@@ -82,6 +85,7 @@ class TestCmdShowPrompt(TestCase):
 # cmd_check_connectivity
 # ---------------------------------------------------------------------------
 
+
 class TestCmdCheckConnectivity(TestCase):
     """check-connectivity dispatch and exit semantics."""
 
@@ -93,21 +97,17 @@ class TestCmdCheckConnectivity(TestCase):
 
     def test_all_pass_returns_zero(self):
         with mock.patch(
-            "daily_brief.cli._cmd_check_connectivity_impl",
-            new_callable=AsyncMock, return_value=0
-        ) as mock_impl:
-            with mock.patch("asyncio.run", side_effect=self._run_on_existing_loop):
-                rv = cmd_check_connectivity()
+            "daily_brief.cli._cmd_check_connectivity_impl", new_callable=AsyncMock, return_value=0
+        ) as mock_impl, mock.patch("asyncio.run", side_effect=self._run_on_existing_loop):
+            rv = cmd_check_connectivity()
         mock_impl.assert_awaited_once()
         self.assertEqual(rv, 0)
 
     def test_any_fail_returns_one(self):
         with mock.patch(
-            "daily_brief.cli._cmd_check_connectivity_impl",
-            new_callable=AsyncMock, return_value=1
-        ) as mock_impl:
-            with mock.patch("asyncio.run", side_effect=self._run_on_existing_loop):
-                rv = cmd_check_connectivity()
+            "daily_brief.cli._cmd_check_connectivity_impl", new_callable=AsyncMock, return_value=1
+        ) as mock_impl, mock.patch("asyncio.run", side_effect=self._run_on_existing_loop):
+            rv = cmd_check_connectivity()
         mock_impl.assert_awaited_once()
         self.assertEqual(rv, 1)
 

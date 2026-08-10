@@ -14,7 +14,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, Dict, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any, Dict, Optional
 
 import aiohttp
 
@@ -129,23 +130,31 @@ async def _request_with_retry(
                     if _exceeds_content_length_header(resp, max_bytes):
                         logger.warning(
                             "[http oversized] %s Content-Length %s exceeds %d — rejected",
-                            url, resp.headers.get("Content-Length", "unknown"), max_bytes,
+                            url,
+                            resp.headers.get("Content-Length", "unknown"),
+                            max_bytes,
                         )
                         return None, status, attempt + 1
                     body = await _read_body_bounded(resp, max_bytes)
                     return body, status, attempt + 1
                 if attempt < max_attempts - 1 and _should_retry(status):
                     delay = backoff[attempt] if attempt < len(backoff) else backoff[-1]
-                    logger.warning(f"[http retry] attempt {attempt + 1}/{max_attempts} — {url} status {status}, retrying in {delay}s")
+                    logger.warning(
+                        f"[http retry] attempt {attempt + 1}/{max_attempts} — {url} status {status}, retrying in {delay}s"
+                    )
                     await asyncio.sleep(delay)
                     continue
-                logger.warning(f"[http error] {url} status {status} (attempt {attempt + 1}/{max_attempts})")
+                logger.warning(
+                    f"[http error] {url} status {status} (attempt {attempt + 1}/{max_attempts})"
+                )
                 return None, status, attempt + 1
         except HTTP_RETRYABLE_EXCEPTIONS as exc:
             last_status = None
             if attempt < max_attempts - 1:
                 delay = backoff[attempt] if attempt < len(backoff) else backoff[-1]
-                logger.warning(f"[http retry] attempt {attempt + 1}/{max_attempts} — {url}: {exc}, retrying in {delay}s")
+                logger.warning(
+                    f"[http retry] attempt {attempt + 1}/{max_attempts} — {url}: {exc}, retrying in {delay}s"
+                )
                 await asyncio.sleep(delay)
                 continue
             logger.error(f"[http error] {url}: {exc} (attempt {attempt + 1}/{max_attempts})")
@@ -200,9 +209,11 @@ async def _fetch_text(
 
     Accepts arbitrary **params forwarded to session.get().
     """
-    return (await _request_with_retry(
-        session, url, user_agent=user_agent, timeout=timeout, max_bytes=max_bytes, **params
-    ))[0]
+    return (
+        await _request_with_retry(
+            session, url, user_agent=user_agent, timeout=timeout, max_bytes=max_bytes, **params
+        )
+    )[0]
 
 
 async def _create_session() -> aiohttp.ClientSession:

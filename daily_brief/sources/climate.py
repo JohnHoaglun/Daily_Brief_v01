@@ -64,7 +64,7 @@ async def _fetch_climate_normal_high(
             val = round(temps[0])
             logger.debug(f"  Climate normal high for {today_str}: {val}°F (raw: {temps[0]})")
             return val
-        logger.debug(f"  [ERA5] No temperature_2m_max data in response")
+        logger.debug("  [ERA5] No temperature_2m_max data in response")
         return None
     except Exception as e:
         logger.warning(f"  WARNING Open-Meteo climate normal fetch failed: {e}")
@@ -85,8 +85,18 @@ def _parse_climate_summary(
         return {"avg_monthly_rainfall": None, "current_monthly_rainfall": None}
 
     month_names = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
     ]
     month_short = current_month.strftime("%b")
     month_idx = month_names.index(month_short) if month_short in month_names else 0
@@ -124,7 +134,9 @@ def _parse_climate_summary(
                 if j < 0:
                     continue
                 candidate = [c.lower() for c in cleaned_rows[j]]
-                if len(candidate) >= 12 and any(month.lower() in candidate for month in month_names):
+                if len(candidate) >= 12 and any(
+                    month.lower() in candidate for month in month_names
+                ):
                     header_row = cleaned_rows[j]
                     break
             if header_row:

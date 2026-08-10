@@ -1,11 +1,10 @@
 """
 Unit tests for daily_brief/rendering/cleanup.py — retention and ordering.
 """
+
 import os
 import tempfile
-import time
 from unittest import TestCase
-
 
 from daily_brief.rendering.cleanup import cleanup_old_files
 
@@ -22,6 +21,7 @@ def _touch(directory: str, filename: str, mtime: float) -> None:
 # Direct cleanup tests
 # ---------------------------------------------------------------------------
 
+
 class TestCleanupOldFiles(TestCase):
     """Verify cleanup retains exactly `max_log_versions` files per directory."""
 
@@ -30,18 +30,20 @@ class TestCleanupOldFiles(TestCase):
         with tempfile.TemporaryDirectory() as news_dir:
             with tempfile.TemporaryDirectory() as log_dir:
                 for i in range(6):
-                    _touch(news_dir, f"DailyBrief-2026-08-0{i+1}_v01.md", 1000 + i)
+                    _touch(news_dir, f"DailyBrief-2026-08-0{i + 1}_v01.md", 1000 + i)
                 for i in range(6):
-                    _touch(log_dir, f"run_log_2026-08-0{i+1}_v01.md", 1000 + i)
+                    _touch(log_dir, f"run_log_2026-08-0{i + 1}_v01.md", 1000 + i)
 
                 cleanup_old_files(news_dir, log_dir, 5)
 
                 news_files = sorted(
-                    f for f in os.listdir(news_dir)
+                    f
+                    for f in os.listdir(news_dir)
                     if f.startswith("DailyBrief-") and f.endswith(".md")
                 )
                 log_files = sorted(
-                    f for f in os.listdir(log_dir)
+                    f
+                    for f in os.listdir(log_dir)
                     if f.startswith("run_log_") and f.endswith(".md")
                 )
 
@@ -76,8 +78,8 @@ class TestCleanupOldFiles(TestCase):
         with tempfile.TemporaryDirectory() as news_dir:
             with tempfile.TemporaryDirectory() as log_dir:
                 for i in range(6):
-                    _touch(news_dir, f"DailyBrief-2026-08-0{i+1}_v01.md", 1000 + i)
-                    _touch(log_dir, f"run_log_2026-08-0{i+1}_v01.md", 1000 + i)
+                    _touch(news_dir, f"DailyBrief-2026-08-0{i + 1}_v01.md", 1000 + i)
+                    _touch(log_dir, f"run_log_2026-08-0{i + 1}_v01.md", 1000 + i)
 
                 # Non-matching files
                 _touch(news_dir, ".DS_Store", 500)
@@ -103,17 +105,19 @@ class TestCleanupOldFiles(TestCase):
         with tempfile.TemporaryDirectory() as news_dir:
             with tempfile.TemporaryDirectory() as log_dir:
                 for i in range(3):
-                    _touch(news_dir, f"DailyBrief-2026-08-0{i+1}_v01.md", 1000 + i)
-                    _touch(log_dir, f"run_log_2026-08-0{i+1}_v01.md", 1000 + i)
+                    _touch(news_dir, f"DailyBrief-2026-08-0{i + 1}_v01.md", 1000 + i)
+                    _touch(log_dir, f"run_log_2026-08-0{i + 1}_v01.md", 1000 + i)
 
                 cleanup_old_files(news_dir, log_dir, 5)
 
                 news_files = sorted(
-                    f for f in os.listdir(news_dir)
+                    f
+                    for f in os.listdir(news_dir)
                     if f.startswith("DailyBrief-") and f.endswith(".md")
                 )
                 log_files = sorted(
-                    f for f in os.listdir(log_dir)
+                    f
+                    for f in os.listdir(log_dir)
                     if f.startswith("run_log_") and f.endswith(".md")
                 )
 
@@ -139,7 +143,8 @@ class TestCleanupOldFiles(TestCase):
                     os.utime(path, (float(i), float(i)))
 
                 existing = sorted(
-                    f for f in os.listdir(output_dir)
+                    f
+                    for f in os.listdir(output_dir)
                     if f.startswith("DailyBrief-") and f.endswith(".md")
                 )
                 self.assertEqual(len(existing), 5)
@@ -154,10 +159,12 @@ class TestCleanupOldFiles(TestCase):
                 cleanup_old_files(output_dir, log_dir, max_log_versions=5)
 
                 remaining = sorted(
-                    f for f in os.listdir(output_dir)
+                    f
+                    for f in os.listdir(output_dir)
                     if f.startswith("DailyBrief-") and f.endswith(".md")
                 )
-                self.assertEqual(len(remaining), 5,
-                    f"Expected 5, got {len(remaining)}: {remaining}")
+                self.assertEqual(
+                    len(remaining), 5, f"Expected 5, got {len(remaining)}: {remaining}"
+                )
                 self.assertNotIn("DailyBrief-2026-08-01_v01.md", remaining)
                 self.assertIn("DailyBrief-2026-08-06_v01.md", remaining)

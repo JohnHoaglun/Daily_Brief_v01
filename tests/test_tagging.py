@@ -2,16 +2,15 @@
 Tier 1 unit tests for tagging.py — keyword matching, scoring, thresholds,
 category boosts, tag deduplication, and min-tag promotion.
 """
+
 from contextlib import contextmanager
-from unittest import mock, TestCase
+from unittest import TestCase, mock
 
 from daily_brief.tagging import (
-    _word_boundary_match,
     _keyword_has_stop,
-    _STOP_WORDS,
+    _word_boundary_match,
     tag_story_with_keywords,
 )
-
 
 # ---------------------------------------------------------------------------
 # Config mocking
@@ -45,11 +44,14 @@ def _patch_config(
 ):
     """Patch daily_brief.config tagging constants for isolated unit tests."""
     patches = [
-        mock.patch("daily_brief.tagging.TAGGING_CONFIG", {
-            "max_tags": max_tags,
-            "score_cap": score_cap,
-            "score_threshold": score_threshold,
-        }),
+        mock.patch(
+            "daily_brief.tagging.TAGGING_CONFIG",
+            {
+                "max_tags": max_tags,
+                "score_cap": score_cap,
+                "score_threshold": score_threshold,
+            },
+        ),
         mock.patch("daily_brief.tagging.TAGGING_MAPPINGS", mappings or _DEFAULT_MAPPINGS),
         mock.patch("daily_brief.tagging.CATEGORY_BOOSTS", boosts or _DEFAULT_BOOSTS),
         mock.patch("daily_brief.tagging.TAG_CONFLICTS", conflicts or _DEFAULT_CONFLICTS),
@@ -68,8 +70,8 @@ def _patch_config(
 # _word_boundary_match
 # ---------------------------------------------------------------------------
 
-class TestWordBoundaryMatch(TestCase):
 
+class TestWordBoundaryMatch(TestCase):
     def test_exact_and_case_insensitive(self):
         """Exact word match; case insensitive."""
         self.assertTrue(_word_boundary_match("ai breakthrough announces new model", "ai"))
@@ -96,8 +98,8 @@ class TestWordBoundaryMatch(TestCase):
 # _keyword_has_stop
 # ---------------------------------------------------------------------------
 
-class TestKeywordHasStop(TestCase):
 
+class TestKeywordHasStop(TestCase):
     def test_stop_detected_in_single_and_all_stop(self):
         """Single or all-stop-word keywords are flagged."""
         self.assertTrue(_keyword_has_stop("new"))
@@ -115,8 +117,8 @@ class TestKeywordHasStop(TestCase):
 # tag_story_with_keywords — basic
 # ---------------------------------------------------------------------------
 
-class TestTagStoryBasic(TestCase):
 
+class TestTagStoryBasic(TestCase):
     def test_single_and_multiple_keyword_matches(self):
         with _patch_config():
             result = tag_story_with_keywords("AI model breakthrough")
@@ -149,14 +151,12 @@ class TestTagStoryBasic(TestCase):
 # tag_story_with_keywords — scoring
 # ---------------------------------------------------------------------------
 
-class TestTagStoryScoring(TestCase):
 
+class TestTagStoryScoring(TestCase):
     def test_more_hits_first(self):
         """Keyword with most hits scores highest and appears first."""
         with _patch_config():
-            result = tag_story_with_keywords(
-                "ai artificial intelligence machine learning model"
-            )
+            result = tag_story_with_keywords("ai artificial intelligence machine learning model")
             tags = result.split()
             self.assertEqual(tags[0], "[[ai]]")
 
@@ -182,8 +182,8 @@ class TestTagStoryScoring(TestCase):
 # tag_story_with_keywords — threshold
 # ---------------------------------------------------------------------------
 
-class TestTagStoryThreshold(TestCase):
 
+class TestTagStoryThreshold(TestCase):
     def test_below_threshold_no_tag(self):
         """High threshold blocks tags."""
         with _patch_config(score_threshold=99.0):
@@ -201,14 +201,12 @@ class TestTagStoryThreshold(TestCase):
 # tag_story_with_keywords — max_tags
 # ---------------------------------------------------------------------------
 
-class TestTagStoryMaxTags(TestCase):
 
+class TestTagStoryMaxTags(TestCase):
     def test_truncates_to_max(self):
         """Only top N tags returned by max_tags slice."""
         with _patch_config(max_tags=2):
-            result = tag_story_with_keywords(
-                "ai machine learning weather storm houston"
-            )
+            result = tag_story_with_keywords("ai machine learning weather storm houston")
         tags = result.split()
         self.assertLessEqual(len(tags), 3)  # max_tags + possible min_tags additions
         self.assertEqual(len(tags), len(set(tags)))
@@ -223,8 +221,8 @@ class TestTagStoryMaxTags(TestCase):
 # tag_story_with_keywords — category boosts
 # ---------------------------------------------------------------------------
 
-class TestCategoryBoost(TestCase):
 
+class TestCategoryBoost(TestCase):
     def test_category_membership_boosts(self):
         """Category membership adds +3.0 even without keyword match."""
         mappings = {
@@ -234,9 +232,7 @@ class TestCategoryBoost(TestCase):
             "Weather Alerts": ["weather"],
         }
         with _patch_config(mappings=mappings, boosts=boosts):
-            result = tag_story_with_keywords(
-                "Storm warning issued", category="Weather Alerts"
-            )
+            result = tag_story_with_keywords("Storm warning issued", category="Weather Alerts")
         self.assertIn("[[weather]]", result)
 
     def test_no_boost_without_category(self):
@@ -254,8 +250,8 @@ class TestCategoryBoost(TestCase):
 # tag_story_with_keywords — conflicts
 # ---------------------------------------------------------------------------
 
-class TestTagConflicts(TestCase):
 
+class TestTagConflicts(TestCase):
     def test_conflict_resolution_before_min_tags(self):
         """Conflict resolution fires first; min_tags cannot restore the loser."""
         mappings = {
@@ -283,8 +279,8 @@ class TestTagConflicts(TestCase):
 # tag_story_with_keywords — conflict + min tag promotion (regression)
 # ---------------------------------------------------------------------------
 
-class TestConflictMinimumTagPromotion(TestCase):
 
+class TestConflictMinimumTagPromotion(TestCase):
     def test_conflict_loser_not_repromoted(self):
         """The live failure: conflict resolution removes the loser, but the
         minimum-tag promotion loop must NEVER re-add it to reach 3 tags.
@@ -380,14 +376,12 @@ class TestConflictMinimumTagPromotion(TestCase):
 # tag_story_with_keywords — deduplication
 # ---------------------------------------------------------------------------
 
-class TestTagDeduplication(TestCase):
 
+class TestTagDeduplication(TestCase):
     def test_no_duplicate_tags(self):
         """Output never contains duplicate tags, even with repeated keywords or duplicate mappings."""
         with _patch_config():
-            result = tag_story_with_keywords(
-                "ai ai artificial intelligence machine learning"
-            )
+            result = tag_story_with_keywords("ai ai artificial intelligence machine learning")
         tags = result.split()
         self.assertEqual(len(tags), len(set(tags)))
 
@@ -408,17 +402,15 @@ class TestTagDeduplication(TestCase):
 # tag_story_with_keywords — min tag promotion
 # ---------------------------------------------------------------------------
 
-class TestMinTagPromotion(TestCase):
 
+class TestMinTagPromotion(TestCase):
     def test_category_fallback_for_min_tags(self):
         """If < 3 tags and category provided → category-derived tag added."""
         mappings = {
             "ai": ["artificial"],
         }
         with _patch_config(mappings=mappings):
-            result = tag_story_with_keywords(
-                "artificial system", category="Science Today"
-            )
+            result = tag_story_with_keywords("artificial system", category="Science Today")
         self.assertIn("[[science-today]]", result)
 
     def test_category_parts_fill_min(self):
@@ -427,9 +419,7 @@ class TestMinTagPromotion(TestCase):
             "ai": ["artificial"],
         }
         with _patch_config(mappings=mappings):
-            result = tag_story_with_keywords(
-                "artificial system", category="Deep Learning Weekly"
-            )
+            result = tag_story_with_keywords("artificial system", category="Deep Learning Weekly")
         tags = result.split()
         self.assertGreaterEqual(len(tags), 2)
 
@@ -450,8 +440,8 @@ class TestMinTagPromotion(TestCase):
 # tag_story_with_keywords — edge cases
 # ---------------------------------------------------------------------------
 
-class TestEdgeCases(TestCase):
 
+class TestEdgeCases(TestCase):
     def test_empty_title_and_none_category(self):
         """Empty title returns valid string. None category works fine."""
         with _patch_config():
@@ -465,9 +455,7 @@ class TestEdgeCases(TestCase):
     def test_special_chars_and_unicode(self):
         """Special chars and Unicode in title don't break matching."""
         with _patch_config():
-            result = tag_story_with_keywords(
-                "AI: 'Artificial Intelligence' — The Future (2025)"
-            )
+            result = tag_story_with_keywords("AI: 'Artificial Intelligence' — The Future (2025)")
         self.assertIn("[[ai]]", result)
 
         with _patch_config():
@@ -477,4 +465,5 @@ class TestEdgeCases(TestCase):
 
 if __name__ == "__main__":
     import unittest
+
     unittest.main()

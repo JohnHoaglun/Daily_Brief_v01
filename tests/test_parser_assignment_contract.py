@@ -6,9 +6,11 @@ First-wins semantics, no overwrites, positional fallback skips headline-matched 
 Some tests will FAIL against the current implementation — that's the point:
 they document the gap between current code and the desired contract.
 """
+
 from __future__ import annotations
 
 import unittest
+
 from daily_brief.llm.summarizer import parse_batch_summary_response
 
 
@@ -36,8 +38,11 @@ class TestNoOverwrite(unittest.TestCase):
         # Slot 0: matched by STORY_0 (first)
         self.assertTrue(result[0].strip(), "slot 0 should have fire summary")
         # Slot 1: no unique match — STORY_1 also matched to slot 0, slot 1 stays empty
-        self.assertEqual(result[1].strip(), "",
-                         "slot 1 should be empty — second duplicate match must not overwrite or steal")
+        self.assertEqual(
+            result[1].strip(),
+            "",
+            "slot 1 should be empty — second duplicate match must not overwrite or steal",
+        )
         # Slot 2: storm
         self.assertTrue(result[2].strip(), "slot 2 should have storm summary")
 
@@ -61,8 +66,11 @@ class TestNoOverwrite(unittest.TestCase):
         # Contract: first match wins; second does NOT overwrite.
         self.assertTrue(result[0].strip(), "slot 0 has fire summary from STORY_0")
         # STORY_2 paraphrase of headline 0 should NOT overwrite slot 0
-        self.assertIn("downtown", result[0].lower() or "",
-                      "slot 0 should still contain the original downtown fire summary")
+        self.assertIn(
+            "downtown",
+            result[0].lower() or "",
+            "slot 0 should still contain the original downtown fire summary",
+        )
 
 
 class TestPositionalDoesNotOverwriteHeadlineMatch(unittest.TestCase):
@@ -95,8 +103,11 @@ class TestPositionalDoesNotOverwriteHeadlineMatch(unittest.TestCase):
         self.assertTrue(result[0].strip(), "slot 0 filled by STORY_0 headline match")
         # Positional 1. → idx 0, already matched, should be skipped
         # Slot 0 should not be overwritten by positional garbage
-        self.assertIn("downtown", result[0].lower() or "",
-                      "slot 0 must not be overwritten by positional fallback")
+        self.assertIn(
+            "downtown",
+            result[0].lower() or "",
+            "slot 0 must not be overwritten by positional fallback",
+        )
 
 
 class TestAmbiguousZeroOverlap(unittest.TestCase):
@@ -117,10 +128,12 @@ class TestAmbiguousZeroOverlap(unittest.TestCase):
         ]
         result = parse_batch_summary_response(response, 2, story_headlines=headlines)
         self.assertEqual(len(result), 2)
-        self.assertEqual(result[0].strip(), "",
-                         "slot 0 empty — no keyword overlap with any headline")
-        self.assertEqual(result[1].strip(), "",
-                         "slot 1 empty — no keyword overlap with any headline")
+        self.assertEqual(
+            result[0].strip(), "", "slot 0 empty — no keyword overlap with any headline"
+        )
+        self.assertEqual(
+            result[1].strip(), "", "slot 1 empty — no keyword overlap with any headline"
+        )
 
 
 class TestDuplicateHeadlineExcerpts(unittest.TestCase):
@@ -145,11 +158,15 @@ class TestDuplicateHeadlineExcerpts(unittest.TestCase):
         result = parse_batch_summary_response(response, 3, story_headlines=headlines)
         self.assertEqual(len(result), 3)
         self.assertTrue(result[0].strip(), "slot 0: first match wins")
-        self.assertEqual(result[1].strip(), "",
-                         "slot 1 empty — duplicate excerpt must not steal a slot")
+        self.assertEqual(
+            result[1].strip(), "", "slot 1 empty — duplicate excerpt must not steal a slot"
+        )
         # STORY_2 / Mayor should go to slot 1
-        self.assertIn("mayor", result[1].lower() or result[2].lower() or "",
-                      "mayor summary should appear somewhere")
+        self.assertIn(
+            "mayor",
+            result[1].lower() or result[2].lower() or "",
+            "mayor summary should appear somewhere",
+        )
 
 
 class TestEmptyTitleStories(unittest.TestCase):
@@ -206,8 +223,7 @@ class TestMalformedStoryIDs(unittest.TestCase):
         self.assertEqual(len(result), 2)
         self.assertTrue(result[0].strip(), "slot 0: fire")
         self.assertTrue(result[1].strip(), "slot 1: mayor")
-        self.assertNotIn("Phantom", result[0] + result[1],
-                         "STORY_99 should not appear in output")
+        self.assertNotIn("Phantom", result[0] + result[1], "STORY_99 should not appear in output")
 
     def test_story_abc_non_numeric(self):
         """STORY_abc is not a valid STORY_N pattern. Skipped, no crash."""
@@ -241,10 +257,12 @@ class TestSwapDetection(unittest.TestCase):
         result = parse_batch_summary_response(response, 2, story_headlines=headlines)
         self.assertEqual(len(result), 2)
         # Contract: swapped stories should be corrected
-        self.assertIn("fire", result[0].lower() or "",
-                      "slot 0 should have fire summary after swap fix")
-        self.assertIn("mayor", result[1].lower() or "",
-                      "slot 1 should have mayor summary after swap fix")
+        self.assertIn(
+            "fire", result[0].lower() or "", "slot 0 should have fire summary after swap fix"
+        )
+        self.assertIn(
+            "mayor", result[1].lower() or "", "slot 1 should have mayor summary after swap fix"
+        )
 
     def test_correctly_matched_no_swap(self):
         """Stories correctly ordered. Must NOT swap."""
@@ -255,10 +273,8 @@ class TestSwapDetection(unittest.TestCase):
         headlines = ["Fire burns downtown", "Mayor announces budget"]
         result = parse_batch_summary_response(response, 2, story_headlines=headlines)
         self.assertEqual(len(result), 2)
-        self.assertIn("fire", result[0].lower() or "",
-                      "slot 0 should have fire — no swap")
-        self.assertIn("mayor", result[1].lower() or "",
-                      "slot 1 should have mayor — no swap")
+        self.assertIn("fire", result[0].lower() or "", "slot 0 should have fire — no swap")
+        self.assertIn("mayor", result[1].lower() or "", "slot 1 should have mayor — no swap")
 
 
 class TestFuzzyMatchThreshold(unittest.TestCase):
@@ -291,8 +307,9 @@ class TestFuzzyMatchThreshold(unittest.TestCase):
         headlines = ["Fire burns downtown", "Mayor announces budget"]
         result = parse_batch_summary_response(response, 2, story_headlines=headlines)
         self.assertEqual(len(result), 2)
-        self.assertEqual(result[0].strip(), "",
-                         "slot 0: paraphrase too far from headline — below 0.7, empty")
+        self.assertEqual(
+            result[0].strip(), "", "slot 0: paraphrase too far from headline — below 0.7, empty"
+        )
         self.assertTrue(result[1].strip(), "slot 1: mayor matches")
 
 
@@ -314,8 +331,9 @@ class TestOneToOneAssignment(unittest.TestCase):
         self.assertEqual(len(result), 2)
         self.assertTrue(result[0].strip(), "slot 0: fire")
         self.assertTrue(result[1].strip(), "slot 1: mayor")
-        self.assertNotIn("extra story", (result[0] + result[1]).lower(),
-                         "extra story must not appear in output")
+        self.assertNotIn(
+            "extra story", (result[0] + result[1]).lower(), "extra story must not appear in output"
+        )
 
     def test_reordered_batch_all_match_once(self):
         """Three stories returned in wrong order. All three match correctly.

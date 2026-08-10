@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+
 import yaml
 
 from daily_brief.config import (
@@ -36,14 +37,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     config_subs.add_parser("validate", help="Validate config.yaml")
     config_subs.add_parser("show", help="Print full config as YAML")
-    config_subs.add_parser(
-        "list-categories", help="List categories with settings"
-    )
+    config_subs.add_parser("list-categories", help="List categories with settings")
     config_subs.add_parser("list-lakes", help="List lake monitor URLs")
 
-    sp_parser = config_subs.add_parser(
-        "show-prompt", help="Print a prompt by name"
-    )
+    sp_parser = config_subs.add_parser("show-prompt", help="Print a prompt by name")
     sp_parser.add_argument(
         "name",
         choices=["summary", "summary_strict", "system_batch"],
@@ -149,7 +146,8 @@ def cmd_show_prompt(name: str) -> int:
 
 
 async def _cmd_check_connectivity_impl() -> int:
-    from daily_brief.connectivity import run_all_checks, report
+    from daily_brief.connectivity import report, run_all_checks
+
     results = await run_all_checks(timeout=5.0)
     all_ok = report(results, file=sys.stdout)
     return 0 if all_ok else 1

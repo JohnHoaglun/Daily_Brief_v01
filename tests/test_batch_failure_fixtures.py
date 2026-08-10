@@ -3,23 +3,30 @@ Test fixtures for deterministic mocked LLM failure paths in batch_summarize_all.
 All tests use mocked LLM responses — no live LLM calls.
 Used by C.4 failure-path tests and any new tests that need batch failure scenarios.
 """
+
 import asyncio
-from unittest import TestCase, mock
+from unittest import TestCase
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from daily_brief.llm.summarizer import (
     StoryPipelineState,
-    _generate_auto_fallback,
     batch_summarize_all,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helper factory
 # ---------------------------------------------------------------------------
 
-def _make_story(title, category, snip="Snippet for testing.", context="Article content that is long enough for proper context generation during LLM summary processing."):
-    s = StoryPipelineState(title=title, link="http://x", snippet=snip, pub_dt="2024-01-01", category=category)
+
+def _make_story(
+    title,
+    category,
+    snip="Snippet for testing.",
+    context="Article content that is long enough for proper context generation during LLM summary processing.",
+):
+    s = StoryPipelineState(
+        title=title, link="http://x", snippet=snip, pub_dt="2024-01-01", category=category
+    )
     s.context = context
     s.summary = None
     return s
@@ -66,6 +73,7 @@ def _valid_summary_text(topic):
 # 1. TestTransientBatchException
 # ---------------------------------------------------------------------------
 
+
 class TestTransientBatchException(TestCase):
     """Batch call raises exception; recovery via _summarize succeeds or also fails."""
 
@@ -96,23 +104,30 @@ class TestTransientBatchException(TestCase):
         # Also patch _summarize to use the same side_effect for its internal LLM call
         async def mock_summarize(client, ctx, title=None, **skwargs):
             single_calls[0] += 1
-            return (f"Recovery summary with concrete facts about the {title} story. "
-                    "Analysts reported measurable gains across the sector today.")
+            return (
+                f"Recovery summary with concrete facts about the {title} story. "
+                "Analysts reported measurable gains across the sector today."
+            )
 
         client = MagicMock()
         client.chat_completions_create = AsyncMock(side_effect=side_effect)
 
         async def run():
             patches = _retry_patches()
-            with patches[0], patches[1], patches[2]:
-                with patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, side_effect=mock_summarize):
-                    await batch_summarize_all(client, stories, batch_size=2)
+            with patches[0], patches[1], patches[2], patch(
+                "daily_brief.llm.summarizer._summarize",
+                new_callable=AsyncMock,
+                side_effect=mock_summarize,
+            ):
+                await batch_summarize_all(client, stories, batch_size=2)
 
         _run(run())
         self.assertEqual(batch_calls[0], 2, "Expected 2 batch calls (initial + retry)")
         self.assertEqual(single_calls[0], 2, "Expected 2 single recovery calls")
         for s in stories:
-            self.assertNotIn("[Auto]", s.summary, f"Story {s.title} should not be [Auto], got: {s.summary}")
+            self.assertNotIn(
+                "[Auto]", s.summary, f"Story {s.title} should not be [Auto], got: {s.summary}"
+            )
 
     def test_batch_fails_recovery_also_fails(self):
         """Batch raises exception; single-story recovery also fails (returns None).
@@ -135,19 +150,25 @@ class TestTransientBatchException(TestCase):
 
         async def run():
             patches = _retry_patches()
-            with patches[0], patches[1], patches[2]:
-                with patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, return_value=None):
-                    await batch_summarize_all(client, stories, batch_size=2)
+            with patches[0], patches[1], patches[2], patch(
+                "daily_brief.llm.summarizer._summarize",
+                new_callable=AsyncMock,
+                return_value=None,
+            ):
+                await batch_summarize_all(client, stories, batch_size=2)
 
         _run(run())
         self.assertEqual(batch_calls[0], 2, "Expected 2 batch calls (initial + retry)")
         for s in stories:
-            self.assertTrue(s.summary.startswith("[Auto]"), f"Expected [Auto] for {s.title}, got: {s.summary}")
+            self.assertTrue(
+                s.summary.startswith("[Auto]"), f"Expected [Auto] for {s.title}, got: {s.summary}"
+            )
 
 
 # ---------------------------------------------------------------------------
 # 2. TestMalformedBatchResponse
 # ---------------------------------------------------------------------------
+
 
 class TestMalformedBatchResponse(TestCase):
     """Batch response is garbled or partial; recovery path exercised."""
@@ -183,22 +204,32 @@ class TestMalformedBatchResponse(TestCase):
 
         async def run():
             patches = _retry_patches()
-            with patches[0], patches[1], patches[2]:
-                with patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, side_effect=mock_summarize):
-                    await batch_summarize_all(client, stories, batch_size=4)
+            with patches[0], patches[1], patches[2], patch(
+                "daily_brief.llm.summarizer._summarize",
+                new_callable=AsyncMock,
+                side_effect=mock_summarize,
+            ):
+                await batch_summarize_all(client, stories, batch_size=4)
 
         _run(run())
         # Stories 0 and 1: validated by parse, should have summaries
         self.assertNotIn("[Auto]", stories[0].summary)
         self.assertNotIn("[Auto]", stories[1].summary)
         # Stories 2 and 3: empty from batch parse → recovery returns None → [Auto]
-        self.assertTrue(stories[2].summary.startswith("[Auto]"), f"Expected [Auto] for story 2, got: {stories[2].summary}")
-        self.assertTrue(stories[3].summary.startswith("[Auto]"), f"Expected [Auto] for story 3, got: {stories[3].summary}")
+        self.assertTrue(
+            stories[2].summary.startswith("[Auto]"),
+            f"Expected [Auto] for story 2, got: {stories[2].summary}",
+        )
+        self.assertTrue(
+            stories[3].summary.startswith("[Auto]"),
+            f"Expected [Auto] for story 3, got: {stories[3].summary}",
+        )
 
 
 # ---------------------------------------------------------------------------
 # 3. TestPartialParseFailure
 # ---------------------------------------------------------------------------
+
 
 class TestPartialParseFailure(TestCase):
     """Batch response parses but summaries fail validation in _summarize_sub_batch."""
@@ -225,17 +256,24 @@ class TestPartialParseFailure(TestCase):
 
         async def run():
             patches = _retry_patches()
-            with patches[0], patches[1], patches[2]:
-                with patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, return_value=None):
-                    await batch_summarize_all(client, stories, batch_size=2)
+            with patches[0], patches[1], patches[2], patch(
+                "daily_brief.llm.summarizer._summarize",
+                new_callable=AsyncMock,
+                return_value=None,
+            ):
+                await batch_summarize_all(client, stories, batch_size=2)
 
         _run(run())
         for s in stories:
-            self.assertTrue(s.summary.startswith("[Auto]"), f"Expected [Auto] for {s.title}, got: {s.summary}")
+            self.assertTrue(
+                s.summary.startswith("[Auto]"), f"Expected [Auto] for {s.title}, got: {s.summary}"
+            )
+
 
 # ---------------------------------------------------------------------------
 # 4. TestInvalidSingleRecovery
 # ---------------------------------------------------------------------------
+
 
 class TestInvalidSingleRecovery(TestCase):
     """Batch fails; single-story recovery via _summarize returns valid or invalid text."""
@@ -269,13 +307,18 @@ class TestInvalidSingleRecovery(TestCase):
 
         async def run():
             patches = _retry_patches()
-            with patches[0], patches[1], patches[2]:
-                with patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, side_effect=mock_summarize):
-                    await batch_summarize_all(client, stories, batch_size=2)
+            with patches[0], patches[1], patches[2], patch(
+                "daily_brief.llm.summarizer._summarize",
+                new_callable=AsyncMock,
+                side_effect=mock_summarize,
+            ):
+                await batch_summarize_all(client, stories, batch_size=2)
 
         _run(run())
         for s in stories:
-            self.assertNotIn("[Auto]", s.summary, f"Story {s.title} should not be [Auto], got: {s.summary}")
+            self.assertNotIn(
+                "[Auto]", s.summary, f"Story {s.title} should not be [Auto], got: {s.summary}"
+            )
 
     def test_recovery_one_sentence_rejected(self):
         """Batch fails; recovery returns a one-sentence response.
@@ -291,29 +334,46 @@ class TestInvalidSingleRecovery(TestCase):
         client.chat_completions_create = AsyncMock(side_effect=side_effect)
 
         async def mock_summarize(client, ctx, title=None, **kwargs):
-            return "Credit defaults are rising across the sector as borrowers struggle with payments."
+            return (
+                "Credit defaults are rising across the sector as borrowers struggle with payments."
+            )
 
         async def run():
             patches = _retry_patches()
-            with patches[0], patches[1], patches[2]:
-                with patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, side_effect=mock_summarize):
-                    await batch_summarize_all(client, stories, batch_size=2)
+            with patches[0], patches[1], patches[2], patch(
+                "daily_brief.llm.summarizer._summarize",
+                new_callable=AsyncMock,
+                side_effect=mock_summarize,
+            ):
+                await batch_summarize_all(client, stories, batch_size=2)
 
         _run(run())
-        self.assertTrue(stories[0].summary.startswith("[Auto]"), f"Expected [Auto], got: {stories[0].summary}")
+        self.assertTrue(
+            stories[0].summary.startswith("[Auto]"), f"Expected [Auto], got: {stories[0].summary}"
+        )
 
     def test_recovery_invalid_variants_rejected(self):
         """Batch fails; recovery returns headline echo, refusal, or topic-mismatch text.
         Verify: all fall through to [Auto] fallback."""
+
         async def side_effect(**kwargs):
             raise Exception("Batch error")
 
         for recovery_text, title in [
             ("Lambda Finance Stock Buyback Program", "Lambda Finance Stock Buyback Program"),
             ("Mu Finance Crypto Exchange Shutdown.", "Mu Finance Crypto Exchange Shutdown"),
-            ("I cannot summarize the Bond Yield article. I don't have access to the full content.", "Nu Finance Bond Yield"),
-            ("I cannot summarize the Stock Market Volatility article. I don't have access today.", "Xi Finance Stock Market"),
-            ("The weather in Houston has been unusually hot this season. Residents should stay cool today.", "Omicron Finance Credit Default Risk"),
+            (
+                "I cannot summarize the Bond Yield article. I don't have access to the full content.",
+                "Nu Finance Bond Yield",
+            ),
+            (
+                "I cannot summarize the Stock Market Volatility article. I don't have access today.",
+                "Xi Finance Stock Market",
+            ),
+            (
+                "The weather in Houston has been unusually hot this season. Residents should stay cool today.",
+                "Omicron Finance Credit Default Risk",
+            ),
         ]:
             stories = [_make_story(title, "Finance")]
             client = MagicMock()
@@ -324,13 +384,18 @@ class TestInvalidSingleRecovery(TestCase):
 
             async def run():
                 patches = _retry_patches()
-                with patches[0], patches[1], patches[2]:
-                    with patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, side_effect=mock_summarize):
-                        await batch_summarize_all(client, stories, batch_size=2)
+                with patches[0], patches[1], patches[2], patch(
+                    "daily_brief.llm.summarizer._summarize",
+                    new_callable=AsyncMock,
+                    side_effect=mock_summarize,
+                ):
+                    await batch_summarize_all(client, stories, batch_size=2)
 
             _run(run())
-            self.assertTrue(stories[0].summary.startswith("[Auto]"),
-                f"Expected [Auto] for recovery text: {recovery_text[:40]!r}, got: {stories[0].summary}")
+            self.assertTrue(
+                stories[0].summary.startswith("[Auto]"),
+                f"Expected [Auto] for recovery text: {recovery_text[:40]!r}, got: {stories[0].summary}",
+            )
 
     def test_recovery_auto_fallback_not_counted_as_recovered(self):
         """Batch fails; _summarize returns a generated [Auto] headline fallback.
@@ -350,9 +415,12 @@ class TestInvalidSingleRecovery(TestCase):
 
         async def run():
             patches = _retry_patches()
-            with patches[0], patches[1], patches[2]:
-                with patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, side_effect=mock_summarize):
-                    return await batch_summarize_all(client, stories, batch_size=2)
+            with patches[0], patches[1], patches[2], patch(
+                "daily_brief.llm.summarizer._summarize",
+                new_callable=AsyncMock,
+                side_effect=mock_summarize,
+            ):
+                return await batch_summarize_all(client, stories, batch_size=2)
 
         metrics = _run(run())
         self.assertTrue(stories[0].summary.startswith("[Auto]"))
@@ -375,17 +443,24 @@ class TestInvalidSingleRecovery(TestCase):
 
         # Returns boilerplate text — recovery path rejects it → [Auto]
         async def mock_summarize(client, ctx, title=None, **kwargs):
-            return "This article discusses the implications of the financial market crash thoroughly."
+            return (
+                "This article discusses the implications of the financial market crash thoroughly."
+            )
 
         async def run():
             patches = _retry_patches()
-            with patches[0], patches[1], patches[2]:
-                with patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, side_effect=mock_summarize):
-                    await batch_summarize_all(client, stories, batch_size=2)
+            with patches[0], patches[1], patches[2], patch(
+                "daily_brief.llm.summarizer._summarize",
+                new_callable=AsyncMock,
+                side_effect=mock_summarize,
+            ):
+                await batch_summarize_all(client, stories, batch_size=2)
 
         _run(run())
         for s in stories:
-            self.assertTrue(s.summary.startswith("[Auto]"), f"Expected [Auto] for {s.title}, got: {s.summary}")
+            self.assertTrue(
+                s.summary.startswith("[Auto]"), f"Expected [Auto] for {s.title}, got: {s.summary}"
+            )
 
     def test_recovery_concurrency_2_barrier(self):
         """Batch fails. _summarize mocked with async barrier events.
@@ -416,8 +491,10 @@ class TestInvalidSingleRecovery(TestCase):
                 await first_release.wait()
             await all_release.wait()
             active[0] -= 1
-            return f"Recovery summary for the {title} event with significant market impact. " \
-                   "Analysts reported measurable changes in the sector today."
+            return (
+                f"Recovery summary for the {title} event with significant market impact. "
+                "Analysts reported measurable changes in the sector today."
+            )
 
         client = MagicMock()
         client.chat_completions_create = AsyncMock(side_effect=side_effect)
@@ -427,7 +504,11 @@ class TestInvalidSingleRecovery(TestCase):
             # Patch only the retry config.
             with patch("daily_brief.config.LLM_SUMMARY_RETRY_ATTEMPTS", 1):
                 with patch("daily_brief.config.LLM_SUMMARY_RETRY_BACKOFF", []):
-                    with patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, side_effect=mock_summarize):
+                    with patch(
+                        "daily_brief.llm.summarizer._summarize",
+                        new_callable=AsyncMock,
+                        side_effect=mock_summarize,
+                    ):
                         result_task = asyncio.create_task(
                             batch_summarize_all(
                                 client, stories, batch_size=3, recovery_max_concurrency=2
@@ -443,10 +524,16 @@ class TestInvalidSingleRecovery(TestCase):
                         await result_task
 
         _run(run())
-        self.assertGreaterEqual(max_active[0], 2,
-            f"Expected at least 2 concurrent recovery calls, got peak {max_active[0]}")
-        self.assertLessEqual(max_active[0], 2,
-            f"Expected at most 2 concurrent recovery calls (max_concurrency=2), got peak {max_active[0]}")
+        self.assertGreaterEqual(
+            max_active[0],
+            2,
+            f"Expected at least 2 concurrent recovery calls, got peak {max_active[0]}",
+        )
+        self.assertLessEqual(
+            max_active[0],
+            2,
+            f"Expected at most 2 concurrent recovery calls (max_concurrency=2), got peak {max_active[0]}",
+        )
 
     def test_recovery_concurrency_1_serial(self):
         """recovery_max_concurrency=1. Verify only one recovery call is active at a time
@@ -468,8 +555,10 @@ class TestInvalidSingleRecovery(TestCase):
             max_active[0] = max(max_active[0], active[0])
             await gate.wait()
             active[0] -= 1
-            return f"Recovery summary for the {title} event with important details. " \
-                   "Market analysts provided detailed analysis of the situation."
+            return (
+                f"Recovery summary for the {title} event with important details. "
+                "Market analysts provided detailed analysis of the situation."
+            )
 
         client = MagicMock()
         client.chat_completions_create = AsyncMock(side_effect=side_effect)
@@ -491,20 +580,26 @@ class TestInvalidSingleRecovery(TestCase):
 
         async def run():
             patches = _retry_patches()
-            with patches[0], patches[1], patches[2]:
-                with patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, side_effect=mock_summarize):
-                    poll_task = asyncio.create_task(poll_and_release())
-                    recovery_task = asyncio.create_task(
-                        batch_summarize_all(
-                            client, stories, batch_size=2, recovery_max_concurrency=1
-                        )
+            with patches[0], patches[1], patches[2], patch(
+                "daily_brief.llm.summarizer._summarize",
+                new_callable=AsyncMock,
+                side_effect=mock_summarize,
+            ):
+                poll_task = asyncio.create_task(poll_and_release())
+                recovery_task = asyncio.create_task(
+                    batch_summarize_all(
+                        client, stories, batch_size=2, recovery_max_concurrency=1
                     )
-                    await recovery_task
-                    await poll_task
+                )
+                await recovery_task
+                await poll_task
 
         _run(run())
-        self.assertEqual(max_active[0], 1,
-            f"Expected only 1 concurrent recovery call (max_concurrency=1), got peak {max_active[0]}")
+        self.assertEqual(
+            max_active[0],
+            1,
+            f"Expected only 1 concurrent recovery call (max_concurrency=1), got peak {max_active[0]}",
+        )
 
     def test_recovery_deadline_prevents_queue(self):
         """Batch fails. _summarize mocked with slow delays.
@@ -520,6 +615,7 @@ class TestInvalidSingleRecovery(TestCase):
             raise Exception("Batch error")
 
         mono_counter = [0]
+
         def mock_monotonic():
             # Each call advances time by 1 second — well past 0.01 deadline
             mono_counter[0] += 1
@@ -528,29 +624,40 @@ class TestInvalidSingleRecovery(TestCase):
         async def mock_summarize(client, ctx, title=None, **kwargs):
             # Even without sleep, the pre-dispatch gate checks monotonic time
             # and will skip if past deadline
-            return f"Recovery summary for the {title} with important facts. " \
-                   "Analysts reported significant findings in their analysis."
+            return (
+                f"Recovery summary for the {title} with important facts. "
+                "Analysts reported significant findings in their analysis."
+            )
 
         client = MagicMock()
         client.chat_completions_create = AsyncMock(side_effect=side_effect)
 
         async def run():
             patches = _retry_patches()
-            with patches[0], patches[1], patches[2]:
-                with patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, side_effect=mock_summarize):
-                    with patch("daily_brief.llm.summarizer.time.monotonic", side_effect=mock_monotonic):
-                        return await batch_summarize_all(
-                            client, stories, batch_size=3,
-                            recovery_max_concurrency=2,
-                            recovery_deadline_s=0.01
-                        )
+            with patches[0], patches[1], patches[2], patch(
+                "daily_brief.llm.summarizer._summarize",
+                new_callable=AsyncMock,
+                side_effect=mock_summarize,
+            ), patch(
+                "daily_brief.llm.summarizer.time.monotonic", side_effect=mock_monotonic
+            ):
+                return await batch_summarize_all(
+                    client,
+                    stories,
+                    batch_size=3,
+                    recovery_max_concurrency=2,
+                    recovery_deadline_s=0.01,
+                )
 
         metrics = _run(run())
         # With time advancing past 0.01 on the first monotonic call,
         # all recovery tasks should hit the pre-dispatch deadline gate → [Auto]
         auto_count = sum(1 for s in stories if s.summary and s.summary.startswith("[Auto]"))
-        self.assertGreater(auto_count, 0,
-            f"Expected some [Auto] fallbacks due to deadline, all stories: {[s.summary[:30] for s in stories]}")
+        self.assertGreater(
+            auto_count,
+            0,
+            f"Expected some [Auto] fallbacks due to deadline, all stories: {[s.summary[:30] for s in stories]}",
+        )
 
     def test_recovery_auto_fallback_on_all_fail(self):
         """All batch calls fail. _summarize returns valid recovery text.
@@ -566,11 +673,15 @@ class TestInvalidSingleRecovery(TestCase):
 
         async def mock_summarize(client, ctx, title=None, **kwargs):
             if "RecoverA" in str(title):
-                return "The financial market rallied with strong gains across major indices today. " \
-                       "Analysts reported record trading volume in the tech sector."
+                return (
+                    "The financial market rallied with strong gains across major indices today. "
+                    "Analysts reported record trading volume in the tech sector."
+                )
             elif "RecoverB" in str(title):
-                return "Bond yields surged to their highest level in six months on auction results. " \
-                       "Traders adjusted portfolios to account for the rate change."
+                return (
+                    "Bond yields surged to their highest level in six months on auction results. "
+                    "Traders adjusted portfolios to account for the rate change."
+                )
             return None
 
         client = MagicMock()
@@ -578,18 +689,26 @@ class TestInvalidSingleRecovery(TestCase):
 
         async def run():
             patches = _retry_patches()
-            with patches[0], patches[1], patches[2]:
-                with patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, side_effect=mock_summarize):
-                    return await batch_summarize_all(client, stories, batch_size=2)
+            with patches[0], patches[1], patches[2], patch(
+                "daily_brief.llm.summarizer._summarize",
+                new_callable=AsyncMock,
+                side_effect=mock_summarize,
+            ):
+                return await batch_summarize_all(client, stories, batch_size=2)
 
         metrics = _run(run())
         for s in stories:
-            self.assertNotIn("[Auto]", s.summary, f"Story {s.title} should not be [Auto], got: {s.summary}")
-        self.assertEqual(metrics.individual_recovered, 2,
-            f"Expected 2 recovered, got {metrics.individual_recovered}")
-        self.assertEqual(metrics.auto_fallbacks, 0,
-            f"Expected 0 auto_fallbacks, got {metrics.auto_fallbacks}")
+            self.assertNotIn(
+                "[Auto]", s.summary, f"Story {s.title} should not be [Auto], got: {s.summary}"
+            )
+        self.assertEqual(
+            metrics.individual_recovered,
+            2,
+            f"Expected 2 recovered, got {metrics.individual_recovered}",
+        )
+        self.assertEqual(
+            metrics.auto_fallbacks, 0, f"Expected 0 auto_fallbacks, got {metrics.auto_fallbacks}"
+        )
 
 
 # ---------------------------------------------------------------------------
-

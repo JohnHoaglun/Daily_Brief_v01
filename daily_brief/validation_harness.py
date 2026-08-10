@@ -39,7 +39,6 @@ import glob
 import os
 import re
 import sys
-from collections import defaultdict
 
 try:
     import yaml
@@ -50,6 +49,7 @@ except ImportError:
 # --------------------------------------------------------------------------
 # Result collection
 # --------------------------------------------------------------------------
+
 
 class Results:
     def __init__(self):
@@ -76,12 +76,62 @@ class Results:
 
 
 STOPWORDS = {
-    "the", "a", "an", "and", "or", "but", "of", "to", "in", "on", "for",
-    "with", "at", "by", "from", "is", "are", "was", "were", "be", "been",
-    "this", "that", "these", "those", "as", "it", "its", "into", "after",
-    "over", "amid", "than", "their", "his", "her", "has", "have", "had",
-    "will", "would", "could", "should", "about", "which", "who", "what",
-    "says", "said", "new", "more", "not", "also", "some", "such", "each",
+    "the",
+    "a",
+    "an",
+    "and",
+    "or",
+    "but",
+    "of",
+    "to",
+    "in",
+    "on",
+    "for",
+    "with",
+    "at",
+    "by",
+    "from",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "this",
+    "that",
+    "these",
+    "those",
+    "as",
+    "it",
+    "its",
+    "into",
+    "after",
+    "over",
+    "amid",
+    "than",
+    "their",
+    "his",
+    "her",
+    "has",
+    "have",
+    "had",
+    "will",
+    "would",
+    "could",
+    "should",
+    "about",
+    "which",
+    "who",
+    "what",
+    "says",
+    "said",
+    "new",
+    "more",
+    "not",
+    "also",
+    "some",
+    "such",
+    "each",
 }
 
 BOILERPLATE_PHRASES = [
@@ -101,8 +151,9 @@ BOILERPLATE_PHRASES = [
 # Config loading / path resolution
 # --------------------------------------------------------------------------
 
+
 def load_config(config_path):
-    with open(config_path, "r", encoding="utf-8") as f:
+    with open(config_path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -131,6 +182,7 @@ def find_previous_run(log_dir, date, version):
 # --------------------------------------------------------------------------
 # Log parsing
 # --------------------------------------------------------------------------
+
 
 def parse_log(text):
     # Every log line is prefixed with a "[YYYY-MM-DD HH:MM:SS]" timestamp bracket.
@@ -187,7 +239,8 @@ def parse_log(text):
     cat_max = {}
     for m in re.finditer(
         r"^\s*([A-Za-z][A-Za-z0-9 ]+?):\s*.*?\.\.\.\s*\(max:\s*(\d+)\)",
-        text, re.MULTILINE,
+        text,
+        re.MULTILINE,
     ):
         cat_max[m.group(1).strip()] = int(m.group(2))
     data["categories_fetched"] = cat_max
@@ -201,10 +254,13 @@ def parse_log(text):
     raw_counts = {}
     block = re.search(
         r"\[DEBUG\] Feed results by category:(.*?)(?:\n\s*\n|\[DEBUG\]|Deduplicated:)",
-        text, re.DOTALL,
+        text,
+        re.DOTALL,
     )
     if block:
-        for m in re.finditer(r"^\s*([A-Za-z][A-Za-z0-9 ]+?):\s*(\d+)\s*stories", block.group(1), re.MULTILINE):
+        for m in re.finditer(
+            r"^\s*([A-Za-z][A-Za-z0-9 ]+?):\s*(\d+)\s*stories", block.group(1), re.MULTILINE
+        ):
             raw_counts[m.group(1).strip()] = int(m.group(2))
     data["raw_counts_by_category"] = raw_counts
 
@@ -230,10 +286,13 @@ def parse_log(text):
     post_counts = {}
     block = re.search(
         r"\[DEBUG\] Per-category story count AFTER dedup:(.*?)(?:\n\s*\n|Phase 2 completed)",
-        text, re.DOTALL,
+        text,
+        re.DOTALL,
     )
     if block:
-        for m in re.finditer(r"^\s*([A-Za-z][A-Za-z0-9 ]+?):\s*(\d+)\s*$", block.group(1), re.MULTILINE):
+        for m in re.finditer(
+            r"^\s*([A-Za-z][A-Za-z0-9 ]+?):\s*(\d+)\s*$", block.group(1), re.MULTILINE
+        ):
             post_counts[m.group(1).strip()] = int(m.group(2))
     data["post_dedup_by_category"] = post_counts
 
@@ -249,7 +308,9 @@ def parse_log(text):
     data["fail_count"] = len(re.findall(r"\bFAIL\b", text, re.IGNORECASE))
 
     # Unhandled errors (P.3)
-    data["error_lines"] = re.findall(r"^.*(?:\bERROR\b|Traceback|Exception).*$", text, re.MULTILINE)
+    data["error_lines"] = re.findall(
+        r"^.*(?:\bERROR\b|Traceback|Exception).*$", text, re.MULTILINE
+    )
 
     return data
 
@@ -257,6 +318,7 @@ def parse_log(text):
 # --------------------------------------------------------------------------
 # Output (rendered .md) parsing
 # --------------------------------------------------------------------------
+
 
 def parse_output(text):
     data = {}
@@ -266,7 +328,7 @@ def parse_output(text):
     frontmatter = yaml.safe_load(fm_match.group(1)) if fm_match else {}
     data["frontmatter"] = frontmatter or {}
 
-    body = text[fm_match.end():] if fm_match else text
+    body = text[fm_match.end() :] if fm_match else text
 
     # Unavailable string scan (F.3)
     data["unavailable_count"] = len(re.findall(r"Unavailable", body, re.IGNORECASE))
@@ -279,7 +341,12 @@ def parse_output(text):
     n_forecast_rows = 0
     for line in weather_section.split("\n"):
         cells = [c.strip() for c in line.split("|") if c.strip()]
-        if line.startswith("|") and len(cells) >= 7 and not all(re.match(r"^-+\s*$", c) for c in cells) and not any("**" in c for c in cells):
+        if (
+            line.startswith("|")
+            and len(cells) >= 7
+            and not all(re.match(r"^-+\s*$", c) for c in cells)
+            and not any("**" in c for c in cells)
+        ):
             n_forecast_rows += 1
     data["forecast_row_count"] = n_forecast_rows
 
@@ -311,7 +378,8 @@ def parse_output(text):
     # Lake table rows
     lake_rows = re.findall(
         r"^\|\s*Lake (\w[\w ]*?)\s*\|\s*([\d.]+)%\s*\|\s*([\d.]+)%\s*\|\s*([\d.]+)%\s*\|\s*$",
-        body, re.MULTILINE,
+        body,
+        re.MULTILINE,
     )
     data["lake_rows"] = {
         name.strip(): {"today": float(t), "one_week_ago": float(w), "thirty_days_ago": float(m30)}
@@ -321,7 +389,9 @@ def parse_output(text):
     # Category sections in order: ## <Category> (N stories)
     section_order = []
     sections = {}
-    section_iter = list(re.finditer(r"^#{2,3}\s+(.+?)(?:\s*\((\d+)\s*stories\))?\s*$", body, re.MULTILINE))
+    section_iter = list(
+        re.finditer(r"^#{2,3}\s+(.+?)(?:\s*\((\d+)\s*stories\))?\s*$", body, re.MULTILINE)
+    )
     for i, m in enumerate(section_iter):
         name = m.group(1).strip()
         count_str = m.group(2)
@@ -372,6 +442,7 @@ def parse_output(text):
 # Checks
 # --------------------------------------------------------------------------
 
+
 def significant_words(s):
     words = re.findall(r"[a-zA-Z']+", s.lower())
     return {w for w in words if len(w) > 3 and w not in STOPWORDS}
@@ -397,30 +468,46 @@ def run_checks(config, log_data, out_data, prev_log_data, prev_out_data):
     configured_lakes = set(config.get("weather", {}).get("lake_urls", {}).keys())
     rendered_lakes = {k.lower().replace(" ", "_") for k in out_data["lake_rows"].keys()}
     # Try loose match: "Lake Conroe" -> "conroe"
-    rendered_lake_names = {k.lower().replace("lake", "").strip().replace(" ", "_") for k in out_data["lake_rows"].keys()}
+    rendered_lake_names = {
+        k.lower().replace("lake", "").strip().replace(" ", "_")
+        for k in out_data["lake_rows"].keys()
+    }
     missing_lakes = [lk for lk in configured_lakes if lk not in rendered_lake_names]
     if len(missing_lakes) == 1:
         r.warn("1.4", f"1 configured lake missing from output: {missing_lakes}")
     elif len(missing_lakes) > 1:
-        r.fail("1.4", f"{len(missing_lakes)} configured lakes missing from output: {missing_lakes}")
+        r.fail(
+            "1.4", f"{len(missing_lakes)} configured lakes missing from output: {missing_lakes}"
+        )
 
     # 1.5 / F.4 — sane temp ranges, elevation mis-source, fallback default
     for high in log_data["climate_normal_highs"]:
         if high > 115:
-            r.fail("F.4", f"Climate Normal High = {high}°F exceeds 115°F ceiling for 77316 — likely elevation field, not temperature")
+            r.fail(
+                "F.4",
+                f"Climate Normal High = {high}°F exceeds 115°F ceiling for 77316 — likely elevation field, not temperature",
+            )
         elif high == 95:
-            r.warn("F.4", "Climate Normal High == 95°F exactly — matches known fallback default, verify live parse actually succeeded")
+            r.warn(
+                "F.4",
+                "Climate Normal High == 95°F exactly — matches known fallback default, verify live parse actually succeeded",
+            )
     if out_data["climate_normal_high_rendered"] is not None:
         h = out_data["climate_normal_high_rendered"]
         if h > 115:
-            r.fail("1.5", f"Rendered Climate Normal High = {h}°F exceeds 115°F real-world ceiling for 77316")
+            r.fail(
+                "1.5",
+                f"Rendered Climate Normal High = {h}°F exceeds 115°F real-world ceiling for 77316",
+            )
 
     if 1 in log_data["phase_timings"] and log_data["phase_timings"][1] > 30:
         r.warn("1.6", f"Phase 1 took {log_data['phase_timings'][1]}s (> 30s)")
 
     # ---------------- Phase 2: RSS ----------------
     config_categories = {k: v for k, v in config.get("categories", {}).items()}
-    rss_categories = {k: v for k, v in config_categories.items() if k != "Weather Forecast 77316"}  # 2.7
+    rss_categories = {
+        k: v for k, v in config_categories.items() if k != "Weather Forecast 77316"
+    }  # 2.7
 
     log_cat_max = log_data["categories_fetched"]
     config_cat_max = {k: v.get("max_stories") for k, v in rss_categories.items()}
@@ -428,7 +515,10 @@ def run_checks(config, log_data, out_data, prev_log_data, prev_out_data):
     if set(log_cat_max.keys()) != set(config_cat_max.keys()):
         missing_in_log = set(config_cat_max) - set(log_cat_max)
         extra_in_log = set(log_cat_max) - set(config_cat_max)
-        r.fail("2.0", f"Category set mismatch between config.yaml and log. Missing in log: {missing_in_log or 'none'}; unexpected in log: {extra_in_log or 'none'}")
+        r.fail(
+            "2.0",
+            f"Category set mismatch between config.yaml and log. Missing in log: {missing_in_log or 'none'}; unexpected in log: {extra_in_log or 'none'}",
+        )
     else:
         for cat, cfg_max in config_cat_max.items():
             log_max = log_cat_max.get(cat)
@@ -441,7 +531,9 @@ def run_checks(config, log_data, out_data, prev_log_data, prev_out_data):
 
     for cat, raw_count in log_data.get("raw_counts_by_category", {}).items():
         if cat in rss_categories and raw_count == 0 and config_cat_max.get(cat, 0) > 0:
-            r.warn("2.3", f"'{cat}' raw fetch count = 0 (configured max {config_cat_max.get(cat)})")
+            r.warn(
+                "2.3", f"'{cat}' raw fetch count = 0 (configured max {config_cat_max.get(cat)})"
+            )
     if log_data.get("raw_total") == 0:
         r.fail("2.3", "Total raw stories fetched = 0 across all categories")
 
@@ -450,7 +542,10 @@ def run_checks(config, log_data, out_data, prev_log_data, prev_out_data):
         if d["pre"] > 0:
             removed_ratio = (d["pre"] - d["post"]) / d["pre"]
             if removed_ratio > 0.4:
-                r.warn("2.4", f"Dedup removed {removed_ratio:.0%} of stories (pre={d['pre']}, post={d['post']})")
+                r.warn(
+                    "2.4",
+                    f"Dedup removed {removed_ratio:.0%} of stories (pre={d['pre']}, post={d['post']})",
+                )
             if removed_ratio == 0 and d["pre"] >= 50:
                 r.warn("2.4", f"Dedup removed 0% of {d['pre']} stories — dedup may not be running")
 
@@ -460,16 +555,25 @@ def run_checks(config, log_data, out_data, prev_log_data, prev_out_data):
     # 2.6 — known Hermes query typo
     hermes_query = config.get("categories", {}).get("Hermes Agent News", {}).get("query", "")
     if hermes_query.strip().lower() != "hermes agent":
-        r.fail("2.6", f"'Hermes Agent News' query = '{hermes_query}' (expected 'hermes agent' — known typo bug)")
+        r.fail(
+            "2.6",
+            f"'Hermes Agent News' query = '{hermes_query}' (expected 'hermes agent' — known typo bug)",
+        )
 
     # 2.2a — adaptive widening (SPEC-GAP: not implemented, report as known gap)
     for cat in rss_categories:
         post_count = log_data.get("post_dedup_by_category", {}).get(cat, 0)
         if post_count == 0:
             if cat == "Hermes Agent News":
-                r.warn("2.2a", f"'{cat}' returned 0 stories — root cause already identified in 2.6 (query typo), not a widening gap")
+                r.warn(
+                    "2.2a",
+                    f"'{cat}' returned 0 stories — root cause already identified in 2.6 (query typo), not a widening gap",
+                )
             else:
-                r.warn("2.2a", f"'{cat}' returned 0 stories, no widening evidence in log — known gap, adaptive widening not yet implemented (SPEC-GAP)")
+                r.warn(
+                    "2.2a",
+                    f"'{cat}' returned 0 stories, no widening evidence in log — known gap, adaptive widening not yet implemented (SPEC-GAP)",
+                )
 
     # ---------------- Phase 3: Enrichment & Summarization ----------------
     for cat in rss_categories:
@@ -479,14 +583,23 @@ def run_checks(config, log_data, out_data, prev_log_data, prev_out_data):
         if log_post is not None and cfg_max is not None and log_post < cfg_max:
             r.warn("3.1", f"'{cat}' under expected max: {log_post}/{cfg_max}")
         if log_post is not None and rendered_count is not None and log_post != rendered_count:
-            r.fail("3.1", f"'{cat}' rendered count ({rendered_count}) != log post-dedup count ({log_post})")
+            r.fail(
+                "3.1",
+                f"'{cat}' rendered count ({rendered_count}) != log post-dedup count ({log_post})",
+            )
 
     if out_data["unavailable_count"] > 0:
-        r.fail("3.2", f"{out_data['unavailable_count']} occurrence(s) of 'Unavailable' in rendered output")
+        r.fail(
+            "3.2",
+            f"{out_data['unavailable_count']} occurrence(s) of 'Unavailable' in rendered output",
+        )
     if log_data.get("summaries_ok_failed"):
         ok, failed = log_data["summaries_ok_failed"]
         if failed == 0 and out_data["unavailable_count"] > 0:
-            r.fail("3.2", f"Log reports 0 failed summaries but output has {out_data['unavailable_count']} unavailable — failure counter itself is broken")
+            r.fail(
+                "3.2",
+                f"Log reports 0 failed summaries but output has {out_data['unavailable_count']} unavailable — failure counter itself is broken",
+            )
 
     zero_overlap = []
     tag_over_limit = []
@@ -506,7 +619,10 @@ def run_checks(config, log_data, out_data, prev_log_data, prev_out_data):
             if len(overlap) == 0:
                 zero_overlap.append((cat, s["index"], s["title"]))
             elif len(overlap) == 1:
-                r.warn("3.3", f"[{cat} #{s['index']}] only 1 shared keyword between headline and summary — borderline")
+                r.warn(
+                    "3.3",
+                    f"[{cat} #{s['index']}] only 1 shared keyword between headline and summary — borderline",
+                )
 
             if len(s["tags"]) > max_tags:
                 tag_over_limit.append((cat, s["index"], len(s["tags"])))
@@ -517,11 +633,16 @@ def run_checks(config, log_data, out_data, prev_log_data, prev_out_data):
                     tag_conflicts_hit.append((cat, s["index"], a, b))
 
             summary_lower = s["summary"].lower()
-            if any(p in summary_lower for p in BOILERPLATE_PHRASES) and not re.search(r"\d", s["summary"]):
+            if any(p in summary_lower for p in BOILERPLATE_PHRASES) and not re.search(
+                r"\d", s["summary"]
+            ):
                 generic_summaries.append((cat, s["index"]))
 
     for cat, idx, title in zero_overlap:
-        r.fail("3.3", f"[{cat} #{idx}] zero shared keywords between headline and summary — possible misalignment: \"{title}\"")
+        r.fail(
+            "3.3",
+            f'[{cat} #{idx}] zero shared keywords between headline and summary — possible misalignment: "{title}"',
+        )
 
     for cat, idx, n in tag_over_limit:
         r.fail("3.6", f"[{cat} #{idx}] has {n} tags (max {max_tags})")
@@ -535,24 +656,41 @@ def run_checks(config, log_data, out_data, prev_log_data, prev_out_data):
         for cat, idx in generic_summaries:
             r.warn("3.5", f"[{cat} #{idx}] summary looks generic/boilerplate")
         if generic_ratio > 0.10:
-            r.fail("3.5", f"{generic_ratio:.0%} of summaries flagged as generic/boilerplate (> 10% threshold)")
+            r.fail(
+                "3.5",
+                f"{generic_ratio:.0%} of summaries flagged as generic/boilerplate (> 10% threshold)",
+            )
 
     if 3 in log_data["phase_timings"] and log_data["phase_timings"][3] > 200:
         r.warn("3.timing", f"Phase 3 took {log_data['phase_timings'][3]}s (> 200s)")
 
     # ---------------- Phase 4: Output structure ----------------
     fm = out_data["frontmatter"]
-    required_fm_fields = ["title", "date", "time_generated", "content_age_window", "story_count_total", "categories", "tags"]
+    required_fm_fields = [
+        "title",
+        "date",
+        "time_generated",
+        "content_age_window",
+        "story_count_total",
+        "categories",
+        "tags",
+    ]
     for field in required_fm_fields:
         if not fm.get(field) and fm.get(field) != 0:
             r.fail("4.1", f"Frontmatter missing or empty field: '{field}'")
 
     if fm.get("story_count_total") is not None and fm["story_count_total"] != total_story_count:
-        r.fail("4.2", f"Frontmatter story_count_total ({fm['story_count_total']}) != actual rendered story count ({total_story_count})")
+        r.fail(
+            "4.2",
+            f"Frontmatter story_count_total ({fm['story_count_total']}) != actual rendered story count ({total_story_count})",
+        )
 
     rendered_category_headers = [n for n in out_data["section_order"] if n != "Weather Forecast"]
     if fm.get("categories") is not None and fm["categories"] != len(rendered_category_headers):
-        r.fail("4.3", f"Frontmatter categories ({fm['categories']}) != actual section headers ({len(rendered_category_headers)})")
+        r.fail(
+            "4.3",
+            f"Frontmatter categories ({fm['categories']}) != actual section headers ({len(rendered_category_headers)})",
+        )
 
     for cat in rss_categories:
         if cat not in out_data["sections"]:
@@ -569,7 +707,10 @@ def run_checks(config, log_data, out_data, prev_log_data, prev_out_data):
     if log_data.get("file_written_to"):
         written_dir = os.path.dirname(log_data["file_written_to"])
         if os.path.normpath(written_dir) != os.path.normpath(expected_news_dir):
-            r.fail("4.7", f"Log wrote to '{written_dir}', expected config.yaml's directories.news_dir = '{expected_news_dir}'")
+            r.fail(
+                "4.7",
+                f"Log wrote to '{written_dir}', expected config.yaml's directories.news_dir = '{expected_news_dir}'",
+            )
 
     required_tag_segments = config.get("runtime", {}).get("frontmatter_tag_segments", [])
     fm_tags = set(fm.get("tags", []) or [])
@@ -582,20 +723,29 @@ def run_checks(config, log_data, out_data, prev_log_data, prev_out_data):
         expected_order = [c for c in priority if c in rendered_category_headers]
         actual_order = [c for c in rendered_category_headers if c in priority]
         if expected_order != actual_order:
-            r.fail("4.9", f"Section order mismatch. Expected: {expected_order} | Actual: {actual_order}")
+            r.fail(
+                "4.9",
+                f"Section order mismatch. Expected: {expected_order} | Actual: {actual_order}",
+            )
 
     # ---------------- Cross-cutting: Live data integrity ----------------
     if log_data.get("fail_count", 0) > 0:
         r.warn("F.3", f"Log contains {log_data['fail_count']} occurrence(s) of 'FAIL'")
     if out_data.get("unavailable_count", 0) > 0:
-        r.warn("F.3", f"Output contains {out_data['unavailable_count']} occurrence(s) of 'Unavailable'")
+        r.warn(
+            "F.3",
+            f"Output contains {out_data['unavailable_count']} occurrence(s) of 'Unavailable'",
+        )
 
     # F.2 — indirect fallback detection vs. previous run
     if prev_log_data and prev_out_data:
         prev_station = prev_log_data.get("station_complete")
         cur_station = log_data.get("station_complete")
         if prev_station and cur_station and prev_station == cur_station:
-            r.warn("F.2", "avg_temp_today / rainfall fields identical to previous run — possible frozen/fallback data")
+            r.warn(
+                "F.2",
+                "avg_temp_today / rainfall fields identical to previous run — possible frozen/fallback data",
+            )
 
         prev_lakes = prev_log_data.get("lakes", {})
         cur_lakes = log_data.get("lakes", {})
@@ -609,12 +759,20 @@ def run_checks(config, log_data, out_data, prev_log_data, prev_out_data):
             if cur_urls and prev_urls:
                 overlap = len(cur_urls & prev_urls) / len(cur_urls)
                 if overlap > 0.9:
-                    r.warn("F.2", f"'{cat}' story URLs {overlap:.0%} identical to previous run — feed may not be refreshing")
+                    r.warn(
+                        "F.2",
+                        f"'{cat}' story URLs {overlap:.0%} identical to previous run — feed may not be refreshing",
+                    )
     else:
-        r.info("F.2", "No previous run found for cross-run comparison — skipping frozen-data checks")
+        r.info(
+            "F.2", "No previous run found for cross-run comparison — skipping frozen-data checks"
+        )
 
     if 1 in log_data["phase_timings"] and log_data["phase_timings"][1] < 2:
-        r.warn("F.2", f"Phase 1 completed in {log_data['phase_timings'][1]}s — implausibly fast, possible skipped live call")
+        r.warn(
+            "F.2",
+            f"Phase 1 completed in {log_data['phase_timings'][1]}s — implausibly fast, possible skipped live call",
+        )
 
     # ---------------- Pipeline-level gates ----------------
     if log_data.get("total_time") is not None and log_data["total_time"] > 300:
@@ -622,7 +780,10 @@ def run_checks(config, log_data, out_data, prev_log_data, prev_out_data):
 
     if log_data.get("total_stories") is not None:
         if log_data["total_stories"] < 20 or log_data["total_stories"] > 100:
-            r.warn("P.2", f"Total story count {log_data['total_stories']} outside expected 20-100 band")
+            r.warn(
+                "P.2",
+                f"Total story count {log_data['total_stories']} outside expected 20-100 band",
+            )
 
     if log_data.get("error_lines"):
         for line in log_data["error_lines"]:
@@ -634,6 +795,7 @@ def run_checks(config, log_data, out_data, prev_log_data, prev_out_data):
 # --------------------------------------------------------------------------
 # Report writing
 # --------------------------------------------------------------------------
+
 
 def build_report(date, version, results, log_data):
     status = results.status()
@@ -677,8 +839,11 @@ def build_report(date, version, results, log_data):
 # Main
 # --------------------------------------------------------------------------
 
+
 def main():
-    ap = argparse.ArgumentParser(description="Validate a Daily Brief pipeline run against DailyBrief_TestHarness.md")
+    ap = argparse.ArgumentParser(
+        description="Validate a Daily Brief pipeline run against DailyBrief_TestHarness.md"
+    )
     ap.add_argument("--config", required=True, help="Path to config.yaml")
     ap.add_argument("--date", required=True, help="Run date, YYYY-MM-DD")
     ap.add_argument("--version", required=True, help="Run version, e.g. v01")
@@ -694,9 +859,9 @@ def main():
     if not os.path.exists(output_path):
         sys.exit(f"Output file not found: {output_path}")
 
-    with open(log_path, "r", encoding="utf-8") as f:
+    with open(log_path, encoding="utf-8") as f:
         log_text = f.read()
-    with open(output_path, "r", encoding="utf-8") as f:
+    with open(output_path, encoding="utf-8") as f:
         output_text = f.read()
 
     log_data = parse_log(log_text)
@@ -710,9 +875,9 @@ def main():
     if prev_date and prev_version:
         _, _, prev_log_path, prev_output_path = resolve_paths(config, prev_date, prev_version)
         if os.path.exists(prev_log_path) and os.path.exists(prev_output_path):
-            with open(prev_log_path, "r", encoding="utf-8") as f:
+            with open(prev_log_path, encoding="utf-8") as f:
                 prev_log_data = parse_log(f.read())
-            with open(prev_output_path, "r", encoding="utf-8") as f:
+            with open(prev_output_path, encoding="utf-8") as f:
                 prev_out_data = parse_output(f.read())
 
     results = run_checks(config, log_data, out_data, prev_log_data, prev_out_data)

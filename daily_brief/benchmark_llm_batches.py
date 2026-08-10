@@ -13,7 +13,6 @@ import hashlib
 import json
 import os
 import random
-import re
 import statistics
 import sys
 import time
@@ -23,15 +22,17 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = SCRIPT_DIR.parent
 
-from daily_brief.config import LLM_MODEL as CFG_MODEL, OLLAMA_HOST as CFG_HOST, LOG_DIR, VERSION
+from daily_brief.config import LLM_MODEL as CFG_MODEL
+from daily_brief.config import LOG_DIR, VERSION
+from daily_brief.config import OLLAMA_HOST as CFG_HOST
 from daily_brief.llm.client import create_llm_client
 from daily_brief.llm.summarizer import (
-    StoryPipelineState,
-    batch_summarize_all,
     SYSTEM_BATCH_PROMPT,
-    _is_valid_summary,
+    StoryPipelineState,
     _is_boilerplate,
     _is_refusal,
+    _is_valid_summary,
+    batch_summarize_all,
 )
 
 
@@ -83,8 +84,9 @@ class InstrumentedClient:
                 sys_prompt = msg.get("content", "")
                 break
 
-        is_batch = bool(SYSTEM_BATCH_PROMPT and sys_prompt.startswith(SYSTEM_BATCH_PROMPT[:60])) or \
-                   bool(SYSTEM_BATCH_PROMPT and sys_prompt == SYSTEM_BATCH_PROMPT)
+        is_batch = bool(
+            SYSTEM_BATCH_PROMPT and sys_prompt.startswith(SYSTEM_BATCH_PROMPT[:60])
+        ) or bool(SYSTEM_BATCH_PROMPT and sys_prompt == SYSTEM_BATCH_PROMPT)
 
         self._tracker.active += 1
         if self._tracker.active > self._tracker.max_observed:
@@ -133,11 +135,13 @@ def _validate_matrix(batch_sizes, concurrencies):
         print(f"Error: max_concurrency must be > 0, got {mc}", file=sys.stderr)
         sys.exit(1)
     if 3 not in bs or 1 not in mc:
-        print("Error: baseline cell (batch_size=3, max_concurrency=1) must be in the matrix", file=sys.stderr)
+        print(
+            "Error: baseline cell (batch_size=3, max_concurrency=1) must be in the matrix",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     return bs, mc
-
 
 
 # ---------------------------------------------------------------------------
@@ -150,7 +154,7 @@ def load_corpus(fixture_path):
     { "stories": [{title, url, category, snippet, pub_date, context}, ...] }
     or just [{title, url, category, snippet, pub_date, context}, ...]
     """
-    with open(fixture_path, "r", encoding="utf-8") as fh:
+    with open(fixture_path, encoding="utf-8") as fh:
         data = json.load(fh)
 
     if isinstance(data, dict):
@@ -182,8 +186,11 @@ def clone_stories(stories):
     clones = []
     for s in stories:
         ns = StoryPipelineState(
-            title=s.title, link=s.link, snippet=s.snippet,
-            pub_dt=s.pub_dt, category=s.category,
+            title=s.title,
+            link=s.link,
+            snippet=s.snippet,
+            pub_dt=s.pub_dt,
+            category=s.category,
         )
         ns.context = s.context
         ns.summary = None
@@ -252,8 +259,10 @@ async def run_single(stories, batch_size, concurrency, client):
 
     wall_start = time.monotonic()
     await batch_summarize_all(
-        client, clones,
-        batch_size=batch_size, max_concurrency=concurrency,
+        client,
+        clones,
+        batch_size=batch_size,
+        max_concurrency=concurrency,
     )
     wall_time = time.monotonic() - wall_start
     instrumented.detach()
@@ -295,12 +304,16 @@ async def run_single(stories, batch_size, concurrency, client):
 # Table output
 # ---------------------------------------------------------------------------
 def format_table(cells):
-    header = f"{'BS':>3} {'MC':>3}  {'Median(s)':>10} {'Min(s)':>9} {'Max(s)':>9}  " \
-             f"{'Valid':>5} {'Batch':>5} {'Fallb':>5} {'MaxC':>4} {'SpS':>6}"
+    header = (
+        f"{'BS':>3} {'MC':>3}  {'Median(s)':>10} {'Min(s)':>9} {'Max(s)':>9}  "
+        f"{'Valid':>5} {'Batch':>5} {'Fallb':>5} {'MaxC':>4} {'SpS':>6}"
+    )
     sep = "-" * len(header)
     lines = [header, sep]
 
-    for cell in sorted(cells, key=lambda c: (c["settings"]["batch_size"], c["settings"]["max_concurrency"])):
+    for cell in sorted(
+        cells, key=lambda c: (c["settings"]["batch_size"], c["settings"]["max_concurrency"])
+    ):
         s = cell["settings"]
         wall_times = [r["wall_time_s"] for r in cell["runs"]]
         valids = [r["valid_summaries"] for r in cell["runs"]]
@@ -309,11 +322,13 @@ def format_table(cells):
         mc = [r["max_concurrency_observed"] for r in cell["runs"]]
         sps = [r["stories_per_second"] for r in cell["runs"]]
 
-        row = f"{s['batch_size']:>3} {s['max_concurrency']:>3}  " \
-              f"{cell['median_wall_time_s']:>10.3f} {cell['min_wall_time_s']:>9.3f} {cell['max_wall_time_s']:>9.3f}  " \
-              f"{int(statistics.median(valids)):>5} {int(statistics.median(bs)):>5} " \
-              f"{int(statistics.median(fs)):>5} {int(statistics.median(mc)):>4} " \
-              f"{round(statistics.median(sps), 2):>6.2f}"
+        row = (
+            f"{s['batch_size']:>3} {s['max_concurrency']:>3}  "
+            f"{cell['median_wall_time_s']:>10.3f} {cell['min_wall_time_s']:>9.3f} {cell['max_wall_time_s']:>9.3f}  "
+            f"{int(statistics.median(valids)):>5} {int(statistics.median(bs)):>5} "
+            f"{int(statistics.median(fs)):>5} {int(statistics.median(mc)):>4} "
+            f"{round(statistics.median(sps), 2):>6.2f}"
+        )
         lines.append(row)
 
     return "\n".join(lines)
@@ -335,12 +350,20 @@ def select_winner(output_cells):
     baseline_med = baseline_cell["median_wall_time_s"]
     baseline_runs = baseline_cell["runs"]
     baseline_valid_med = int(statistics.median([r["valid_summaries"] for r in baseline_runs]))
-    baseline_invalid_rate = float(statistics.median([r.get("invalid_rate", 0) for r in baseline_runs]))
-    baseline_auto_rate = float(statistics.median([r.get("auto_fallback_rate", 0) for r in baseline_runs]))
-    baseline_bp_refusal_rate = float(statistics.median([
-        r.get("boilerplate_rate", 0) + r.get("refusal_rate", 0) for r in baseline_runs
-    ]))
-    baseline_exceptions = int(statistics.median([r.get("exception_count", 0) for r in baseline_runs]))
+    baseline_invalid_rate = float(
+        statistics.median([r.get("invalid_rate", 0) for r in baseline_runs])
+    )
+    baseline_auto_rate = float(
+        statistics.median([r.get("auto_fallback_rate", 0) for r in baseline_runs])
+    )
+    baseline_bp_refusal_rate = float(
+        statistics.median(
+            [r.get("boilerplate_rate", 0) + r.get("refusal_rate", 0) for r in baseline_runs]
+        )
+    )
+    baseline_exceptions = int(
+        statistics.median([r.get("exception_count", 0) for r in baseline_runs])
+    )
 
     baseline = {
         "settings": dict(baseline_cell["settings"]),
@@ -351,7 +374,7 @@ def select_winner(output_cells):
             "auto_fallback_rate": baseline_auto_rate,
             "boilerplate_refusal_rate": baseline_bp_refusal_rate,
             "exceptions": baseline_exceptions,
-        }
+        },
     }
 
     best = None
@@ -364,30 +387,57 @@ def select_winner(output_cells):
         if med >= best_med:
             continue
         run = cell["runs"][0] if cell["runs"] else {}
-        cand_invalid_rate = float(statistics.median([r.get("invalid_rate", 0) for r in cell["runs"]]))
-        cand_auto_rate = float(statistics.median([r.get("auto_fallback_rate", 0) for r in cell["runs"]]))
-        cand_bp_refusal_rate = float(statistics.median([
-            r.get("boilerplate_rate", 0) + r.get("refusal_rate", 0) for r in cell["runs"]
-        ]))
-        cand_exceptions = int(statistics.median([r.get("exception_count", 0) for r in cell["runs"]]))
+        cand_invalid_rate = float(
+            statistics.median([r.get("invalid_rate", 0) for r in cell["runs"]])
+        )
+        cand_auto_rate = float(
+            statistics.median([r.get("auto_fallback_rate", 0) for r in cell["runs"]])
+        )
+        cand_bp_refusal_rate = float(
+            statistics.median(
+                [r.get("boilerplate_rate", 0) + r.get("refusal_rate", 0) for r in cell["runs"]]
+            )
+        )
+        cand_exceptions = int(
+            statistics.median([r.get("exception_count", 0) for r in cell["runs"]])
+        )
 
         gates = {}
         speed_ok = med <= baseline_med * 0.90
-        gates["speed_improvement"] = {"pass": speed_ok,
-            "baseline": baseline_med, "candidate": med,
-            "improvement_pct": round((baseline_med - med) / baseline_med * 100, 1)}
+        gates["speed_improvement"] = {
+            "pass": speed_ok,
+            "baseline": baseline_med,
+            "candidate": med,
+            "improvement_pct": round((baseline_med - med) / baseline_med * 100, 1),
+        }
 
         inv_ok = cand_invalid_rate <= baseline_invalid_rate
-        gates["invalid_rate"] = {"pass": inv_ok, "baseline": baseline_invalid_rate, "candidate": cand_invalid_rate}
+        gates["invalid_rate"] = {
+            "pass": inv_ok,
+            "baseline": baseline_invalid_rate,
+            "candidate": cand_invalid_rate,
+        }
 
         auto_ok = cand_auto_rate <= baseline_auto_rate
-        gates["auto_fallback_rate"] = {"pass": auto_ok, "baseline": baseline_auto_rate, "candidate": cand_auto_rate}
+        gates["auto_fallback_rate"] = {
+            "pass": auto_ok,
+            "baseline": baseline_auto_rate,
+            "candidate": cand_auto_rate,
+        }
 
         bp_ok = cand_bp_refusal_rate <= baseline_bp_refusal_rate
-        gates["boilerplate_refusal_rate"] = {"pass": bp_ok, "baseline": baseline_bp_refusal_rate, "candidate": cand_bp_refusal_rate}
+        gates["boilerplate_refusal_rate"] = {
+            "pass": bp_ok,
+            "baseline": baseline_bp_refusal_rate,
+            "candidate": cand_bp_refusal_rate,
+        }
 
         exc_ok = cand_exceptions <= baseline_exceptions
-        gates["exceptions"] = {"pass": exc_ok, "baseline": baseline_exceptions, "candidate": cand_exceptions}
+        gates["exceptions"] = {
+            "pass": exc_ok,
+            "baseline": baseline_exceptions,
+            "candidate": cand_exceptions,
+        }
 
         if all(g["pass"] for g in gates.values()):
             best = {
@@ -426,12 +476,13 @@ async def main_async(args):
         host = host.rstrip("/") + "/v1"
 
     from daily_brief.llm import summarizer
+
     orig_model = summarizer.LLM_MODEL
     summarizer.LLM_MODEL = model
 
     with open(fixture_path, "rb") as _fh:
         fixture_hash = hashlib.sha256(_fh.read()).hexdigest()
-    with open(fixture_path, "r", encoding="utf-8") as _fh:
+    with open(fixture_path, encoding="utf-8") as _fh:
         _raw_data = json.load(_fh)
     fixture_capture_date = _raw_data.get("capture_date") if isinstance(_raw_data, dict) else None
 
@@ -444,7 +495,9 @@ async def main_async(args):
 
     matrix = [(bs, mc) for bs in batch_sizes for mc in concurrencies]
     n_cells = len(matrix)
-    print(f"Matrix: {len(batch_sizes)} batch-sizes x {len(concurrencies)} concurrencies = {n_cells} cells")
+    print(
+        f"Matrix: {len(batch_sizes)} batch-sizes x {len(concurrencies)} concurrencies = {n_cells} cells"
+    )
     print(f"Warmups: {warmups}, Runs: {runs} (total executions: {n_cells * (warmups + runs)})")
     print()
 
@@ -459,7 +512,10 @@ async def main_async(args):
             for bs, mc in matrix:
                 clones = clone_stories(stories)
                 await batch_summarize_all(
-                    client, clones, batch_size=bs, max_concurrency=mc,
+                    client,
+                    clones,
+                    batch_size=bs,
+                    max_concurrency=mc,
                 )
                 status = f"  [{bs},{mc}] done"
                 print(f"\r{status}", end="", flush=True)
@@ -483,10 +539,12 @@ async def main_async(args):
             result = await run_single(stories, bs, mc, client)
             cell_results[(bs, mc)].append(result)
 
-            progress = f"Rep {rep}/{runs} | {bs},{mc} | {result['wall_time_s']:.1f}s | " \
-                       f"{result['valid_summaries']}/{total} valid | " \
-                       f"{result['batch_calls']}batch/{result['fallback_calls']}fallback"
-            sys.stdout.write(f"\r\033[K{progress}  [{exec_idx+1}/{len(order)}]   ")
+            progress = (
+                f"Rep {rep}/{runs} | {bs},{mc} | {result['wall_time_s']:.1f}s | "
+                f"{result['valid_summaries']}/{total} valid | "
+                f"{result['batch_calls']}batch/{result['fallback_calls']}fallback"
+            )
+            sys.stdout.write(f"\r\033[K{progress}  [{exec_idx + 1}/{len(order)}]   ")
             sys.stdout.flush()
 
     sys.stdout.write("\r" + " " * 120 + "\r")
@@ -558,8 +616,10 @@ async def main_async(args):
     if baseline:
         print(f"Baseline (3, 1): {baseline['median_wall_time_s']:.3f}s median")
     if winner:
-        print(f"WINNER: bs={winner['settings']['batch_size']}, mc={winner['settings']['max_concurrency']}  "
-              f"({winner['median_wall_time_s']:.3f}s, {winner['improvement_pct']:.1f}% faster)")
+        print(
+            f"WINNER: bs={winner['settings']['batch_size']}, mc={winner['settings']['max_concurrency']}  "
+            f"({winner['median_wall_time_s']:.3f}s, {winner['improvement_pct']:.1f}% faster)"
+        )
     elif baseline:
         print("No winner — no cell improved >= 10% over baseline while passing all quality gates")
     print()
@@ -571,22 +631,34 @@ async def main_async(args):
 # ---------------------------------------------------------------------------
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description="Benchmark LLM batch summarization")
-    p.add_argument("--fixture", default=str(PROJECT_DIR / "tests" / "fixtures" / "llm_benchmark_contexts.json"),
-                    help="JSON corpus fixture path")
-    p.add_argument("--batch-sizes", type=int, nargs="+", default=[3, 4, 5, 6],
-                    help="Batch sizes to test (space-separated)")
-    p.add_argument("--concurrencies", type=int, nargs="+", default=[1, 2],
-                    help="Concurrency values to test (space-separated)")
-    p.add_argument("--warmups", type=int, default=1,
-                    help="Unrecorded warmup runs per cell")
-    p.add_argument("--runs", type=int, default=3,
-                    help="Recorded runs per cell")
-    p.add_argument("--host", default=CFG_HOST,
-                    help=f"vLLM endpoint (default: {CFG_HOST})")
-    p.add_argument("--model", default=CFG_MODEL,
-                    help=f"Model name (default: {CFG_MODEL})")
-    p.add_argument("--output", default=str(Path(LOG_DIR) / "llm_batch_benchmark.json"),
-                     help="JSON output file path")
+    p.add_argument(
+        "--fixture",
+        default=str(PROJECT_DIR / "tests" / "fixtures" / "llm_benchmark_contexts.json"),
+        help="JSON corpus fixture path",
+    )
+    p.add_argument(
+        "--batch-sizes",
+        type=int,
+        nargs="+",
+        default=[3, 4, 5, 6],
+        help="Batch sizes to test (space-separated)",
+    )
+    p.add_argument(
+        "--concurrencies",
+        type=int,
+        nargs="+",
+        default=[1, 2],
+        help="Concurrency values to test (space-separated)",
+    )
+    p.add_argument("--warmups", type=int, default=1, help="Unrecorded warmup runs per cell")
+    p.add_argument("--runs", type=int, default=3, help="Recorded runs per cell")
+    p.add_argument("--host", default=CFG_HOST, help=f"vLLM endpoint (default: {CFG_HOST})")
+    p.add_argument("--model", default=CFG_MODEL, help=f"Model name (default: {CFG_MODEL})")
+    p.add_argument(
+        "--output",
+        default=str(Path(LOG_DIR) / "llm_batch_benchmark.json"),
+        help="JSON output file path",
+    )
     return p.parse_args(argv)
 
 

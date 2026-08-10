@@ -1,17 +1,22 @@
 """Tests for daily_brief/validation_harness.py - log/output parsing + check execution."""
-from daily_brief.validation_harness import parse_log, parse_output, run_checks
 
+from daily_brief.validation_harness import parse_log, parse_output, run_checks
 
 # ---------------------------------------------------------------------------
 # Fixtures -- factory to build report strings from overrides
 # ---------------------------------------------------------------------------
 
+
 def _report(fm_overrides=None, body_overrides=None):
     fm = {
-        "title": "Daily Brief", "date": "2026-08-04",
-        "time_generated": "2026-08-04T01:06:35Z", "status": "active",
-        "content_age_window": 48, "story_count_total": 1,
-        "categories": 1, "tags": ["test"],
+        "title": "Daily Brief",
+        "date": "2026-08-04",
+        "time_generated": "2026-08-04T01:06:35Z",
+        "status": "active",
+        "content_age_window": 48,
+        "story_count_total": 1,
+        "categories": 1,
+        "tags": ["test"],
     }
     if fm_overrides:
         fm.update(fm_overrides)
@@ -35,7 +40,15 @@ def _report(fm_overrides=None, body_overrides=None):
         rows = [
             ("Tuesday", "Partly Cloudy", "Clear", "95\u00b0F", "75\u00b0F", "20%", "10 mph SW"),
             ("Tonight", "Clear", "Clear", "85\u00b0F", "70\u00b0F", "10%", "5 mph S"),
-            ("Wednesday", "Partly Cloudy", "Partly Cloudy", "92\u00b0F", "73\u00b0F", "30%", "15 mph SW"),
+            (
+                "Wednesday",
+                "Partly Cloudy",
+                "Partly Cloudy",
+                "92\u00b0F",
+                "73\u00b0F",
+                "30%",
+                "15 mph SW",
+            ),
         ]
         for row in rows:
             body += "| " + " | ".join(row) + " |\n"
@@ -77,9 +90,13 @@ def _report(fm_overrides=None, body_overrides=None):
 
 def _log(has_station=True, phases=None):
     parts = []
-    parts.append("[2026-08-04 01:05:30] Weather OK -- 3 forecast periods | 1 station record | 11 lake sources\n")
+    parts.append(
+        "[2026-08-04 01:05:30] Weather OK -- 3 forecast periods | 1 station record | 11 lake sources\n"
+    )
     if has_station:
-        parts.append("[2026-08-04 01:05:30] [fetch_weather] Station data complete: avg_temp_today=93\u00b0F avg_monthly_rainfall=3.77 Inches current_monthly_rainfall=2.10 Inches\n")
+        parts.append(
+            "[2026-08-04 01:05:30] [fetch_weather] Station data complete: avg_temp_today=93\u00b0F avg_monthly_rainfall=3.77 Inches current_monthly_rainfall=2.10 Inches\n"
+        )
     if phases is None:
         phases = {1: 5.23, 2: 3.45, 3: 54.71, 4: 0.19}
     for pk, pv in sorted(phases.items()):
@@ -98,13 +115,16 @@ def _harness_log():
     )
 
 
-CFG = {"weather": {"lake_urls": {"Lake Conroe": "http://x", "Lake Houston": "http://x"}},
-       "directories": {"news_dir": "/fake/news/dir"}}
+CFG = {
+    "weather": {"lake_urls": {"Lake Conroe": "http://x", "Lake Houston": "http://x"}},
+    "directories": {"news_dir": "/fake/news/dir"},
+}
 
 
 # ---------------------------------------------------------------------------
 # parse_log
 # ---------------------------------------------------------------------------
+
 
 class TestParseLog:
     def test_full_parse(self):
@@ -126,6 +146,7 @@ class TestParseLog:
 # ---------------------------------------------------------------------------
 # parse_output
 # ---------------------------------------------------------------------------
+
 
 class TestParseOutput:
     def test_full_parse(self):
@@ -158,6 +179,7 @@ class TestParseOutput:
 # ---------------------------------------------------------------------------
 # run_checks
 # ---------------------------------------------------------------------------
+
 
 class TestRunChecks:
     def _run(self, log_text=None, report_text=None):
@@ -208,12 +230,17 @@ class TestRunChecks:
 # Check 4.3: frontmatter category count
 # ---------------------------------------------------------------------------
 
+
 def _report_with_cats(fm_cats, sections):
     fm = {
-        "title": "Daily Brief", "date": "2026-08-06",
-        "time_generated": "2026-08-06T01:00:00Z", "status": "active",
-        "content_age_window": 48, "story_count_total": 1,
-        "categories": fm_cats, "tags": ["test"],
+        "title": "Daily Brief",
+        "date": "2026-08-06",
+        "time_generated": "2026-08-06T01:00:00Z",
+        "status": "active",
+        "content_age_window": 48,
+        "story_count_total": 1,
+        "categories": fm_cats,
+        "tags": ["test"],
     }
     fm_lines = ["---"]
     for k, v in fm.items():
@@ -231,7 +258,15 @@ def _report_with_cats(fm_cats, sections):
     for row in [
         ("Tuesday", "Sunny", "Clear", "95\u00b0F", "75\u00b0F", "20%", "10 mph SW"),
         ("Tonight", "Clear", "Clear", "85\u00b0F", "70\u00b0F", "10%", "5 mph S"),
-        ("Wednesday", "Partly Cloudy", "Partly Cloudy", "92\u00b0F", "73\u00b0F", "30%", "15 mph SW"),
+        (
+            "Wednesday",
+            "Partly Cloudy",
+            "Partly Cloudy",
+            "92\u00b0F",
+            "73\u00b0F",
+            "30%",
+            "15 mph SW",
+        ),
     ]:
         body += "| " + " | ".join(row) + " |\n"
     body += "\n"
@@ -257,7 +292,13 @@ class TestCheck43FrontmatterCategoryCount:
             "*Originally published on:* Aug 6, 2026\n\n[[#test]]\n\n"
             "## Empty Category\n_No stories found._\n"
         )
-        results = run_checks(CFG, parse_log(_harness_log()), parse_output(_report_with_cats(2, sections)), None, None)
+        results = run_checks(
+            CFG,
+            parse_log(_harness_log()),
+            parse_output(_report_with_cats(2, sections)),
+            None,
+            None,
+        )
         fail_ids = [cid for cid, _ in results.by_level("FAIL")]
         assert "4.3" not in fail_ids
 
@@ -269,6 +310,12 @@ class TestCheck43FrontmatterCategoryCount:
             "*Originally published on:* Aug 6, 2026\n\n[[#test]]\n\n"
             "## Empty Category\n_No stories found._\n"
         )
-        results = run_checks(CFG, parse_log(_harness_log()), parse_output(_report_with_cats(1, sections)), None, None)
+        results = run_checks(
+            CFG,
+            parse_log(_harness_log()),
+            parse_output(_report_with_cats(1, sections)),
+            None,
+            None,
+        )
         fail_ids = [cid for cid, _ in results.by_level("FAIL")]
         assert "4.3" in fail_ids

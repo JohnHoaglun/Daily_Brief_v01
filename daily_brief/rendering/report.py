@@ -6,7 +6,6 @@ from datetime import datetime, timezone
 from daily_brief.rendering.weather_table import build_weather_markdown
 from daily_brief.tagging import tag_story_with_keywords
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -56,11 +55,14 @@ def compute_output_path(output_dir, file_ver=None):
     os.makedirs(output_dir, exist_ok=True)
 
     if file_ver is None:
-        existing = [f for f in os.listdir(output_dir)
-                    if f.startswith('DailyBrief-' + fn_ts) and f.endswith('.md')]
+        existing = [
+            f
+            for f in os.listdir(output_dir)
+            if f.startswith("DailyBrief-" + fn_ts) and f.endswith(".md")
+        ]
         max_file_ver = 0
         for bf in existing:
-            mf = re.search(r'_v(\d+)\.md$', bf)
+            mf = re.search(r"_v(\d+)\.md$", bf)
             if mf:
                 max_file_ver = max(max_file_ver, int(mf.group(1)))
         file_ver = max_file_ver + 1
@@ -111,7 +113,7 @@ def build_markdown(stories, weather, sections_map, ordered_cats, config_kwargs):
     for cn in ordered_cats:
         cat_stories = sections_map.get(cn, [])
         for st in cat_stories:
-            if "title" in st and st["title"]:
+            if st.get("title"):
                 _tag_cache[id(st)] = tag_story_with_keywords(st["title"], cn)
 
     # Create a set to collect all unique tags from story titles
@@ -121,7 +123,7 @@ def build_markdown(stories, weather, sections_map, ordered_cats, config_kwargs):
     for cn in ordered_cats:
         cat_stories = sections_map.get(cn, [])
         for st in cat_stories:
-            if "title" in st and st["title"]:
+            if st.get("title"):
                 story_tags = _tag_cache[id(st)]
                 individual_tags = []
                 for tag in story_tags.split():
@@ -161,15 +163,9 @@ def build_markdown(stories, weather, sections_map, ordered_cats, config_kwargs):
         for idx, st in enumerate(cat_stories):
             title_text = st["title"].replace("\n", " ").replace("\r", " ")
             url_val = st["link"]
-            link_md = (
-                f"[{title_text}]({url_val})"
-                if url_val and url_val != "#"
-                else title_text
-            )
+            link_md = f"[{title_text}]({url_val})" if url_val and url_val != "#" else title_text
             pub_line = (
-                f"\n*Originally published on:* {st['pub_date']}"
-                if st.get("pub_date")
-                else ""
+                f"\n*Originally published on:* {st['pub_date']}" if st.get("pub_date") else ""
             )
             tags_md = _tag_cache.get(id(st), "")
             md.append("")
@@ -200,11 +196,13 @@ def write_report(filepath, md):
             fh.write("\n".join(md) + "\n")
             fh.flush()
             os.fsync(fh.fileno())
-        with open(tmp_path, "r", encoding="utf-8") as fh:
+        with open(tmp_path, encoding="utf-8") as fh:
             written = fh.read()
         expected = "\n".join(md) + "\n"
         if written != expected:
-            raise IOError(f"Verification failed: written content does not match expected for {filepath}")
+            raise OSError(
+                f"Verification failed: written content does not match expected for {filepath}"
+            )
         os.replace(tmp_path, filepath)
         logger.info(f"File written to {filepath}")
     except Exception:

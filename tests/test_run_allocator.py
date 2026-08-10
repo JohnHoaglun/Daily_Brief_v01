@@ -1,6 +1,7 @@
 """Tests for daily_brief/lifecycle.py — RunAllocator."""
+
 import os
-import tempfile
+
 import pytest
 
 from daily_brief.lifecycle import RunAllocator, RunReservation
@@ -25,6 +26,7 @@ def allocator(tmp_dir):
 # test_reserve_produces_valid_reservation
 # ---------------------------------------------------------------------------
 
+
 def test_reserve_produces_valid_reservation(allocator):
     res = allocator.reserve()
     assert isinstance(res, RunReservation)
@@ -36,6 +38,7 @@ def test_reserve_produces_valid_reservation(allocator):
 # ---------------------------------------------------------------------------
 # test_concurrent_reserves_distinct_versions
 # ---------------------------------------------------------------------------
+
 
 def test_concurrent_reserves_distinct_versions(allocator):
     r1 = allocator.reserve()
@@ -49,6 +52,7 @@ def test_concurrent_reserves_distinct_versions(allocator):
 # test_marker_file_exists
 # ---------------------------------------------------------------------------
 
+
 def test_marker_file_exists(allocator):
     res = allocator.reserve()
     assert os.path.isfile(res.marker_path)
@@ -58,6 +62,7 @@ def test_marker_file_exists(allocator):
 # ---------------------------------------------------------------------------
 # test_reserve_retries_on_collision
 # ---------------------------------------------------------------------------
+
 
 def test_reserve_retries_on_collision(allocator):
     # Pre-create the v01 marker
@@ -73,6 +78,7 @@ def test_reserve_retries_on_collision(allocator):
 # ---------------------------------------------------------------------------
 # test_reservations_pair_log_and_report_dir
 # ---------------------------------------------------------------------------
+
 
 def test_reservations_pair_log_and_report_dir(allocator):
     res = allocator.reserve()

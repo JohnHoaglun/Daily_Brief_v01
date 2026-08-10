@@ -1,24 +1,31 @@
 """Tier 1 unit tests for config loading, builder, and validation."""
+
 import copy
 import os
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from unittest import mock, TestCase
-
-import yaml
+from unittest import TestCase
 
 from daily_brief.config import (
-    _get_nested, BASE_DIR, DEFAULTS, build_runtime_config, load_raw_config,
-    load_config_yaml, LLM_MODEL, OLLAMA_HOST, VERSION, WEATHER_LAT,
-    WEATHER_LON, CATEGORIES, WEATHER_LAKE_URLS, PROMPTS,
-    ARTICLE_MAX_CONCURRENCY,
+    CATEGORIES,
+    DEFAULTS,
+    WEATHER_LAKE_URLS,
+    WEATHER_LAT,
+    _get_nested,
+    build_runtime_config,
+    load_config_yaml,
+    load_raw_config,
 )
 from daily_brief.config_validator import (
-    ConfigValidationError, check_required_keys, check_types, check_ranges,
-    check_categories, check_lake_urls, check_prompts,
-    check_timezone_and_paths, validate_config,
+    check_categories,
+    check_lake_urls,
+    check_prompts,
+    check_ranges,
+    check_timezone_and_paths,
+    check_types,
+    validate_config,
 )
 
 
@@ -30,8 +37,8 @@ def _get_cfg():
 # 1.  Raw config loading
 # ---------------------------------------------------------------------------
 
-class TestRawConfig(TestCase):
 
+class TestRawConfig(TestCase):
     def test_valid_yaml(self):
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("version: 1.2.3\nllm:\n  model: test\n")
@@ -67,8 +74,8 @@ class TestRawConfig(TestCase):
 # 2.  Nested getter
 # ---------------------------------------------------------------------------
 
-class TestGetNested(TestCase):
 
+class TestGetNested(TestCase):
     def test_simple(self):
         self.assertEqual(_get_nested({"a": 1}, "a"), 1)
         self.assertIsNone(_get_nested({"a": 1}, "b"))
@@ -85,24 +92,35 @@ class TestGetNested(TestCase):
 # 3.  Runtime builder
 # ---------------------------------------------------------------------------
 
-class TestBuildRuntimeConfig(TestCase):
 
+class TestBuildRuntimeConfig(TestCase):
     def _min_cfg(self):
         return {
             "version": "1.0.0",
-            "llm": {"model": "x", "host": "http://x", "summary_options": {"temperature": 0.3, "top_p": 0.8},
-                    "context_preview_chars": 600, "summary_context_chars": 6000,
-                    "summary_trim_min_chars": 100},
+            "llm": {
+                "model": "x",
+                "host": "http://x",
+                "summary_options": {"temperature": 0.3, "top_p": 0.8},
+                "context_preview_chars": 600,
+                "summary_context_chars": 6000,
+                "summary_trim_min_chars": 100,
+            },
             "rss": {"base_url": "http://x", "params": "x", "default_age_limit_hours": 24},
             "runtime": {"timezone": "UTC", "thread_pool_size": 1, "max_log_versions": 5},
             "network": {"user_agent": "UA"},
             "directories": {"log_dir": "/tmp/l", "news_dir": "/tmp/n"},
-            "weather": {"lat": 30.0, "lon": -95.0, "wunderground_station_id": "X",
-                        "lake_urls": {"l": "http://x"}},
+            "weather": {
+                "lat": 30.0,
+                "lon": -95.0,
+                "wunderground_station_id": "X",
+                "lake_urls": {"l": "http://x"},
+            },
             "categories": {"news": {"query": "news", "max_stories": 10}},
-            "category_priority": [], "category_boosts": {},
+            "category_priority": [],
+            "category_boosts": {},
             "tagging_config": {"max_tags": 5, "score_cap": 5.0, "score_threshold": 0.3},
-            "tagging_mappings": {}, "tag_conflicts": [],
+            "tagging_mappings": {},
+            "tag_conflicts": [],
             "prompts": {"summary": "A" * 30, "system_batch": "B" * 30},
         }
 
@@ -152,8 +170,8 @@ class TestBuildRuntimeConfig(TestCase):
 # 4.  Validator scenarios
 # ---------------------------------------------------------------------------
 
-class TestValidatorScenarios(TestCase):
 
+class TestValidatorScenarios(TestCase):
     def _bare(self):
         return _get_cfg()
 
@@ -232,6 +250,7 @@ class TestValidatorScenarios(TestCase):
         cfg = self._bare()
         cfg["llm"]["summary_batch_size"] = 0
         from daily_brief.config_validator import check_batch_scheduler
+
         self.assertTrue(any("batch_size" in i for i in check_batch_scheduler(cfg)))
         cfg["llm"]["summary_max_concurrency"] = 0
         self.assertTrue(any("concurrency" in i for i in check_batch_scheduler(cfg)))
@@ -260,8 +279,8 @@ class TestValidatorScenarios(TestCase):
 # 5.  Checked-in config
 # ---------------------------------------------------------------------------
 
-class TestCheckedInConfig(TestCase):
 
+class TestCheckedInConfig(TestCase):
     def test_config_yaml_validates(self):
         cfg = load_config_yaml()
         passed, issues = validate_config(cfg)
@@ -271,7 +290,9 @@ class TestCheckedInConfig(TestCase):
         result = subprocess.run(
             [sys.executable, "-m", "daily_brief", "config", "validate"],
             cwd=Path(__file__).resolve().parent.parent,
-            text=True, capture_output=True, check=False,
+            text=True,
+            capture_output=True,
+            check=False,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
@@ -285,7 +306,10 @@ class TestCheckedInConfig(TestCase):
             result = subprocess.run(
                 [sys.executable, "-m", "daily_brief", "config", "validate"],
                 cwd=Path(__file__).resolve().parent.parent,
-                env=env, text=True, capture_output=True, check=False,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
             )
             out = result.stdout or result.stderr
             self.assertTrue("error" in out.lower() or result.returncode != 0)
@@ -297,8 +321,8 @@ class TestCheckedInConfig(TestCase):
 # 6.  Config roundtrip
 # ---------------------------------------------------------------------------
 
-class TestConfigRoundtrip(TestCase):
 
+class TestConfigRoundtrip(TestCase):
     def test_config_identity(self):
         cfg1 = load_config_yaml()
         cfg2 = load_config_yaml()
@@ -315,8 +339,8 @@ class TestConfigRoundtrip(TestCase):
 # 7.  Article max concurrency
 # ---------------------------------------------------------------------------
 
-class TestArticleMaxConcurrency(TestCase):
 
+class TestArticleMaxConcurrency(TestCase):
     def test_default_is_four(self):
         self.assertEqual(DEFAULTS["runtime"]["article_max_concurrency"], 4)
 
@@ -327,7 +351,9 @@ class TestArticleMaxConcurrency(TestCase):
 
     def test_typed_coerce_string_fallback(self):
         r = build_runtime_config({"runtime": {"article_max_concurrency": "eight"}})
-        self.assertEqual(r["ARTICLE_MAX_CONCURRENCY"], DEFAULTS["runtime"]["article_max_concurrency"])
+        self.assertEqual(
+            r["ARTICLE_MAX_CONCURRENCY"], DEFAULTS["runtime"]["article_max_concurrency"]
+        )
 
     def test_valid_range_config(self):
         for val in (1, 25, 50):
@@ -335,8 +361,10 @@ class TestArticleMaxConcurrency(TestCase):
             passed, _ = validate_config(cfg)
             # Types and ranges for this key alone — may fail other required keys
             issues = check_types(cfg) + check_ranges(cfg)
-            self.assertFalse(any("article_max_concurrency" in i for i in issues),
-                             f"Value {val} should pass validation")
+            self.assertFalse(
+                any("article_max_concurrency" in i for i in issues),
+                f"Value {val} should pass validation",
+            )
 
     def test_below_range_config(self):
         cfg = {"runtime": {"article_max_concurrency": 0}}
@@ -358,8 +386,8 @@ class TestArticleMaxConcurrency(TestCase):
 # 8.  Candidate pool limits
 # ---------------------------------------------------------------------------
 
-class TestCandidatePoolConfig(TestCase):
 
+class TestCandidatePoolConfig(TestCase):
     def test_global_default(self):
         self.assertEqual(DEFAULTS["rss"]["candidate_pool_limit"], 50)
 
@@ -376,8 +404,10 @@ class TestCandidatePoolConfig(TestCase):
         for val in (5, 25, 50, 100):
             cfg = {"rss": {"candidate_pool_limit": val}}
             issues = check_ranges(cfg)
-            self.assertFalse(any("candidate_pool_limit" in i for i in issues),
-                             f"Value {val} should pass validation")
+            self.assertFalse(
+                any("candidate_pool_limit" in i for i in issues),
+                f"Value {val} should pass validation",
+            )
 
     def test_below_range_config(self):
         cfg = {"rss": {"candidate_pool_limit": 0}}

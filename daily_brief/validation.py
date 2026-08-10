@@ -63,7 +63,7 @@ def _count_forecast_rows(section_text):
 
 def _find_weather_section(body):
     """Find the weather section in body. Returns the section content or None."""
-    sections = re.split(r'^##\s+', body, flags=re.MULTILINE)
+    sections = re.split(r"^##\s+", body, flags=re.MULTILINE)
     for section in sections:
         first_line = section.strip().split("\n")[0].lower() if section.strip() else ""
         if "weather" in first_line or "forecast" in first_line:
@@ -71,11 +71,9 @@ def _find_weather_section(body):
     return None
 
 
-
-
 def _extract_urls(body):
     """Extract all markdown link URLs from body text. Returns list of (title, url) tuples."""
-    return re.findall(r'\[([^\]]+)\]\((https?://[^)]+)\)', body)
+    return re.findall(r"\[([^\]]+)\]\((https?://[^)]+)\)", body)
 
 
 def validate_report(filepath):
@@ -108,7 +106,7 @@ def validate_report(filepath):
         return False, [f"Cannot access file: {e}"]
 
     try:
-        with open(filepath, "r", encoding="utf-8") as fh:
+        with open(filepath, encoding="utf-8") as fh:
             content = fh.read()
     except Exception as e:
         logger.error("VALIDATE ERROR: Cannot read %s: %s", filepath, e)
@@ -118,7 +116,14 @@ def validate_report(filepath):
     metadata, body = _parse_frontmatter(content)
 
     # REPORT CHECK 1: Frontmatter required fields
-    required_fields = ["title", "date", "time_generated", "story_count_total", "categories", "tags"]
+    required_fields = [
+        "title",
+        "date",
+        "time_generated",
+        "story_count_total",
+        "categories",
+        "tags",
+    ]
     for field in required_fields:
         if field not in metadata or metadata[field] is None:
             issues.append(f"[REPORT-1] Missing frontmatter field: {field}")
@@ -130,7 +135,9 @@ def validate_report(filepath):
     else:
         forecast_rows = _count_forecast_rows(weather_section)
         if forecast_rows < 3:
-            issues.append(f"[REPORT-2] Weather section has only {forecast_rows} forecast rows (minimum 3)")
+            issues.append(
+                f"[REPORT-2] Weather section has only {forecast_rows} forecast rows (minimum 3)"
+            )
 
     # REPORT CHECK 3: No "Dynamic" string in body
     if "Dynamic" in body:
@@ -173,7 +180,7 @@ def validate_report(filepath):
 
     # --- Per-story checks ---
     # Split into sections — find category headings
-    sections = re.split(r'^##\s+', content, flags=re.MULTILINE)
+    sections = re.split(r"^##\s+", content, flags=re.MULTILINE)
 
     stories = []
 
@@ -183,7 +190,7 @@ def validate_report(filepath):
             continue
 
         # Find numbered stories: "N. [Title](URL)"
-        story_blocks = re.split(r'\n(?=\d+\.\s+\[)', section_text)
+        story_blocks = re.split(r"\n(?=\d+\.\s+\[)", section_text)
 
         for block in story_blocks:
             block = block.strip()
@@ -191,12 +198,12 @@ def validate_report(filepath):
                 continue
 
             # Extract title from first line
-            first_line_match = re.match(r'(\d+)\.\s+\[(.+?)\]\((.+?)\)', block)
+            first_line_match = re.match(r"(\d+)\.\s+\[(.+?)\]\((.+?)\)", block)
             if not first_line_match:
                 continue
 
             title = first_line_match.group(2).strip()
-            block_lines = block.split('\n')
+            block_lines = block.split("\n")
             if len(block_lines) < 2:
                 continue
 
@@ -204,15 +211,17 @@ def validate_report(filepath):
             summary_lines = []
             for line in block_lines[1:]:
                 line_stripped = line.strip()
-                if line_stripped.startswith('*Originally published') or \
-                   line_stripped.startswith('[[') or \
-                   line_stripped.startswith('---') or \
-                   line_stripped.startswith('##') or \
-                   line_stripped == '':
+                if (
+                    line_stripped.startswith("*Originally published")
+                    or line_stripped.startswith("[[")
+                    or line_stripped.startswith("---")
+                    or line_stripped.startswith("##")
+                    or line_stripped == ""
+                ):
                     continue
                 summary_lines.append(line_stripped)
 
-            summary = ' '.join(summary_lines).strip()
+            summary = " ".join(summary_lines).strip()
             stories.append((title, summary))
 
     if not stories:
@@ -241,9 +250,9 @@ def validate_report(filepath):
             continue
 
         # Check 2: Summary is just the headline
-        title_norm = re.sub(r'\s+', ' ', title_lower)
-        summary_norm = re.sub(r'\s+', ' ', summary_lower)
-        if summary_norm == title_norm or summary_norm.startswith(title_norm + '.'):
+        title_norm = re.sub(r"\s+", " ", title_lower)
+        summary_norm = re.sub(r"\s+", " ", summary_lower)
+        if summary_norm == title_norm or summary_norm.startswith(title_norm + "."):
             issues.append(f"Summary repeats headline: {title[:80]}")
             bad_stories += 1
             continue
@@ -262,9 +271,24 @@ def validate_report(filepath):
             continue
 
         # Check 5: Topic overlap — extract key words from headline, check presence in summary
-        headline_words = re.findall(r'\b[a-z]{4,}\b', title_lower)
+        headline_words = re.findall(r"\b[a-z]{4,}\b", title_lower)
         # Remove common words
-        stop_words = {'news', 'says', 'live', 'update', 'updates', 'here', 'what', 'how', 'why', 'when', 'year', 'report', 'story', 'today'}
+        stop_words = {
+            "news",
+            "says",
+            "live",
+            "update",
+            "updates",
+            "here",
+            "what",
+            "how",
+            "why",
+            "when",
+            "year",
+            "report",
+            "story",
+            "today",
+        }
         headline_words = [w for w in headline_words if w not in stop_words]
 
         if headline_words:
@@ -284,7 +308,12 @@ def validate_report(filepath):
     status = "PASS" if passed else "FAIL"
     logger.info(
         "VALIDATE: %d stories, %d bad (%.0f%%), [Auto] fallbacks: %d, threshold %.0f — %s",
-        total_stories, bad_stories, total_bad_ratio * 100, auto_count, fail_threshold, status,
+        total_stories,
+        bad_stories,
+        total_bad_ratio * 100,
+        auto_count,
+        fail_threshold,
+        status,
     )
 
     if issues:

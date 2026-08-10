@@ -15,20 +15,21 @@ Desired contract:
   - URL-based identity preferred when canonical destination URL is available.
   - Cross-category first-wins still applies.
 """
+
 from __future__ import annotations
 
 import asyncio
 import unicodedata
-from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Set, Tuple
+from datetime import datetime, timedelta
+from typing import Dict, List, Set
 from unittest import TestCase
 
 from daily_brief.sources.rss import normalize_title
 
-
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
+
 
 def _await(coro):
     return asyncio.get_event_loop().run_until_complete(coro)
@@ -41,6 +42,7 @@ def _normalize(t: str) -> str:
 # ---------------------------------------------------------------------------
 # Bug A: Shared-prefix / " - " separator collision
 # ---------------------------------------------------------------------------
+
 
 class TestFirstDashBugSharedPrefix(TestCase):
     """Stories with shared prefix before " - " must NOT collide."""
@@ -81,6 +83,7 @@ class TestFirstDashBugSharedPrefix(TestCase):
 # Same article, different casing still collides (correct behavior)
 # ---------------------------------------------------------------------------
 
+
 class TestCasingCollision(TestCase):
     """Same article from same source with different casing must collide."""
 
@@ -107,6 +110,7 @@ class TestCasingCollision(TestCase):
 # Bug B: 80-character truncation
 # ---------------------------------------------------------------------------
 
+
 class TestTruncationBug(TestCase):
     """Long titles must not collide only because of 80-char truncation."""
 
@@ -114,7 +118,7 @@ class TestTruncationBug(TestCase):
         """Two 120-char titles that share the first 80 chars but diverge after must be distinct."""
         shared = "A " * 40  # exactly 80 chars
         title_a = shared + "Alpha version released"  # 104 chars
-        title_b = shared + "Beta version released"   # 103 chars
+        title_b = shared + "Beta version released"  # 103 chars
         # Characters 1-80 are identical
         self.assertEqual(title_a[:80], title_b[:80])
         # Characters 81+ differ
@@ -148,13 +152,14 @@ class TestTruncationBug(TestCase):
 # Unicode normalization
 # ---------------------------------------------------------------------------
 
+
 class TestUnicodeNormalization(TestCase):
     """Equivalent Unicode characters must resolve to the same dedup key."""
 
     def test_accented_vs_decomposed(self):
         """'naïve' (precomposed e-239) vs 'n\u0061\u0308ve' (decomposed) must collide."""
-        precomposed = "na\u00efve"       # ï as single codepoint
-        decomposed = "na\u0069\u0308ve"   # i + combining diaeresis
+        precomposed = "na\u00efve"  # ï as single codepoint
+        decomposed = "na\u0069\u0308ve"  # i + combining diaeresis
         # Verify they differ at the codepoint level
         self.assertNotEqual(precomposed, decomposed)
         # NFKD normalization should make them equal
@@ -183,7 +188,7 @@ class TestUnicodeNormalization(TestCase):
 
     def test_smart_quotes(self):
         """Curly quotes should normalize to straight quotes."""
-        curly = "He said \"hello\""
+        curly = 'He said "hello"'
         straight = 'He said "hello"'
         a = _normalize(curly)
         b = _normalize(straight)
@@ -193,6 +198,7 @@ class TestUnicodeNormalization(TestCase):
 # ---------------------------------------------------------------------------
 # Empty title handling
 # ---------------------------------------------------------------------------
+
 
 class TestEmptyTitle(TestCase):
     """Empty or whitespace titles must not crash dedup."""
@@ -217,8 +223,10 @@ class TestEmptyTitle(TestCase):
 
     def test_empty_title_no_exception_in_dedup(self):
         """dedup_entries must not crash on empty title."""
-        from daily_brief.pipelines.rss_dedup import dedup_entries
         from zoneinfo import ZoneInfo
+
+        from daily_brief.pipelines.rss_dedup import dedup_entries
+
         TZ = ZoneInfo("America/Chicago")
         now = datetime(2026, 7, 30, 14, 0, 0, tzinfo=TZ)
         fresh = now - timedelta(hours=1)
@@ -239,13 +247,16 @@ class TestEmptyTitle(TestCase):
 # Cross-category first-wins (existing correct behavior, regression)
 # ---------------------------------------------------------------------------
 
+
 class TestCrossCategoryFirstWins(TestCase):
     """Cross-category dedup: first-wins must still hold."""
 
     def test_same_title_different_categories_first_wins(self):
         """Same normalized title in CatA and CatB: CatA wins."""
-        from daily_brief.pipelines.rss_dedup import dedup_entries
         from zoneinfo import ZoneInfo
+
+        from daily_brief.pipelines.rss_dedup import dedup_entries
+
         TZ = ZoneInfo("America/Chicago")
         now = datetime(2026, 7, 30, 14, 0, 0, tzinfo=TZ)
         fresh = now - timedelta(hours=1)
@@ -257,12 +268,20 @@ class TestCrossCategoryFirstWins(TestCase):
         # Add to CatA first
         dedup_entries(
             [("Story Title", "https://a.com", "", fresh)],
-            now, "CatA", 24.0, cats_seen, deduped_a,
+            now,
+            "CatA",
+            24.0,
+            cats_seen,
+            deduped_a,
         )
         # Same normalized title to CatB
         dedup_entries(
             [("Story Title", "https://b.com", "", fresh)],
-            now, "CatB", 24.0, cats_seen, deduped_b,
+            now,
+            "CatB",
+            24.0,
+            cats_seen,
+            deduped_b,
         )
 
         # Per-category dedup is independent; both categories get the entry.
@@ -278,6 +297,7 @@ class TestCrossCategoryFirstWins(TestCase):
 # ---------------------------------------------------------------------------
 # URL-based identity (desired future behavior, not yet implemented)
 # ---------------------------------------------------------------------------
+
 
 class TestUrlBasedIdentity(TestCase):
     """When canonical destination URL is available, prefer URL over title."""

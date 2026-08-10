@@ -110,7 +110,13 @@ def is_obituary_title(title: str) -> bool:
     """Check if a title contains obituary-related keywords."""
     if not title:
         return False
-    keywords = ["obituary", "passed away", "death notice", "funeral services for", "memorial service for"]
+    keywords = [
+        "obituary",
+        "passed away",
+        "death notice",
+        "funeral services for",
+        "memorial service for",
+    ]
     title_lower = title.lower()
     return any(kw in title_lower for kw in keywords)
 
@@ -120,8 +126,15 @@ def is_realt_estate_title(title: str) -> bool:
     if not title:
         return False
     realtor_keywords = [
-        "realtor", "zillow", "redfin", "listing", "for sale", "house for",
-        "home for", "property", "$"
+        "realtor",
+        "zillow",
+        "redfin",
+        "listing",
+        "for sale",
+        "house for",
+        "home for",
+        "property",
+        "$",
     ]
     title_lower = title.lower()
     return any(keyword in title_lower for keyword in realtor_keywords)
@@ -154,11 +167,7 @@ def build_context(story: Any, preview_chars: int = 600) -> str:
     if context and len(str(context).strip()) >= 50:
         return str(context).strip()[:preview_chars]
 
-    parts = [
-        v.strip()
-        for v in (story.snippet, story.title)
-        if v and len((v or "").strip()) > 0
-    ]
+    parts = [v.strip() for v in (story.snippet, story.title) if v and len((v or "").strip()) > 0]
 
     if not parts:
         return f"{story.category}: {story.title}"

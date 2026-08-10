@@ -3,29 +3,29 @@ Daily Brief v1.0.143 — Pipeline Orchestration
 The main() orchestrator — 6 phases: weather, RSS, LLM, render, validate, harness.
 """
 
-import sys
-import os
-import re
-import time
 import asyncio
 import logging
-import aiohttp
+import os
+import sys
+import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
-from zoneinfo import ZoneInfo
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
-from daily_brief.lifecycle import RunAllocator, RunReservation
+from zoneinfo import ZoneInfo
 
+import aiohttp
+
+from daily_brief.categorization import ordered_categories_for_render
 from daily_brief.config import (
     ARTICLE_MAX_CONCURRENCY,
     CATEGORIES,
     CONFIG_YAML,
     DEFAULT_AGE_LIMIT_HOURS,
     FRONTMATTER_TAG_SEEDS,
-    LOG_DIR,
     LLM_MODEL,
     LLM_SUMMARY_BATCH_SIZE,
     LLM_SUMMARY_MAX_CONCURRENCY,
+    LOG_DIR,
     MAX_LOG_VERSIONS,
     NEWS_DIR,
     OLLAMA_HOST,
@@ -37,10 +37,10 @@ from daily_brief.config import (
     WEATHER_LON,
     WEATHER_SECTION_TITLE,
 )
-from daily_brief.sources.rss import format_pub_date
+from daily_brief.lifecycle import RunAllocator, RunReservation
 from daily_brief.sources.article import stage_extract_article
+from daily_brief.sources.rss import format_pub_date
 from daily_brief.sources.weather import fetch_weather
-from daily_brief.categorization import ordered_categories_for_render
 
 
 def _normalize_weather_for_rendering(weather_data) -> Optional[Dict]:
@@ -48,47 +48,77 @@ def _normalize_weather_for_rendering(weather_data) -> Optional[Dict]:
     if weather_data is None:
         return {
             "forecast": [
-                {"date": "N/A", "day": "N/A", "night": "N/A", "high": "N/A", "low": "N/A", "precip": "N/A", "wind": "N/A"}
-            ] * 3,
+                {
+                    "date": "N/A",
+                    "day": "N/A",
+                    "night": "N/A",
+                    "high": "N/A",
+                    "low": "N/A",
+                    "precip": "N/A",
+                    "wind": "N/A",
+                }
+            ]
+            * 3,
             "station": {},
             "lakes": {},
         }
     if not isinstance(weather_data, dict):
         return {
             "forecast": [
-                {"date": "N/A", "day": "N/A", "night": "N/A", "high": "N/A", "low": "N/A", "precip": "N/A", "wind": "N/A"}
-            ] * 3,
+                {
+                    "date": "N/A",
+                    "day": "N/A",
+                    "night": "N/A",
+                    "high": "N/A",
+                    "low": "N/A",
+                    "precip": "N/A",
+                    "wind": "N/A",
+                }
+            ]
+            * 3,
             "station": {},
             "lakes": {},
         }
     result = dict(weather_data)
     if "forecast" not in result or not isinstance(result.get("forecast"), list):
         result["forecast"] = [
-            {"date": "N/A", "day": "N/A", "night": "N/A", "high": "N/A", "low": "N/A", "precip": "N/A", "wind": "N/A"}
+            {
+                "date": "N/A",
+                "day": "N/A",
+                "night": "N/A",
+                "high": "N/A",
+                "low": "N/A",
+                "precip": "N/A",
+                "wind": "N/A",
+            }
         ] * 3
     if "station" not in result or not isinstance(result.get("station"), dict):
         result["station"] = {}
     if "lakes" not in result or not isinstance(result.get("lakes"), dict):
         result["lakes"] = {}
     return result
-from daily_brief.pipelines.rss_dedup import fetch_and_dedup
+
+
+from daily_brief.config_validator import validate_config
+from daily_brief.harness import run_test_harness
 from daily_brief.llm import create_llm_client
 from daily_brief.llm.summarizer import (
-    batch_summarize_all as llm_batch_summarize_all,
     StoryPipelineState,
 )
+from daily_brief.llm.summarizer import (
+    batch_summarize_all as llm_batch_summarize_all,
+)
 from daily_brief.llm.summary_metrics import SummaryMetrics
+from daily_brief.pipelines.rss_dedup import fetch_and_dedup
 from daily_brief.rendering import cleanup_old_files
 from daily_brief.rendering.report import (
-    build_sections_from_stories,
     build_markdown,
+    build_sections_from_stories,
     compute_output_path,
     write_report,
 )
-from daily_brief.validation import validate_report
-from daily_brief.harness import run_test_harness
-from daily_brief.config_validator import validate_config
 from daily_brief.tagging import precompile_tagging
+from daily_brief.validation import validate_report
 
 
 class _EventLoopLagMonitor:
@@ -161,6 +191,7 @@ def _count_extracted(stories: list[Any]) -> int:
 @dataclass
 class RunContext:
     """Per-run state — isolates mutable pipeline globals for concurrent safety."""
+
     phase_timings: Dict[str, float] = field(default_factory=dict)
     run_logfile: Optional[str] = None
     output_dir: Optional[str] = None
@@ -230,6 +261,7 @@ DEFAULT_CONTENT_AGE_WINDOW_HOURS = 48
 def _coerce_temperature_f(val):
     """Safely convert temperature string/none to float and sanity check."""
     from daily_brief.utils import _coerce_temperature_f as _ct
+
     result = _ct(val)
     if result is not None and (result < -50 or result > 140):
         sys.stderr.write(f"  WARNING: Extreme temperature detected and discarded: {result}°F\n")
@@ -246,11 +278,14 @@ EXIT_CODE_HARNESS_ERROR = 3
 
 # -- Main -------------------------------------------------------------------
 
+
 async def main():
     # --- Config validation gate ---
     config_ok, config_issues = validate_config(CONFIG_YAML)
     if not config_ok:
-        print(f"\nFATAL: {len(config_issues)} config validation error(s). Aborting.", file=sys.stderr)
+        print(
+            f"\nFATAL: {len(config_issues)} config validation error(s). Aborting.", file=sys.stderr
+        )
         for ci in config_issues:
             print(f"CONFIG ERROR: {ci}", file=sys.stderr)
         return EXIT_CODE_CONFIG
@@ -260,13 +295,16 @@ async def main():
 
     # --- Pre-flight connectivity checks (opt-in, warning only, never abort) ---
     if PREFLIGHT_CHECKS_ENABLED:
-        from daily_brief.connectivity import run_all_checks, format_results
+        from daily_brief.connectivity import format_results, run_all_checks
+
         conn_results = await run_all_checks(timeout=5.0)
         conn_output = format_results(conn_results)
         sys.stderr.write(conn_output + "\n")
         sys.stderr.flush()
     else:
-        sys.stderr.write("Connectivity preflight skipped (runtime.preflight_checks_enabled=false).\n")
+        sys.stderr.write(
+            "Connectivity preflight skipped (runtime.preflight_checks_enabled=false).\n"
+        )
         sys.stderr.flush()
 
     # --- Per-run context (isolates mutable state) ---
@@ -277,7 +315,9 @@ async def main():
     RUN_LOGFILE = None
     PHASE_TIMINGS = ctx.phase_timings
     OUTPUT_DIR = NEWS_DIR
-    _llm_client = create_llm_client(LLM_MODEL, OLLAMA_HOST + "/v1" if "/v1" not in OLLAMA_HOST else OLLAMA_HOST, timeout=180)
+    _llm_client = create_llm_client(
+        LLM_MODEL, OLLAMA_HOST + "/v1" if "/v1" not in OLLAMA_HOST else OLLAMA_HOST, timeout=180
+    )
     ctx.llm_client = _llm_client
     ctx.output_dir = ctx.output_dir or NEWS_DIR
     ctx.input_log_dir = LOG_DIR
@@ -314,9 +354,8 @@ async def main():
         async with aiohttp.ClientSession(
             connector=aiohttp.TCPConnector(limit=100, limit_per_host=30, ttl_dns_cache=300),
             headers={"User-Agent": USER_AGENT},
-            timeout=aiohttp.ClientTimeout(total=30)
+            timeout=aiohttp.ClientTimeout(total=30),
         ) as session:
-
             # ---------- Phase 1 + Phase 2: Concurrent weather + RSS ----------
             weather_result: Dict[str, Any] = {"data": None, "timing": 0.0, "error": None}
             rss_result: Dict[str, Any] = {"deduped": [], "stats": {}, "timing": 0.0, "error": None}
@@ -329,12 +368,22 @@ async def main():
                     weather_result["data"] = weather
                     if weather:
                         station = weather.get("station", {})
-                        station_keys = ("avg_temp_today", "avg_monthly_rainfall", "current_monthly_rainfall")
+                        station_keys = (
+                            "avg_temp_today",
+                            "avg_monthly_rainfall",
+                            "current_monthly_rainfall",
+                        )
                         station_partial = any(
-                            not station.get(k) or station[k] == "Unavailable" or "(fallback)" in str(station.get(k, ""))
+                            not station.get(k)
+                            or station[k] == "Unavailable"
+                            or "(fallback)" in str(station.get(k, ""))
                             for k in station_keys
                         )
-                        station_label = "station (partial — fallback applied)" if station_partial else "station"
+                        station_label = (
+                            "station (partial — fallback applied)"
+                            if station_partial
+                            else "station"
+                        )
                         weather_errors = weather.get("errors", [])
                         status = "PARTIAL" if (station_partial or weather_errors) else "OK"
                         lgr.info(
@@ -344,7 +393,10 @@ async def main():
                             f"{len(weather.get('lakes', {}))} lake sources"
                         )
                         if weather_errors:
-                            lgr.info(f"  Weather errors ({len(weather_errors)}): " + "; ".join(weather_errors[:3]))
+                            lgr.info(
+                                f"  Weather errors ({len(weather_errors)}): "
+                                + "; ".join(weather_errors[:3])
+                            )
                     else:
                         lgr.info("  Weather returned empty")
                 except Exception as exc:
@@ -384,7 +436,9 @@ async def main():
 
             stories: List[StoryPipelineState] = []
             for title, link, snippet, pub_dt, cat in deduped:
-                s = StoryPipelineState(title=title, link=link, snippet=snippet, pub_dt=pub_dt, category=cat)
+                s = StoryPipelineState(
+                    title=title, link=link, snippet=snippet, pub_dt=pub_dt, category=cat
+                )
                 stories.append(s)
 
             total = len(stories)
@@ -409,27 +463,47 @@ async def main():
             ctx.phase_timings["Phase 3A"] = el3a
             extracted_count = _count_extracted(stories)
             throughput = total / el3a if el3a > 0 else 0
-            lgr.info(f"  Extraction: {total} in {el3a:.2f}s ({throughput:.1f} stories/s, {extracted_count} contexts)")
+            lgr.info(
+                f"  Extraction: {total} in {el3a:.2f}s ({throughput:.1f} stories/s, {extracted_count} contexts)"
+            )
             if lag_samples:
                 p50 = _percentile(lag_samples, 50)
                 p95 = _percentile(lag_samples, 95)
                 p99 = _percentile(lag_samples, 99)
-                lgr.info(f"  Loop lag during extraction: p50={p50*1000:.1f}ms p95={p95*1000:.1f}ms p99={p99*1000:.1f}ms max={max(lag_samples)*1000:.1f}ms ({len(lag_samples)} samples)")
+                lgr.info(
+                    f"  Loop lag during extraction: p50={p50 * 1000:.1f}ms p95={p95 * 1000:.1f}ms p99={p99 * 1000:.1f}ms max={max(lag_samples) * 1000:.1f}ms ({len(lag_samples)} samples)"
+                )
 
             extract_errs = [r for r in extract_results if isinstance(r, Exception)]
             if extract_errs:
-                lgr.info(f"  Article extraction errors ({len(extract_errs)}): " + "; ".join(str(e) for e in extract_errs[:5]))
+                lgr.info(
+                    f"  Article extraction errors ({len(extract_errs)}): "
+                    + "; ".join(str(e) for e in extract_errs[:5])
+                )
 
             # ---------- Phase 3B/3C: Batch summary (recovery centralized in summarizer) ----------
             lgr.info(f"  [3BC] Running BATCH summaries via {LLM_MODEL}...")
-            summary_metrics = await llm_batch_summarize_all(ctx.llm_client, stories, batch_size=LLM_SUMMARY_BATCH_SIZE, max_concurrency=LLM_SUMMARY_MAX_CONCURRENCY)
+            summary_metrics = await llm_batch_summarize_all(
+                ctx.llm_client,
+                stories,
+                batch_size=LLM_SUMMARY_BATCH_SIZE,
+                max_concurrency=LLM_SUMMARY_MAX_CONCURRENCY,
+            )
             if summary_metrics and isinstance(summary_metrics, SummaryMetrics):
-                lgr.info(f"  Summaries: {summary_metrics.final_valid} valid / {summary_metrics.auto_fallbacks} [Auto] / {summary_metrics.unavailable_summaries} unavailable")
+                lgr.info(
+                    f"  Summaries: {summary_metrics.final_valid} valid / {summary_metrics.auto_fallbacks} [Auto] / {summary_metrics.unavailable_summaries} unavailable"
+                )
                 if summary_metrics.batch_retries:
-                    lgr.info(f"  Batch retries: {summary_metrics.batch_retries} sub-batches retried")
+                    lgr.info(
+                        f"  Batch retries: {summary_metrics.batch_retries} sub-batches retried"
+                    )
                 if summary_metrics.individual_recovery_attempts:
-                    lgr.info(f"  Recovery: {summary_metrics.individual_recovered}/{summary_metrics.individual_recovery_attempts} stories recovered individually")
-                lgr.info(f"  Batch calls: {summary_metrics.batch_calls} sub-batches in {summary_metrics.elapsed_s:.1f}s")
+                    lgr.info(
+                        f"  Recovery: {summary_metrics.individual_recovered}/{summary_metrics.individual_recovery_attempts} stories recovered individually"
+                    )
+                lgr.info(
+                    f"  Batch calls: {summary_metrics.batch_calls} sub-batches in {summary_metrics.elapsed_s:.1f}s"
+                )
             else:
                 sum_ok = sum(1 for s in stories if s.summary and s.summary.strip())
                 lgr.info(f"  Summaries: {sum_ok}/{total} with summaries")
@@ -437,9 +511,13 @@ async def main():
             el3 = time.monotonic() - t3
             lgr.info(f"  Phase 3 completed in {el3:.2f}s")
             ctx.phase_timings["Phase 3"] = el3
-            lgr.info(f"  Phase 3 LLM scheduler: batch_size={LLM_SUMMARY_BATCH_SIZE}, max_concurrency={LLM_SUMMARY_MAX_CONCURRENCY}")
+            lgr.info(
+                f"  Phase 3 LLM scheduler: batch_size={LLM_SUMMARY_BATCH_SIZE}, max_concurrency={LLM_SUMMARY_MAX_CONCURRENCY}"
+            )
 
-            lgr.info(f"\n  PROCESSING COMPLETE: {total} stories in {time.monotonic() - run_started:.2f}s (Phases 1-3)")
+            lgr.info(
+                f"\n  PROCESSING COMPLETE: {total} stories in {time.monotonic() - run_started:.2f}s (Phases 1-3)"
+            )
 
             # ---------- Phase 4: Render report ----------
             lgr.info("\n[Phase 4] Rendering report...")
@@ -450,17 +528,26 @@ async def main():
 
             ordered_cats = ordered_categories_for_render([c[0] for c in CATEGORIES if c[1]])
             sections_map = {cn: sections.get(cn, []) for cn in ordered_cats}
-            rendered_cat_count = sum(1 for cn in ordered_cats
-                if cn != WEATHER_SECTION_TITLE and cn != "Weather Forecast 77316")
+            rendered_cat_count = sum(
+                1
+                for cn in ordered_cats
+                if cn != WEATHER_SECTION_TITLE and cn != "Weather Forecast 77316"
+            )
 
             safe_weather = _normalize_weather_for_rendering(weather)
-            md = build_markdown(stories, safe_weather, sections_map, ordered_cats, {
-                "total_after_dedup": total_after_dedup,
-                "rendered_cat_count": rendered_cat_count,
-                "DEFAULT_CONTENT_AGE_WINDOW_HOURS": DEFAULT_CONTENT_AGE_WINDOW_HOURS,
-                "FRONTMATTER_TAG_SEEDS": FRONTMATTER_TAG_SEEDS,
-                "WEATHER_SECTION_TITLE": WEATHER_SECTION_TITLE,
-            })
+            md = build_markdown(
+                stories,
+                safe_weather,
+                sections_map,
+                ordered_cats,
+                {
+                    "total_after_dedup": total_after_dedup,
+                    "rendered_cat_count": rendered_cat_count,
+                    "DEFAULT_CONTENT_AGE_WINDOW_HOURS": DEFAULT_CONTENT_AGE_WINDOW_HOURS,
+                    "FRONTMATTER_TAG_SEEDS": FRONTMATTER_TAG_SEEDS,
+                    "WEATHER_SECTION_TITLE": WEATHER_SECTION_TITLE,
+                },
+            )
             write_report(filepath, md)
             cleanup_old_files(ctx.output_dir, ctx.input_log_dir, MAX_LOG_VERSIONS)
 

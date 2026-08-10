@@ -31,22 +31,38 @@ async def fetch_and_dedup(
             stats: dict with counts
     """
     from daily_brief.config import (
-        CATEGORY_AGE_LIMITS, CATEGORY_SOURCE_WINDOWS, CATEGORY_CANDIDATE_POOL_LIMITS,
-        DEFAULT_AGE_LIMIT_HOURS, TIMEZONE as CFG_TIMEZONE,
+        CATEGORY_AGE_LIMITS,
+        CATEGORY_CANDIDATE_POOL_LIMITS,
+        CATEGORY_SOURCE_WINDOWS,
+        DEFAULT_AGE_LIMIT_HOURS,
     )
-    from daily_brief.sources.rss import build_rss_url, build_rss_url_with_window, fetch_feed, normalize_title
+    from daily_brief.config import (
+        TIMEZONE as CFG_TIMEZONE,
+    )
+    from daily_brief.sources.rss import (
+        build_rss_url_with_window,
+        fetch_feed,
+        normalize_title,
+    )
+
     try:
         active_tz = ZoneInfo(CFG_TIMEZONE)
     except Exception:
         from datetime import timezone as tz
+
         active_tz = tz.utc
 
     now_ct = datetime.now(active_tz)
 
     rss_items = [
-        (c[0], build_rss_url_with_window(c[1], CATEGORY_SOURCE_WINDOWS.get(c[0], 24)),
-         c[2], CATEGORY_CANDIDATE_POOL_LIMITS.get(c[0], 50))
-        for c in categories if c[1]
+        (
+            c[0],
+            build_rss_url_with_window(c[1], CATEGORY_SOURCE_WINDOWS.get(c[0], 24)),
+            c[2],
+            CATEGORY_CANDIDATE_POOL_LIMITS.get(c[0], 50),
+        )
+        for c in categories
+        if c[1]
     ]
     log_fn(f"\n[Phase 2] Fetching {len(rss_items)} RSS feeds...")
 
@@ -108,7 +124,11 @@ async def fetch_and_dedup(
                 f"attempting local widening (2d-7d)"
             )
             w_af, w_df, w_added = _widen_category_local(
-                cat_name, candidates, initial, now_ct, seen_per_cat,
+                cat_name,
+                candidates,
+                initial,
+                now_ct,
+                seen_per_cat,
             )
             total_age_filtered += w_af
             total_dup_filtered += w_df
@@ -122,9 +142,7 @@ async def fetch_and_dedup(
                     f"  [WIDEN] '{cat_name}' recovered {w_added} additional stories (total: {final_count})"
                 )
             else:
-                log_fn(
-                    f"  [WIDEN] '{cat_name}' exhausted to 7d: still at {start_count} stories"
-                )
+                log_fn(f"  [WIDEN] '{cat_name}' exhausted to 7d: still at {start_count} stories")
 
         # Cap to max_stories output
         cap = max_stories if max_stories > 0 else 9999
@@ -247,9 +265,9 @@ def _widen_category_local(
     Returns:
         (age_filtered, dup_filtered, recovered_count)
     """
+    from daily_brief.config import CATEGORY_AGE_LIMITS, CATEGORY_SOURCE_WINDOWS
     from daily_brief.sources.rss import normalize_title
     from daily_brief.utils import is_obituary_title, is_realt_estate_title
-    from daily_brief.config import CATEGORY_AGE_LIMITS, CATEGORY_SOURCE_WINDOWS
 
     age_filtered = 0
     dup_filtered = 0

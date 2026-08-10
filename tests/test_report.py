@@ -1,26 +1,31 @@
 """
 Unit tests for daily_brief/rendering/report.py.
 """
+
 import os
-import re
 import tempfile
-from unittest import TestCase, mock
 from datetime import datetime, timezone
+from unittest import TestCase, mock
 
 from daily_brief.rendering.report import (
+    build_markdown,
     build_sections_from_stories,
     compute_output_path,
-    build_markdown,
     write_report,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
-def _make_story(title="Test Title", link="http://example.com", category="World News",
-                summary="A summary.", pub_dt="2026-07-29"):
+
+def _make_story(
+    title="Test Title",
+    link="http://example.com",
+    category="World News",
+    summary="A summary.",
+    pub_dt="2026-07-29",
+):
     """Create a minimal StoryPipelineState-like object."""
     s = mock.Mock()
     s.title = title
@@ -51,11 +56,39 @@ def _config_kwargs(overrides=None):
 def _weather():
     return {
         "forecast": [
-            {"date": "Mon", "day": "Sunny", "night": "Clear", "high": "85", "low": "68", "precip": "0%", "wind": "5 mph"},
-            {"date": "Tue", "day": "Cloudy", "night": "Rain", "high": "80", "low": "65", "precip": "60%", "wind": "10 mph"},
-            {"date": "Wed", "day": "Partly Cloudy", "night": "Clear", "high": "82", "low": "66", "precip": "10%", "wind": "8 mph"},
+            {
+                "date": "Mon",
+                "day": "Sunny",
+                "night": "Clear",
+                "high": "85",
+                "low": "68",
+                "precip": "0%",
+                "wind": "5 mph",
+            },
+            {
+                "date": "Tue",
+                "day": "Cloudy",
+                "night": "Rain",
+                "high": "80",
+                "low": "65",
+                "precip": "60%",
+                "wind": "10 mph",
+            },
+            {
+                "date": "Wed",
+                "day": "Partly Cloudy",
+                "night": "Clear",
+                "high": "82",
+                "low": "66",
+                "precip": "10%",
+                "wind": "8 mph",
+            },
         ],
-        "station": {"avg_temp_today": "83", "avg_monthly_rainfall": "3.5 in", "current_monthly_rainfall": "2.1 in"},
+        "station": {
+            "avg_temp_today": "83",
+            "avg_monthly_rainfall": "3.5 in",
+            "current_monthly_rainfall": "2.1 in",
+        },
         "lakes": {},
     }
 
@@ -63,6 +96,7 @@ def _weather():
 # ---------------------------------------------------------------------------
 # 1. build_sections_from_stories
 # ---------------------------------------------------------------------------
+
 
 class TestBuildSectionsFromStories(TestCase):
     """Group stories into sections, format dates."""
@@ -72,7 +106,13 @@ class TestBuildSectionsFromStories(TestCase):
         stories = [
             _make_story(title="A", category="World News"),
             _make_story(title="B", category="US News"),
-            _make_story(title="C", link="http://c", category="World News", summary="C summary", pub_dt="2026-01-02"),
+            _make_story(
+                title="C",
+                link="http://c",
+                category="World News",
+                summary="C summary",
+                pub_dt="2026-01-02",
+            ),
         ]
         sections = build_sections_from_stories(stories, _format_date)
         assert "World News" in sections
@@ -100,6 +140,7 @@ class TestBuildSectionsFromStories(TestCase):
 # ---------------------------------------------------------------------------
 # 2. compute_output_path
 # ---------------------------------------------------------------------------
+
 
 class TestComputeOutputPath(TestCase):
     """Auto-versioned output path generation."""
@@ -159,6 +200,7 @@ class TestComputeOutputPath(TestCase):
 # 3. build_markdown
 # ---------------------------------------------------------------------------
 
+
 class TestBuildMarkdown(TestCase):
     """Full markdown report rendering."""
 
@@ -172,18 +214,32 @@ class TestBuildMarkdown(TestCase):
         if wx_lines is None:
             wx_lines = ["## Weather"]
         with (
-            mock.patch("daily_brief.rendering.report.build_weather_markdown", return_value=wx_lines),
-            mock.patch("daily_brief.rendering.report.tag_story_with_keywords", return_value=tag_return),
+            mock.patch(
+                "daily_brief.rendering.report.build_weather_markdown", return_value=wx_lines
+            ),
+            mock.patch(
+                "daily_brief.rendering.report.tag_story_with_keywords", return_value=tag_return
+            ),
         ):
             return build_markdown(stories, {}, sections, cats, cfg)
 
     def test_full_markdown_golden_shape(self):
         """Complete output: frontmatter -> header -> weather -> categories -> story entries."""
         stories = [
-            _make_story(title="My Title", link="http://example.com", category="World News",
-                        summary="A summary.", pub_dt="2026-07-29"),
-            _make_story(title="Second", link="http://two.com", category="Tech",
-                        summary="Another summary.", pub_dt="2026-07-30"),
+            _make_story(
+                title="My Title",
+                link="http://example.com",
+                category="World News",
+                summary="A summary.",
+                pub_dt="2026-07-29",
+            ),
+            _make_story(
+                title="Second",
+                link="http://two.com",
+                category="Tech",
+                summary="Another summary.",
+                pub_dt="2026-07-30",
+            ),
         ]
         sections = build_sections_from_stories(stories, _format_date)
         result = self._build(stories, sections, cats=["Tech", "World News"])
@@ -220,7 +276,9 @@ class TestBuildMarkdown(TestCase):
 
     def test_empty_category_header_render(self):
         """Empty categories render a header with placeholder text."""
-        result = self._build([], sections={}, cats=["EmptyCat"], cfg=_config_kwargs({"rendered_cat_count": 1}))
+        result = self._build(
+            [], sections={}, cats=["EmptyCat"], cfg=_config_kwargs({"rendered_cat_count": 1})
+        )
         assert "## EmptyCat" in result
         assert "_No stories found._" in result
         # Verify empty categories count in frontmatter
@@ -237,8 +295,13 @@ class TestBuildMarkdown(TestCase):
     def test_tag_extraction_hash_and_bracket(self):
         """Hash tags and bracket-style tags both extracted and sorted."""
         with (
-            mock.patch("daily_brief.rendering.report.build_weather_markdown", return_value=["## Weather"]),
-            mock.patch("daily_brief.rendering.report.tag_story_with_keywords", return_value="#texas #news [Bracket]"),
+            mock.patch(
+                "daily_brief.rendering.report.build_weather_markdown", return_value=["## Weather"]
+            ),
+            mock.patch(
+                "daily_brief.rendering.report.tag_story_with_keywords",
+                return_value="#texas #news [Bracket]",
+            ),
         ):
             stories = [_make_story(title="Texas Story")]
             sections = build_sections_from_stories(stories, _format_date)
@@ -264,13 +327,16 @@ class TestBuildMarkdown(TestCase):
         stories = [_make_story(title="Weather Alert", category="Weather Forecast 77316")]
         sections = build_sections_from_stories(stories, _format_date)
         result = self._build(stories, sections, cats=["Weather Forecast 77316"])
-        weather_section_headers = [l for l in result if l.startswith("## Weather Forecast 77316 (")]
+        weather_section_headers = [
+            l for l in result if l.startswith("## Weather Forecast 77316 (")
+        ]
         assert len(weather_section_headers) == 0
 
 
 # ---------------------------------------------------------------------------
 # 4. write_report
 # ---------------------------------------------------------------------------
+
 
 class TestWriteReport(TestCase):
     """Write markdown list to file."""
@@ -281,7 +347,7 @@ class TestWriteReport(TestCase):
             fp = os.path.join(td, "test.md")
             write_report(fp, ["caf\u00e9", "\u2603 snow", "line3"])
             assert os.path.exists(fp)
-            with open(fp, "r", encoding="utf-8") as f:
+            with open(fp, encoding="utf-8") as f:
                 content = f.read()
             assert "caf\u00e9" in content
             assert "\u2603" in content
@@ -290,13 +356,14 @@ class TestWriteReport(TestCase):
         with tempfile.TemporaryDirectory() as td:
             fp = os.path.join(td, "test2.md")
             write_report(fp, ["header", "", "body", "footer"])
-            with open(fp, "r", encoding="utf-8") as f:
+            with open(fp, encoding="utf-8") as f:
                 content = f.read()
             assert content == "header\n\nbody\nfooter\n"
 
     def test_write_report_uses_temp_file_and_rename(self):
         """Atomic write: temp file opened before final path via os.replace."""
         import builtins
+
         opened_paths = []
         original_open = builtins.open
 
@@ -322,22 +389,24 @@ class TestWriteReport(TestCase):
                 f.write(old_content)
 
             call_count = [0]
-            original_open = __builtins__["open"] if isinstance(__builtins__, dict) else __builtins__.open
+            original_open = (
+                __builtins__["open"] if isinstance(__builtins__, dict) else __builtins__.open
+            )
 
             def failing_open(path, *args, **kwargs):
                 call_count[0] += 1
                 if call_count[0] == 1:
-                    raise IOError("simulated write failure")
+                    raise OSError("simulated write failure")
                 return original_open(path, *args, **kwargs)
 
             try:
                 with mock.patch("builtins.open", side_effect=failing_open):
                     write_report(fp, ["new", "content"])
-            except IOError:
+            except OSError:
                 pass
 
             assert os.path.exists(fp)
-            with open(fp, "r", encoding="utf-8") as f:
+            with open(fp, encoding="utf-8") as f:
                 assert f.read() == old_content
 
     def test_write_report_cleanup_temp_on_failure(self):
@@ -347,18 +416,20 @@ class TestWriteReport(TestCase):
             tmp_path = fp + ".tmp"
 
             call_count = [0]
-            original_open = __builtins__["open"] if isinstance(__builtins__, dict) else __builtins__.open
+            original_open = (
+                __builtins__["open"] if isinstance(__builtins__, dict) else __builtins__.open
+            )
 
             def failing_open(path, *args, **kwargs):
                 call_count[0] += 1
                 if call_count[0] == 1:
-                    raise IOError("simulated write failure")
+                    raise OSError("simulated write failure")
                 return original_open(path, *args, **kwargs)
 
             try:
                 with mock.patch("builtins.open", side_effect=failing_open):
                     write_report(fp, ["new", "content"])
-            except IOError:
+            except OSError:
                 pass
 
             assert not os.path.exists(tmp_path)
@@ -366,6 +437,7 @@ class TestWriteReport(TestCase):
     def test_write_report_same_dir_temp(self):
         """The temp file path is in the same directory as the target."""
         import builtins
+
         opened_paths = []
         original_open = builtins.open
 

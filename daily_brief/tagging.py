@@ -1,12 +1,12 @@
-import re
 import logging
+import re
 
 from daily_brief.config import (
-    TAGGING_MAPPINGS,
-    TAGGING_CONFIG,
     CATEGORY_BOOSTS,
     FRONTMATTER_FALLBACK_TAG,
     TAG_CONFLICTS,
+    TAGGING_CONFIG,
+    TAGGING_MAPPINGS,
 )
 
 logger = logging.getLogger(__name__)
@@ -56,10 +56,16 @@ def _get_compiled_patterns(keyword):
     _KEYWORD_REGEXP_CACHE[keyword] = (pat1, pat2)
     return pat1, pat2
 
+
 # Words that are always matched away — never count them toward a tag score.
 _STOP_WORDS = {
-    "new", "newly", "news", "novel",
-    "world", "global", "globals",
+    "new",
+    "newly",
+    "news",
+    "novel",
+    "world",
+    "global",
+    "globals",
     "first",
     "report",
     "analysis",
@@ -133,7 +139,9 @@ def tag_story_with_keywords(story_title, category=None):
             else:
                 # Legacy: also boost if boost keywords appear in title
                 for bkeyword in boost_tags:
-                    if not _keyword_has_stop(bkeyword) and _word_boundary_match(title_lower, bkeyword):
+                    if not _keyword_has_stop(bkeyword) and _word_boundary_match(
+                        title_lower, bkeyword
+                    ):
                         score += 2.0
 
         if score > score_threshold:
@@ -161,9 +169,13 @@ def tag_story_with_keywords(story_title, category=None):
     if len(tag_list) < min_tags:
         # Try all tags that scored > 0, even if below threshold
         all_scored = sorted(
-            [(t, s) for t, s in tag_scores.items()
-             if s > 0 and t not in tag_list and t not in conflict_losers],
-            key=lambda x: x[1], reverse=True
+            [
+                (t, s)
+                for t, s in tag_scores.items()
+                if s > 0 and t not in tag_list and t not in conflict_losers
+            ],
+            key=lambda x: x[1],
+            reverse=True,
         )
         for tag, score in all_scored:
             tag_list.append(tag)

@@ -1,24 +1,25 @@
 """
 Unit tests for daily_brief/llm/summarizer.py.
 """
+
 import asyncio
 from unittest import TestCase, mock
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 from daily_brief.llm.summarizer import (
-    _is_refusal,
-    _is_boilerplate,
-    _is_valid_summary,
     StoryPipelineState,
     _generate_auto_fallback,
-    _summarize,
     _has_topic_overlap,
+    _is_boilerplate,
+    _is_refusal,
+    _is_valid_summary,
+    _summarize,
 )
-
 
 # ---------------------------------------------------------------------------
 # 1.  _is_refusal
 # ---------------------------------------------------------------------------
+
 
 class TestIsRefusal(TestCase):
     """Detects LLM refusal / placeholder text."""
@@ -30,7 +31,9 @@ class TestIsRefusal(TestCase):
 
     def test_factual_not_refusal(self):
         self.assertFalse(_is_refusal("The Federal Reserve raised interest rates by 0.25% today."))
-        self.assertFalse(_is_refusal("Houston city council approved a new transit plan last night."))
+        self.assertFalse(
+            _is_refusal("Houston city council approved a new transit plan last night.")
+        )
 
     def test_empty_returns_false(self):
         self.assertFalse(_is_refusal(""))
@@ -41,25 +44,37 @@ class TestIsRefusal(TestCase):
 # 3.  _is_boilerplate
 # ---------------------------------------------------------------------------
 
+
 class TestIsBoilerplate(TestCase):
     """Detects vague, generic boilerplate summaries."""
 
     def test_boilerplate_markers(self):
-        self.assertTrue(_is_boilerplate("This highlights a significant trend in modern technology."))
-        self.assertTrue(_is_boilerplate("This article discusses the implications of the new policy."))
+        self.assertTrue(
+            _is_boilerplate("This highlights a significant trend in modern technology.")
+        )
+        self.assertTrue(
+            _is_boilerplate("This article discusses the implications of the new policy.")
+        )
 
     def test_case_insensitive(self):
         self.assertTrue(_is_boilerplate("This Highlights A Significant discovery."))
         self.assertTrue(_is_boilerplate("this article discusses climate change in depth."))
 
     def test_factual_not_boilerplate(self):
-        self.assertFalse(_is_boilerplate("NASA launched the Artemis II mission yesterday morning."))
-        self.assertFalse(_is_boilerplate("Texas Governor signed SB 123 into law, allocating $2B for infrastructure."))
+        self.assertFalse(
+            _is_boilerplate("NASA launched the Artemis II mission yesterday morning.")
+        )
+        self.assertFalse(
+            _is_boilerplate(
+                "Texas Governor signed SB 123 into law, allocating $2B for infrastructure."
+            )
+        )
 
 
 # ---------------------------------------------------------------------------
 # 4.  _generate_auto_fallback
 # ---------------------------------------------------------------------------
+
 
 class TestGenerateAutoFallback(TestCase):
     """Deterministic fallback summary from title."""
@@ -89,6 +104,7 @@ class TestGenerateAutoFallback(TestCase):
 # 5.  _summarize (mocked client)
 # ---------------------------------------------------------------------------
 
+
 class TestSummarize(TestCase):
     """_summarize with mocked async LLM client (Perf-8)."""
 
@@ -105,13 +121,21 @@ class TestSummarize(TestCase):
 
     def test_successful_single_call(self):
         client = self._make_client("The Fed raised rates by 0.25 percent Wednesday.")
+
         async def _run():
-            return await _summarize(client, "Some context text that is long enough to be meaningful for the LLM to process and summarize properly.", title="Test", min_chars=0)
+            return await _summarize(
+                client,
+                "Some context text that is long enough to be meaningful for the LLM to process and summarize properly.",
+                title="Test",
+                min_chars=0,
+            )
+
         result = asyncio.get_event_loop().run_until_complete(_run())
         self.assertEqual(result, "The Fed raised rates by 0.25 percent Wednesday.")
 
     def test_empty_response_triggers_retry_then_fallback(self):
         call_count = [0]
+
         async def side_effect(*args, **kwargs):
             call_count[0] += 1
             if call_count[0] == 1:
@@ -122,79 +146,126 @@ class TestSummarize(TestCase):
                 r = mock.MagicMock()
                 r.choices = [mock.MagicMock(message=mock.MagicMock(content="Valid summary text."))]
                 return r
+
         client = mock.MagicMock()
         client.chat_completions_create = AsyncMock(side_effect=side_effect)
+
         async def _run():
             with mock.patch("daily_brief.config.LLM_SUMMARY_RETRY_ATTEMPTS", 2):
                 with mock.patch("daily_brief.config.LLM_SUMMARY_RETRY_BACKOFF", [0.01, 0.02]):
                     with mock.patch("asyncio.sleep", new_callable=AsyncMock, return_value=None):
-                        return await _summarize(client, "Context text long enough for processing.", title="Test Title", min_chars=0)
+                        return await _summarize(
+                            client,
+                            "Context text long enough for processing.",
+                            title="Test Title",
+                            min_chars=0,
+                        )
+
         result = asyncio.get_event_loop().run_until_complete(_run())
         self.assertEqual(result, "Valid summary text.")
 
     def test_llm_exception_triggers_fallback(self):
         client = mock.MagicMock()
         client.chat_completions_create = AsyncMock(side_effect=Exception("Connection refused"))
+
         async def _run():
             with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_ATTEMPTS", 1):
                 with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_BACKOFF", []):
                     with mock.patch("asyncio.sleep", new_callable=AsyncMock, return_value=None):
-                        return await _summarize(client, "Context text that is long enough to be meaningful.", title="Error Title", min_chars=0)
+                        return await _summarize(
+                            client,
+                            "Context text that is long enough to be meaningful.",
+                            title="Error Title",
+                            min_chars=0,
+                        )
+
         result = asyncio.get_event_loop().run_until_complete(_run())
         self.assertIn("[Auto]", result)
 
     def test_title_based_fallback_when_exhausted(self):
         client = mock.MagicMock()
         client.chat_completions_create = AsyncMock(side_effect=Exception("Down"))
+
         async def _run():
             with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_ATTEMPTS", 2):
-                with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_BACKOFF", [0.01, 0.02]):
+                with mock.patch(
+                    "daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_BACKOFF", [0.01, 0.02]
+                ):
                     with mock.patch("asyncio.sleep", new_callable=AsyncMock, return_value=None):
-                        return await _summarize(client, "Enough context here to process.", title="My Headline", min_chars=0)
+                        return await _summarize(
+                            client,
+                            "Enough context here to process.",
+                            title="My Headline",
+                            min_chars=0,
+                        )
+
         result = asyncio.get_event_loop().run_until_complete(_run())
         self.assertEqual(result, "[Auto] My Headline")
 
     def test_none_title_fallback_unavailable(self):
         client = mock.MagicMock()
         client.chat_completions_create = AsyncMock(side_effect=Exception("Down"))
+
         async def _run():
             with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_ATTEMPTS", 1):
                 with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_BACKOFF", []):
                     with mock.patch("asyncio.sleep", new_callable=AsyncMock, return_value=None):
-                        return await _summarize(client, "Enough context here.", title=None, min_chars=0)
+                        return await _summarize(
+                            client, "Enough context here.", title=None, min_chars=0
+                        )
+
         result = asyncio.get_event_loop().run_until_complete(_run())
         self.assertEqual(result, "[Summary Unavailable]")
 
     def test_summarize_context_too_short(self):
         client = mock.MagicMock()
+
         async def _run():
             return await _summarize(client, "hi", title="Title", min_chars=100)
+
         result = asyncio.get_event_loop().run_until_complete(_run())
         self.assertIsNone(result)
 
     def test_summarize_boilerplate_retry(self):
         call_count = [0]
+
         async def side_effect(**kwargs):
             call_count[0] += 1
             if call_count[0] == 1:
                 r = mock.MagicMock()
-                r.choices = [mock.MagicMock(message=mock.MagicMock(
-                    content="This article discusses the implications of the new policy thoroughly."
-                ))]
+                r.choices = [
+                    mock.MagicMock(
+                        message=mock.MagicMock(
+                            content="This article discusses the implications of the new policy thoroughly."
+                        )
+                    )
+                ]
                 return r
             else:
                 r = mock.MagicMock()
-                r.choices = [mock.MagicMock(message=mock.MagicMock(
-                    content="The Fed raised rates by 0.25 percent. Bond yields climbed sharply. Treasury prices fell."
-                ))]
+                r.choices = [
+                    mock.MagicMock(
+                        message=mock.MagicMock(
+                            content="The Fed raised rates by 0.25 percent. Bond yields climbed sharply. Treasury prices fell."
+                        )
+                    )
+                ]
                 return r
+
         client = mock.MagicMock()
         client.chat_completions_create = AsyncMock(side_effect=side_effect)
+
         async def _run():
             with mock.patch("daily_brief.config.LLM_SUMMARY_RETRY_ATTEMPTS", 2):
                 with mock.patch("daily_brief.config.LLM_SUMMARY_RETRY_BACKOFF", [0.01, 0.02]):
                     with mock.patch("asyncio.sleep", new_callable=AsyncMock, return_value=None):
-                        return await _summarize(client, "Some context text that is long enough to be meaningful for the LLM to process.", title="Test", min_chars=0)
+                        return await _summarize(
+                            client,
+                            "Some context text that is long enough to be meaningful for the LLM to process.",
+                            title="Test",
+                            min_chars=0,
+                        )
+
         result = asyncio.get_event_loop().run_until_complete(_run())
         self.assertIn("Fed", result)
         self.assertEqual(call_count[0], 2)
@@ -203,6 +274,7 @@ class TestSummarize(TestCase):
 # ---------------------------------------------------------------------------
 # _is_valid_summary (quality gate)
 # ---------------------------------------------------------------------------
+
 
 class TestIsValidSummary(TestCase):
     """Quality gate: empty/None/refusal/boilerplate/one-sentence/headline echo/topic mismatch."""
@@ -319,11 +391,13 @@ class TestIsValidSummary(TestCase):
 
     def test_stop_words_filtered(self):
         from daily_brief.llm.summarizer import _significant_words
+
         words = _significant_words("The and of is was are be been this that as")
         self.assertEqual(words, set())
 
     def test_significant_words_extracted(self):
         from daily_brief.llm.summarizer import _significant_words
+
         words = _significant_words("Houston weather has been stuck on repeat")
         self.assertIn("houston", words)
         self.assertIn("weather", words)
@@ -334,11 +408,12 @@ class TestIsValidSummary(TestCase):
 # batch_summarize_all
 # ---------------------------------------------------------------------------
 
+
 class TestBatchSummarizeAll(TestCase):
     """batch_summarize_all integration with mocked async client (Perf-8)."""
 
     def _make_story(self, title, category, context=None, snippet=None):
-        from daily_brief.llm.summarizer import StoryPipelineState
+
         s = StoryPipelineState(title, "http://x", snippet or "", "2024-01-01", category)
         s.context = context
         s.summary = None
@@ -346,14 +421,16 @@ class TestBatchSummarizeAll(TestCase):
 
     def test_batch_summarize_all_empty(self):
         from daily_brief.llm.summarizer import batch_summarize_all
+
         client = mock.MagicMock()
+
         async def _run():
             return await batch_summarize_all(client, [])
+
         result = asyncio.get_event_loop().run_until_complete(_run())
         self.assertEqual(result.total_stories, 0)
 
     def test_batch_summarize_all_with_retries(self):
-        from daily_brief.config import SYSTEM_BATCH_PROMPT
         from daily_brief.llm.summarizer import batch_summarize_all
 
         stories = [
@@ -379,7 +456,11 @@ class TestBatchSummarizeAll(TestCase):
             else:
                 single_call_count[0] += 1
                 r = mock.MagicMock()
-                r.choices = [mock.MagicMock(message=mock.MagicMock(content="Single story fallback summary text here."))]
+                r.choices = [
+                    mock.MagicMock(
+                        message=mock.MagicMock(content="Single story fallback summary text here.")
+                    )
+                ]
                 return r
 
         client = mock.MagicMock()
@@ -421,7 +502,7 @@ class TestBatchTopicMismatchRejection(TestCase):
     """v1.0.112: topic-mismatched summaries are rejected in batch path."""
 
     def _make_story(self, title, category, context=None, snippet=None):
-        from daily_brief.llm.summarizer import StoryPipelineState
+
         s = StoryPipelineState(title, "http://x", snippet or "", "2024-01-01", category)
         s.context = context or f"Context for {title}." * 5
         s.summary = None
@@ -432,15 +513,21 @@ class TestBatchTopicMismatchRejection(TestCase):
         from daily_brief.llm.summarizer import batch_summarize_all
 
         stories = [
-            self._make_story("Houston weather has been stuck on repeat — but not for much longer", "Weather"),
+            self._make_story(
+                "Houston weather has been stuck on repeat — but not for much longer", "Weather"
+            ),
         ]
 
         async def side_effect(**kwargs):
             # LLM returns a topic-mismatched summary
             r = mock.MagicMock()
-            r.choices = [mock.MagicMock(message=mock.MagicMock(
-                content="STORY_0 | temperatures gulf=average temperatures in the Gulf region could lead to stronger storms. Residents should prepare for the return of rain chances this weekend."
-            ))]
+            r.choices = [
+                mock.MagicMock(
+                    message=mock.MagicMock(
+                        content="STORY_0 | temperatures gulf=average temperatures in the Gulf region could lead to stronger storms. Residents should prepare for the return of rain chances this weekend."
+                    )
+                )
+            ]
             return r
 
         client = mock.MagicMock()
@@ -466,9 +553,13 @@ class TestBatchTopicMismatchRejection(TestCase):
 
         async def side_effect(**kwargs):
             r = mock.MagicMock()
-            r.choices = [mock.MagicMock(message=mock.MagicMock(
-                content="STORY_0 | Houston weather repeat=Houston weather has been stuck in a hot pattern for weeks. Conditions are expected to change this weekend with rain chances returning."
-            ))]
+            r.choices = [
+                mock.MagicMock(
+                    message=mock.MagicMock(
+                        content="STORY_0 | Houston weather repeat=Houston weather has been stuck in a hot pattern for weeks. Conditions are expected to change this weekend with rain chances returning."
+                    )
+                )
+            ]
             return r
 
         client = mock.MagicMock()
@@ -490,7 +581,7 @@ class TestBatchSchedulerControls(TestCase):
     """Batch size and concurrency controls (Perf-7 benchmark)."""
 
     def _make_story(self, title, category, snippet=None):
-        from daily_brief.llm.summarizer import StoryPipelineState
+
         s = StoryPipelineState(title, "http://x", snippet or "", "2024-01-01", category)
         s.context = f"Context for {title} with enough text for testing." * 3
         s.summary = None
@@ -523,7 +614,9 @@ class TestBatchSchedulerControls(TestCase):
 
             parts = []
             for i, hl in enumerate(batch_headlines):
-                parts.append(f"STORY_{i} | {hl}=Finance market summary for {hl}. Detailed analysis follows with more text.")
+                parts.append(
+                    f"STORY_{i} | {hl}=Finance market summary for {hl}. Detailed analysis follows with more text."
+                )
             content = "\n".join(parts)
             r = mock.MagicMock()
             r.choices = [mock.MagicMock(message=mock.MagicMock(content=content))]
@@ -570,7 +663,9 @@ class TestBatchSchedulerControls(TestCase):
                         break
             parts = []
             for i, hl in enumerate(batch_headlines):
-                parts.append(f"STORY_{i} | {hl}=Serial summary for {hl}. Detail text with more sentences here.")
+                parts.append(
+                    f"STORY_{i} | {hl}=Serial summary for {hl}. Detail text with more sentences here."
+                )
             r = mock.MagicMock()
             r.choices = [mock.MagicMock(message=mock.MagicMock(content="\n".join(parts)))]
             active[0] -= 1
@@ -616,7 +711,9 @@ class TestBatchSchedulerControls(TestCase):
                         break
             parts = []
             for i, hl in enumerate(batch_headlines):
-                parts.append(f"STORY_{i} | {hl}=News summary for {hl}. Detail here with more text.")
+                parts.append(
+                    f"STORY_{i} | {hl}=News summary for {hl}. Detail here with more text."
+                )
             r = mock.MagicMock()
             r.choices = [mock.MagicMock(message=mock.MagicMock(content="\n".join(parts)))]
             return r
@@ -628,7 +725,11 @@ class TestBatchSchedulerControls(TestCase):
             with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_ATTEMPTS", 1):
                 with mock.patch("daily_brief.llm.summarizer.LLM_SUMMARY_RETRY_BACKOFF", []):
                     with mock.patch("asyncio.sleep", new_callable=AsyncMock, return_value=None):
-                        with mock.patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, return_value=None):
+                        with mock.patch(
+                            "daily_brief.llm.summarizer._summarize",
+                            new_callable=AsyncMock,
+                            return_value=None,
+                        ):
                             return await batch_summarize_all(client, stories, batch_size=2)
 
         result = asyncio.get_event_loop().run_until_complete(_run())

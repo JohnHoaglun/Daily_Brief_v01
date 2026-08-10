@@ -3,18 +3,18 @@
 
 class SummaryMetrics:
     __slots__ = (
-        "total_stories",
-        "sub_batches",
-        "batch_calls",
-        "batch_retries",
-        "batch_failures",
-        "individual_recovery_attempts",
-        "individual_recovered",
         "auto_fallbacks",
-        "unavailable_summaries",
-        "final_valid",
-        "final_invalid",
+        "batch_calls",
+        "batch_failures",
+        "batch_retries",
         "elapsed_s",
+        "final_invalid",
+        "final_valid",
+        "individual_recovered",
+        "individual_recovery_attempts",
+        "sub_batches",
+        "total_stories",
+        "unavailable_summaries",
     )
 
     def __init__(

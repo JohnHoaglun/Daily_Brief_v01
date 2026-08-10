@@ -63,9 +63,7 @@ async def stage_extract_article(story: Any, session: aiohttp.ClientSession) -> N
 
     try:
         t_fetch = time.monotonic()
-        html = await _fetch_text(
-            session, url, user_agent=USER_AGENT, timeout=5
-        )
+        html = await _fetch_text(session, url, user_agent=USER_AGENT, timeout=5)
         story.extract_fetch_time_s = time.monotonic() - t_fetch
 
         if html is None:

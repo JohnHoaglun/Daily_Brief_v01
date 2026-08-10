@@ -2,9 +2,8 @@
 
 import asyncio
 import json
-import io
 import unittest
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 
@@ -73,6 +72,7 @@ class TestIsStatusAccepted(unittest.TestCase):
 
     def _import(self):
         from daily_brief.http_client import _is_status_accepted
+
         return _is_status_accepted
 
     def test_default_200_accepted_others_rejected(self):
@@ -92,6 +92,7 @@ class TestShouldRetry(unittest.TestCase):
 
     def _import(self):
         from daily_brief.http_client import _should_retry
+
         return _should_retry
 
     def test_transient_statuses_retry(self):
@@ -107,7 +108,7 @@ class TestShouldRetry(unittest.TestCase):
     def test_exceptions(self):
         fn = self._import()
         self.assertTrue(fn(asyncio.TimeoutError()))
-        import aiohttp
+
         self.assertTrue(fn(aiohttp.ClientError()))
 
 
@@ -116,6 +117,7 @@ class TestRequestWithRetry(unittest.TestCase):
 
     def _import(self):
         from daily_brief.http_client import _request_with_retry
+
         return _request_with_retry
 
     def _loop(self, coro):
@@ -239,6 +241,7 @@ class TestFetchJson(unittest.TestCase):
 
     def _import(self):
         from daily_brief.http_client import _fetch_json
+
         return _fetch_json
 
     def _loop(self, coro):
@@ -275,6 +278,7 @@ class TestFetchText(unittest.TestCase):
 
     def _import(self):
         from daily_brief.http_client import _fetch_text
+
         return _fetch_text
 
     def _loop(self, coro):
@@ -299,6 +303,7 @@ class TestSafeJsonParse(unittest.TestCase):
 
     def _import(self):
         from daily_brief.http_client import _safe_json_parse
+
         return _safe_json_parse
 
     def _loop(self, coro):
@@ -308,7 +313,7 @@ class TestSafeJsonParse(unittest.TestCase):
         fn = self._import()
         result = self._loop(fn('{"a":1}'))
         self.assertEqual(result, {"a": 1})
-        result = self._loop(fn('{bad'))
+        result = self._loop(fn("{bad"))
         self.assertIsNone(result)
         result = self._loop(fn(""))
         self.assertIsNone(result)
@@ -319,6 +324,7 @@ class TestExceedsContentLengthHeader(unittest.TestCase):
 
     def _import(self):
         from daily_brief.http_client import _exceeds_content_length_header
+
         return _exceeds_content_length_header
 
     def test_no_header(self):
@@ -347,6 +353,7 @@ class TestRequestWithRetryBounded(unittest.TestCase):
 
     def _import(self):
         from daily_brief.http_client import _request_with_retry
+
         return _request_with_retry
 
     def _loop(self, coro):
@@ -401,6 +408,7 @@ class TestFetchTextBounded(unittest.TestCase):
 
     def _import(self):
         from daily_brief.http_client import _fetch_text
+
         return _fetch_text
 
     def _loop(self, coro):
@@ -419,6 +427,7 @@ class TestFetchJsonBounded(unittest.TestCase):
 
     def _import(self):
         from daily_brief.http_client import _fetch_json
+
         return _fetch_json
 
     def _loop(self, coro):

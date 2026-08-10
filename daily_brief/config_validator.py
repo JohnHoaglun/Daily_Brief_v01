@@ -7,19 +7,21 @@ lake_urls, prompts, tagging.  Runs at pipeline startup before Phase 1.
 
 from __future__ import annotations
 
-from zoneinfo import ZoneInfo
 import re
 from typing import Any
+from zoneinfo import ZoneInfo
 
 
 class ConfigValidationError(Exception):
     """Raised when config validation fails."""
+
     pass
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _get(d: dict, path: str, default: Any = None) -> Any:
     """Dot-path accessor that returns *default* on any missing key."""
@@ -61,7 +63,17 @@ def _looks_like_url(v: Any) -> bool:
 # 1.  Required keys
 # ---------------------------------------------------------------------------
 
-_REQUIRED_TOP = ["version", "llm", "directories", "weather", "categories", "prompts", "rss", "network", "runtime"]
+_REQUIRED_TOP = [
+    "version",
+    "llm",
+    "directories",
+    "weather",
+    "categories",
+    "prompts",
+    "rss",
+    "network",
+    "runtime",
+]
 _REQUIRED_LLM = ["model", "host"]
 _REQUIRED_DIRS = ["log_dir", "news_dir"]
 _REQUIRED_WEATHER = ["lat", "lon", "wunderground_station_id", "lake_urls"]
@@ -119,6 +131,7 @@ def check_required_keys(config: dict):
 # ---------------------------------------------------------------------------
 # 2.  Type checks
 # ---------------------------------------------------------------------------
+
 
 def check_types(config: dict):
     issues: list[str] = []
@@ -190,7 +203,12 @@ def check_types(config: dict):
         issues.append("'rss.base_url' must be a non-empty string")
     if not _is_non_empty_str(_get(rss, "params")):
         issues.append("'rss.params' must be a non-empty string")
-    for int_k in ("default_age_limit_hours", "dedupe_window_hours", "default_source_window_hours", "candidate_pool_limit"):
+    for int_k in (
+        "default_age_limit_hours",
+        "dedupe_window_hours",
+        "default_source_window_hours",
+        "candidate_pool_limit",
+    ):
         val = _get(rss, int_k)
         if val is not None and not _is_int(val):
             issues.append(f"'rss.{int_k}' must be an integer")
@@ -240,6 +258,7 @@ def check_types(config: dict):
 # ---------------------------------------------------------------------------
 # 3.  Range / value checks
 # ---------------------------------------------------------------------------
+
 
 def check_ranges(config: dict):
     issues: list[str] = []
@@ -370,6 +389,7 @@ def check_ranges(config: dict):
 # 4.  Categories
 # ---------------------------------------------------------------------------
 
+
 def check_categories(config: dict):
     issues: list[str] = []
 
@@ -407,7 +427,9 @@ def check_categories(config: dict):
             if not _is_int(sw):
                 issues.append(f"'categories.{cname}.source_window_hours' must be an integer")
             elif sw < 1 or sw > 168:
-                issues.append(f"'categories.{cname}.source_window_hours' should be in (0, 168]: {sw}")
+                issues.append(
+                    f"'categories.{cname}.source_window_hours' should be in (0, 168]: {sw}"
+                )
         dsw = _get(_get(config, "rss", {}), "default_source_window_hours")
         if dsw is not None and not _is_int(dsw):
             issues.append("'rss.default_source_window_hours' must be an integer")
@@ -449,6 +471,7 @@ def check_categories(config: dict):
 # 5.  Lake URLs
 # ---------------------------------------------------------------------------
 
+
 def check_lake_urls(config: dict):
     issues: list[str] = []
 
@@ -470,6 +493,7 @@ def check_lake_urls(config: dict):
 # ---------------------------------------------------------------------------
 # 6.  Prompts
 # ---------------------------------------------------------------------------
+
 
 def check_prompts(config: dict):
     issues: list[str] = []
@@ -493,6 +517,7 @@ def check_prompts(config: dict):
 # Batch scheduler constants validation
 # ---------------------------------------------------------------------------
 
+
 def check_batch_scheduler(config: dict):
     """Validate llm.summary_batch_size and llm.summary_max_concurrency from YAML."""
     issues: list[str] = []
@@ -511,6 +536,7 @@ def check_batch_scheduler(config: dict):
 # ---------------------------------------------------------------------------
 # 7.  Timezone & path checks
 # ---------------------------------------------------------------------------
+
 
 def check_timezone_and_paths(config: dict):
     issues: list[str] = []
@@ -573,8 +599,10 @@ def validate_config(config: dict) -> tuple[bool, list[str]]:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    import yaml
     import os
+
+    import yaml
+
     parent = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     cfg = os.path.join(parent, "config.yaml")
     with open(cfg) as f:

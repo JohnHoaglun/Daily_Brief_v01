@@ -6,10 +6,11 @@ all module-level constants from canonical YAML paths.  No globals().update().
 """
 
 import os
-import yaml
 from importlib import resources as importlib_resources
 from pathlib import Path
 from typing import Optional
+
+import yaml
 
 from daily_brief._version import __version__ as PACKAGE_VERSION
 
@@ -181,9 +182,17 @@ def build_runtime_config(raw_cfg):
         categories.append((cat_name, cat_info.get("query", ""), max_st))
         category_age_limits[cat_name] = cat_info.get("min_age_hours", 24)
         window_val = cat_info.get("source_window_hours", default_window)
-        category_source_windows[cat_name] = int(window_val) if isinstance(window_val, int) and not isinstance(window_val, bool) else default_window
+        category_source_windows[cat_name] = (
+            int(window_val)
+            if isinstance(window_val, int) and not isinstance(window_val, bool)
+            else default_window
+        )
         pool_val = cat_info.get("candidate_pool_limit", default_pool_limit)
-        category_candidate_pool_limits[cat_name] = int(pool_val) if isinstance(pool_val, int) and not isinstance(pool_val, bool) else default_pool_limit
+        category_candidate_pool_limits[cat_name] = (
+            int(pool_val)
+            if isinstance(pool_val, int) and not isinstance(pool_val, bool)
+            else default_pool_limit
+        )
 
     prompts = value("prompts", {}, dict)
     summary_options = dict(value("llm.summary_options", DEFAULTS["llm"]["summary_options"], dict))
@@ -200,7 +209,9 @@ def build_runtime_config(raw_cfg):
     raw_backoff = value("llm.summary_retry.backoff", DEFAULTS["llm"]["summary_retry"]["backoff"])
     backoff_values = raw_backoff if isinstance(raw_backoff, list) else [raw_backoff]
     backoff = [
-        float(delay) if isinstance(delay, (int, float)) and not isinstance(delay, bool) else float(DEFAULTS["llm"]["summary_retry"]["backoff"][0])
+        float(delay)
+        if isinstance(delay, (int, float)) and not isinstance(delay, bool)
+        else float(DEFAULTS["llm"]["summary_retry"]["backoff"][0])
         for delay in backoff_values
     ]
     return {
@@ -214,29 +225,65 @@ def build_runtime_config(raw_cfg):
         "WEATHER_POINT_URL": "https://api.weather.gov/points/{lat},{lon}",
         "WEATHER_POINT_FORECAST_SUFFIX": "forecast",
         "WEATHER_SECTION_TITLE": "Weather Forecast",
-        "WEATHER_WUNDERGROUND_STATION_ID": value("weather.wunderground_station_id", DEFAULTS["weather"]["wunderground_station_id"], str),
-        "WUNDERGROUND_MONTHLY_TEMPLATE": value("weather.wunderground_monthly_template", DEFAULTS["weather"]["wunderground_monthly_template"], str),
+        "WEATHER_WUNDERGROUND_STATION_ID": value(
+            "weather.wunderground_station_id", DEFAULTS["weather"]["wunderground_station_id"], str
+        ),
+        "WUNDERGROUND_MONTHLY_TEMPLATE": value(
+            "weather.wunderground_monthly_template",
+            DEFAULTS["weather"]["wunderground_monthly_template"],
+            str,
+        ),
         "WEATHER_LAKE_URLS": value("weather.lake_urls", DEFAULTS["weather"]["lake_urls"], dict),
         "RSS_BASE": value("rss.base_url", DEFAULTS["rss"]["base_url"], str),
         "RSS_PARAMS": value("rss.params", DEFAULTS["rss"]["params"], str),
         "RSS_SETTINGS": value("rss", {}, dict),
-        "DEFAULT_AGE_WINDOW_HOURS": number("rss.default_age_limit_hours", DEFAULTS["rss"]["default_age_limit_hours"], int),
-        "DEDUPE_WINDOW_HOURS": number("rss.dedupe_window_hours", DEFAULTS["rss"]["dedupe_window_hours"], int),
+        "DEFAULT_AGE_WINDOW_HOURS": number(
+            "rss.default_age_limit_hours", DEFAULTS["rss"]["default_age_limit_hours"], int
+        ),
+        "DEDUPE_WINDOW_HOURS": number(
+            "rss.dedupe_window_hours", DEFAULTS["rss"]["dedupe_window_hours"], int
+        ),
         "USER_AGENT": value("network.user_agent", DEFAULTS["network"]["user_agent"], str),
         "TIMEZONE": value("runtime.timezone", DEFAULTS["runtime"]["timezone"], str),
         "PREFLIGHT_CHECKS_ENABLED": value("runtime.preflight_checks_enabled", False, bool),
-        "MAX_LOG_VERSIONS": number("runtime.max_log_versions", DEFAULTS["runtime"]["max_log_versions"], int),
-        "ARTICLE_MAX_CONCURRENCY": number("runtime.article_max_concurrency", DEFAULTS["runtime"]["article_max_concurrency"], int),
-        "FRONTMATTER_TAG_SEEDS": list(value("runtime.frontmatter_tag_segments", DEFAULTS["runtime"]["frontmatter_tag_segments"], list)),
-        "FRONTMATTER_FALLBACK_TAG": value("runtime.frontmatter_fallback_tag", DEFAULTS["runtime"]["frontmatter_fallback_tag"], str),
+        "MAX_LOG_VERSIONS": number(
+            "runtime.max_log_versions", DEFAULTS["runtime"]["max_log_versions"], int
+        ),
+        "ARTICLE_MAX_CONCURRENCY": number(
+            "runtime.article_max_concurrency", DEFAULTS["runtime"]["article_max_concurrency"], int
+        ),
+        "FRONTMATTER_TAG_SEEDS": list(
+            value(
+                "runtime.frontmatter_tag_segments",
+                DEFAULTS["runtime"]["frontmatter_tag_segments"],
+                list,
+            )
+        ),
+        "FRONTMATTER_FALLBACK_TAG": value(
+            "runtime.frontmatter_fallback_tag",
+            DEFAULTS["runtime"]["frontmatter_fallback_tag"],
+            str,
+        ),
         "LLM_SUMMARY_OPTIONS": summary_options,
-        "LLM_SUMMARY_CONTEXT_CHARS": number("llm.summary_context_chars", DEFAULTS["llm"]["summary_context_chars"], int),
-        "LLM_CONTEXT_PREVIEW_CHARS": number("llm.context_preview_chars", DEFAULTS["llm"]["context_preview_chars"], int),
-        "LLM_SUMMARY_TRIM_MIN_CHARS": number("llm.summary_trim_min_chars", DEFAULTS["llm"]["summary_trim_min_chars"], int),
-        "LLM_SUMMARY_RETRY_ATTEMPTS": number("llm.summary_retry.attempts", DEFAULTS["llm"]["summary_retry"]["attempts"], int),
+        "LLM_SUMMARY_CONTEXT_CHARS": number(
+            "llm.summary_context_chars", DEFAULTS["llm"]["summary_context_chars"], int
+        ),
+        "LLM_CONTEXT_PREVIEW_CHARS": number(
+            "llm.context_preview_chars", DEFAULTS["llm"]["context_preview_chars"], int
+        ),
+        "LLM_SUMMARY_TRIM_MIN_CHARS": number(
+            "llm.summary_trim_min_chars", DEFAULTS["llm"]["summary_trim_min_chars"], int
+        ),
+        "LLM_SUMMARY_RETRY_ATTEMPTS": number(
+            "llm.summary_retry.attempts", DEFAULTS["llm"]["summary_retry"]["attempts"], int
+        ),
         "LLM_SUMMARY_RETRY_BACKOFF": list(backoff),
-        "LLM_SUMMARY_BATCH_SIZE": number("llm.summary_batch_size", DEFAULTS["llm"]["summary_batch_size"], int),
-        "LLM_SUMMARY_MAX_CONCURRENCY": number("llm.summary_max_concurrency", DEFAULTS["llm"]["summary_max_concurrency"], int),
+        "LLM_SUMMARY_BATCH_SIZE": number(
+            "llm.summary_batch_size", DEFAULTS["llm"]["summary_batch_size"], int
+        ),
+        "LLM_SUMMARY_MAX_CONCURRENCY": number(
+            "llm.summary_max_concurrency", DEFAULTS["llm"]["summary_max_concurrency"], int
+        ),
         "DATE_OVERRIDE": None,
         "CATEGORIES_RAW": categories_raw,
         "CATEGORIES": categories,

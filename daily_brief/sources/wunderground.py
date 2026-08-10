@@ -15,9 +15,7 @@ from typing import Any, Dict, Optional
 import aiohttp
 from bs4 import BeautifulSoup
 
-import asyncio
-
-from daily_brief.config import WUNDERGROUND_MONTHLY_TEMPLATE, WEATHER_WUNDERGROUND_STATION_ID
+from daily_brief.config import WEATHER_WUNDERGROUND_STATION_ID, WUNDERGROUND_MONTHLY_TEMPLATE
 from daily_brief.http_client import _fetch_text
 from daily_brief.sources.climate import _parse_climate_summary
 
@@ -98,8 +96,7 @@ async def _fetch_station_monthly_rainfall(
 
     climate_url = "https://www.weather.gov/hgx/climate_iah_normals_summary"
     station_html, climate_html = await asyncio.gather(
-        _fetch_text(session, station_range_url),
-        _fetch_text(session, climate_url)
+        _fetch_text(session, station_range_url), _fetch_text(session, climate_url)
     )
     if not station_html:
         logger.debug(
@@ -109,7 +106,10 @@ async def _fetch_station_monthly_rainfall(
 
     station_current_rain = _parse_wu_monthly_precipitation(station_html, month_start, month_end)
     if station_current_rain is not None:
-        logger.debug("  Station monthly rainfall: parsed station current month value %s", station_current_rain)
+        logger.debug(
+            "  Station monthly rainfall: parsed station current month value %s",
+            station_current_rain,
+        )
     if not climate_html:
         logger.debug("  Station monthly rainfall: no climate page HTML fetched")
         return {
@@ -137,7 +137,9 @@ async def _fetch_station_monthly_rainfall(
 
     return {
         "avg_monthly_rainfall": _safe_rainfall(avg_rain),
-        "current_monthly_rainfall": f"{station_current_rain}" if station_current_rain is not None else _safe_rainfall(curr_rain),
+        "current_monthly_rainfall": f"{station_current_rain}"
+        if station_current_rain is not None
+        else _safe_rainfall(curr_rain),
     }
 
 

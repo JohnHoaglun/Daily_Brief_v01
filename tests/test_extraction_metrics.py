@@ -5,11 +5,10 @@ Covers lag monitor, parse timing, parser offload, and utility functions.
 """
 
 import asyncio
-import json
-import time
 import threading
+import time
 import unittest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 
 class MockContent:
@@ -58,6 +57,7 @@ class MockStory:
 class TestEventLoopLagMonitor(unittest.TestCase):
     def _import(self):
         from daily_brief.pipeline import _EventLoopLagMonitor
+
         return _EventLoopLagMonitor
 
     def _loop(self, coro):
@@ -74,7 +74,8 @@ class TestEventLoopLagMonitor(unittest.TestCase):
             sleep_elapsed = time.monotonic() - sleep_start
             samples = await monitor.stop_async()
             self.assertGreaterEqual(
-                len(samples), sleep_elapsed / 0.015,
+                len(samples),
+                sleep_elapsed / 0.015,
                 "should collect at least 2 samples",
             )
             for s in samples:
@@ -118,6 +119,7 @@ class TestEventLoopLagMonitor(unittest.TestCase):
 class TestExtractionTiming(unittest.TestCase):
     def _import(self):
         from daily_brief.sources.article import stage_extract_article
+
         return stage_extract_article
 
     def _loop(self, coro):
@@ -127,6 +129,7 @@ class TestExtractionTiming(unittest.TestCase):
         class FakeSession:
             def get(self, *a, **kw):
                 return MockResp(status=200, text=body)
+
         return FakeSession()
 
     def test_timing_attributes_set_on_success(self):
@@ -173,6 +176,7 @@ class TestParserOffload(unittest.TestCase):
 
     def _import(self):
         from daily_brief.sources.article import _parse_article_html, stage_extract_article
+
         return _parse_article_html, stage_extract_article
 
     def _loop(self, coro):
@@ -182,17 +186,18 @@ class TestParserOffload(unittest.TestCase):
         class FakeSession:
             def get(self, *a, **kw):
                 return MockResp(status=200, text=body)
+
         return FakeSession()
 
     def _inline(self, html: str):
-        import sys
         from daily_brief.sources.article import _parse_article_html
+
         return _parse_article_html(html)
 
     def test_parse_parity(self):
         """Threaded and inline parsing produce identical output for large HTML."""
         _, extract_fn = self._import()
-        body = f"<html><body>"
+        body = "<html><body>"
         for i in range(20):
             body += f"<p>Lorem ipsum paragraph number {i} with enough text to exceed fifty characters for context</p>"
         body += "</body></html>"
@@ -244,7 +249,7 @@ class TestParserOffload(unittest.TestCase):
         loop_event = asyncio.Event()
 
         def blocking_parse(html):
-            from unittest.mock import MagicMock
+
             event = threading.Event()
             # Set the asyncio event from the worker via a callback
             asyncio.run_coroutine_threadsafe(
@@ -301,8 +306,10 @@ class TestParserOffload(unittest.TestCase):
         stories = [MockStory(title=f"S{i}", context="") for i in range(6)]
 
         async def _run():
-            from daily_brief.sources.article import stage_extract_article
             import asyncio
+
+            from daily_brief.sources.article import stage_extract_article
+
             sem = asyncio.Semaphore(cap)
 
             async def bounded(s):
@@ -328,6 +335,7 @@ class TestParserOffload(unittest.TestCase):
 class TestPercentileCalculation(unittest.TestCase):
     def _import(self):
         from daily_brief.pipeline import _percentile
+
         return _percentile
 
     def test_p50_single_value(self):
@@ -354,6 +362,7 @@ class TestPercentileCalculation(unittest.TestCase):
 class TestCountExtracted(unittest.TestCase):
     def _import(self):
         from daily_brief.pipeline import _count_extracted
+
         return _count_extracted
 
     def test_all_populated(self):

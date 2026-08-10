@@ -1,6 +1,7 @@
 """
 Tests for daily_brief/harness.py — run_test_harness subprocess handling.
 """
+
 import os
 import subprocess
 import tempfile
@@ -145,4 +146,5 @@ class TestHarnessPreservesOutput(TestCase):
 
 if __name__ == "__main__":
     import unittest
+
     unittest.main()

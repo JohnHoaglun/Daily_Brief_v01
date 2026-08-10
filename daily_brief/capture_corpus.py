@@ -25,20 +25,22 @@ import statistics
 import sys
 from collections import OrderedDict
 from datetime import datetime, timezone
+
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 import aiohttp
+
 from daily_brief.config import (
-    CONFIG_YAML,
     CATEGORIES,
+    CONFIG_YAML,
     USER_AGENT,
     VERSION,
 )
 from daily_brief.config_validator import validate_config
+from daily_brief.llm.summarizer import StoryPipelineState, build_context
 from daily_brief.pipelines.rss_dedup import fetch_and_dedup
 from daily_brief.sources.article import stage_extract_article
 from daily_brief.sources.rss import format_pub_date
-from daily_brief.llm.summarizer import StoryPipelineState, build_context
 
 
 def _log(msg: str):
@@ -58,7 +60,7 @@ def _check_force(output_path: str, force: bool) -> None:
     resolved = _resolve_output_path(output_path)
     if os.path.exists(resolved) and not force:
         _log(f"FATAL: Output file already exists: {resolved}")
-        _log(f"Use --force to overwrite, or choose a different output path.")
+        _log("Use --force to overwrite, or choose a different output path.")
         sys.exit(1)
 
 
@@ -92,7 +94,9 @@ def _validate_corpus(corpus: dict, min_stories: int, min_context_pct: float) -> 
         errors.append("Corpus is empty — no stories captured")
 
     if corpus.get("total_stories") is not None and corpus["total_stories"] != len(stories):
-        errors.append(f"total_stories ({corpus['total_stories']}) != len(stories) ({len(stories)})")
+        errors.append(
+            f"total_stories ({corpus['total_stories']}) != len(stories) ({len(stories)})"
+        )
 
     if len(stories) < min_stories:
         errors.append(f"Only {len(stories)} stories captured, minimum is {min_stories}")
@@ -110,12 +114,16 @@ def _validate_corpus(corpus: dict, min_stories: int, min_context_pct: float) -> 
         non_empty = sum(1 for s in stories if isinstance(s, dict) and s.get("context", "").strip())
         pct = non_empty / len(stories)
         if pct < min_context_pct:
-            errors.append(f"Context coverage {pct:.1%} ({non_empty}/{len(stories)}) below threshold {min_context_pct:.0%}")
+            errors.append(
+                f"Context coverage {pct:.1%} ({non_empty}/{len(stories)}) below threshold {min_context_pct:.0%}"
+            )
 
     return errors
 
 
-async def capture(output_path: str, force: bool = False, min_stories: int = 20, min_context_pct: float = 0.8) -> None:
+async def capture(
+    output_path: str, force: bool = False, min_stories: int = 20, min_context_pct: float = 0.8
+) -> None:
     # --- Resolve output path relative to PROJECT_ROOT ---
     resolved_path = _resolve_output_path(output_path)
     _check_force(output_path, force)
@@ -133,7 +141,6 @@ async def capture(output_path: str, force: bool = False, min_stories: int = 20, 
         headers={"User-Agent": USER_AGENT},
         timeout=aiohttp.ClientTimeout(total=30),
     ) as session:
-
         _log("[Phase 2] Fetching and deduplicating RSS feeds...")
         deduped, dedup_stats = await fetch_and_dedup(session, CATEGORIES, _log)
         total_before = dedup_stats.get("total_before", 0)
@@ -143,7 +150,9 @@ async def capture(output_path: str, force: bool = False, min_stories: int = 20, 
         # --- Build StoryPipelineState objects ---
         stories: list[StoryPipelineState] = []
         for title, link, snippet, pub_dt, cat in deduped:
-            s = StoryPipelineState(title=title, link=link, snippet=snippet, pub_dt=pub_dt, category=cat)
+            s = StoryPipelineState(
+                title=title, link=link, snippet=snippet, pub_dt=pub_dt, category=cat
+            )
             stories.append(s)
 
         # --- Phase 3A: Async article extraction ---
@@ -166,14 +175,16 @@ async def capture(output_path: str, force: bool = False, min_stories: int = 20, 
 
         pub_date_str = format_pub_date(s.pub_dt) if s.pub_dt else None
 
-        story_list.append({
-            "title": s.title,
-            "url": s.link,
-            "category": s.category,
-            "snippet": s.snippet,
-            "pub_date": pub_date_str,
-            "context": ctx,
-        })
+        story_list.append(
+            {
+                "title": s.title,
+                "url": s.link,
+                "category": s.category,
+                "snippet": s.snippet,
+                "pub_date": pub_date_str,
+                "context": ctx,
+            }
+        )
 
     corpus = {
         "capture_date": capture_ts,
@@ -206,8 +217,10 @@ async def capture(output_path: str, force: bool = False, min_stories: int = 20, 
     print(f"\nCorpus captured: {len(story_list)} stories -> {resolved_path}")
     print(f"  Capture timestamp: {capture_ts}")
     print(f"  Pipeline version:  {VERSION}")
-    print(f"  Story context:     {stats['non_empty']}/{stats['total']} non-empty (median {stats['median_length']:.0f} chars)")
-    print(f"  Category breakdown:")
+    print(
+        f"  Story context:     {stats['non_empty']}/{stats['total']} non-empty (median {stats['median_length']:.0f} chars)"
+    )
+    print("  Category breakdown:")
     for cat, count in cat_counts.items():
         print(f"    {cat}: {count}")
 
@@ -239,7 +252,14 @@ def main() -> None:
         help="Minimum fraction of stories with non-empty context (default: 0.8)",
     )
     args = parser.parse_args()
-    asyncio.run(capture(args.output, force=args.force, min_stories=args.min_stories, min_context_pct=args.min_context_pct))
+    asyncio.run(
+        capture(
+            args.output,
+            force=args.force,
+            min_stories=args.min_stories,
+            min_context_pct=args.min_context_pct,
+        )
+    )
 
 
 if __name__ == "__main__":

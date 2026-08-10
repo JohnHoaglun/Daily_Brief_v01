@@ -2,6 +2,7 @@
 Extended connectivity tests — one contract each for LLM, RSS, weather,
 aggregate checks, formatter, timeout, and TLS behavior.
 """
+
 import asyncio
 import io
 import unittest
@@ -9,19 +10,20 @@ from unittest import TestCase, mock
 
 import aiohttp
 from aioresponses import aioresponses
+
 from daily_brief.connectivity import (
-    check_llm,
-    check_rss,
-    check_weather,
-    check_openmeteo,
-    check_wunderground,
-    check_lakes,
-    run_all_checks,
-    run_smoke_test,
-    format_results,
-    report,
     _ensure_v1,
     _safe_netloc,
+    check_lakes,
+    check_llm,
+    check_openmeteo,
+    check_rss,
+    check_weather,
+    check_wunderground,
+    format_results,
+    report,
+    run_all_checks,
+    run_smoke_test,
 )
 
 
@@ -61,10 +63,14 @@ class TestCheckRSS(TestCase):
     def test_rss_reachable(self):
         async def run():
             with mock.patch("daily_brief.connectivity.CATEGORIES", [("World News", "testq", 10)]):
-                with mock.patch("daily_brief.connectivity.RSS_BASE", "https://news.google.com/rss/search?q="):
+                with mock.patch(
+                    "daily_brief.connectivity.RSS_BASE", "https://news.google.com/rss/search?q="
+                ):
                     with mock.patch("daily_brief.connectivity.RSS_PARAMS", "&hl=en-US"):
                         with aioresponses() as m:
-                            m.get("https://news.google.com/rss/search?q=testq&hl=en-US", status=200)
+                            m.get(
+                                "https://news.google.com/rss/search?q=testq&hl=en-US", status=200
+                            )
                             async with aiohttp.ClientSession() as session:
                                 result = await check_rss(session, timeout=5.0)
                             return result
@@ -76,10 +82,14 @@ class TestCheckRSS(TestCase):
     def test_rss_http_error(self):
         async def run():
             with mock.patch("daily_brief.connectivity.CATEGORIES", [("World News", "testq", 10)]):
-                with mock.patch("daily_brief.connectivity.RSS_BASE", "https://news.google.com/rss/search?q="):
+                with mock.patch(
+                    "daily_brief.connectivity.RSS_BASE", "https://news.google.com/rss/search?q="
+                ):
                     with mock.patch("daily_brief.connectivity.RSS_PARAMS", "&hl=en-US"):
                         with aioresponses() as m:
-                            m.get("https://news.google.com/rss/search?q=testq&hl=en-US", status=404)
+                            m.get(
+                                "https://news.google.com/rss/search?q=testq&hl=en-US", status=404
+                            )
                             async with aiohttp.ClientSession() as session:
                                 result = await check_rss(session, timeout=5.0)
                             return result
@@ -91,6 +101,7 @@ class TestCheckRSS(TestCase):
     def test_rss_no_ssl_false(self):
         """Regression: ssl=False must not appear in check_rss source."""
         import inspect
+
         source = inspect.getsource(check_rss)
         self.assertNotIn("ssl=False", source)
         self.assertNotIn("ssl=", source)
@@ -106,6 +117,7 @@ class TestCheckWeather(TestCase):
                 async with aiohttp.ClientSession() as session:
                     result = await check_weather(session, timeout=5.0)
                 return result
+
         result = asyncio.get_event_loop().run_until_complete(run())
         self.assertTrue(result["ok"])
         self.assertIn("Weather.gov reachable", result["message"])
@@ -117,6 +129,7 @@ class TestCheckWeather(TestCase):
                 async with aiohttp.ClientSession() as session:
                     result = await check_openmeteo(session, timeout=5.0)
                 return result
+
         result = asyncio.get_event_loop().run_until_complete(run())
         self.assertTrue(result["ok"])
         self.assertIn("Open-Meteo reachable", result["message"])
@@ -130,6 +143,7 @@ class TestCheckWeather(TestCase):
                     wr = await check_wunderground(session, timeout=5.0)
                     lr = await check_lakes(session, timeout=5.0)
                     return wr, lr
+
         wr, lr = asyncio.get_event_loop().run_until_complete(run())
         self.assertTrue(wr["ok"])
         self.assertIn("Wunderground reachable", wr["message"])
@@ -138,25 +152,45 @@ class TestCheckWeather(TestCase):
 
 def _mock_configs():
     patches = {}
-    patches["llm"] = mock.patch("daily_brief.connectivity.OLLAMA_HOST", "http://localhost:11434/v1")
-    patches["rss_base"] = mock.patch("daily_brief.connectivity.RSS_BASE", "https://news.google.com/rss/search?q=")
-    patches["rss_params"] = mock.patch("daily_brief.connectivity.RSS_PARAMS", "&hl=en-US&gl=US&ceid=US:en")
+    patches["llm"] = mock.patch(
+        "daily_brief.connectivity.OLLAMA_HOST", "http://localhost:11434/v1"
+    )
+    patches["rss_base"] = mock.patch(
+        "daily_brief.connectivity.RSS_BASE", "https://news.google.com/rss/search?q="
+    )
+    patches["rss_params"] = mock.patch(
+        "daily_brief.connectivity.RSS_PARAMS", "&hl=en-US&gl=US&ceid=US:en"
+    )
     patches["weather_lat"] = mock.patch("daily_brief.connectivity.WEATHER_LAT", 30.286)
     patches["weather_lon"] = mock.patch("daily_brief.connectivity.WEATHER_LON", -95.566)
-    patches["weather_url"] = mock.patch("daily_brief.connectivity.WEATHER_POINT_URL", "https://api.weather.gov/points/{lat},{lon}")
-    patches["categories"] = mock.patch("daily_brief.connectivity.CATEGORIES", [("World News", "world news", 10)])
+    patches["weather_url"] = mock.patch(
+        "daily_brief.connectivity.WEATHER_POINT_URL", "https://api.weather.gov/points/{lat},{lon}"
+    )
+    patches["categories"] = mock.patch(
+        "daily_brief.connectivity.CATEGORIES", [("World News", "world news", 10)]
+    )
     return patches
 
 
 class TestRunAllChecks(TestCase):
-
     def test_returns_three_results(self):
         async def run():
             mc = _mock_configs()
-            with mc["llm"], mc["rss_base"], mc["rss_params"], mc["weather_lat"], mc["weather_lon"], mc["weather_url"], mc["categories"]:
+            with (
+                mc["llm"],
+                mc["rss_base"],
+                mc["rss_params"],
+                mc["weather_lat"],
+                mc["weather_lon"],
+                mc["weather_url"],
+                mc["categories"],
+            ):
                 with aioresponses() as m:
                     m.get("http://localhost:11434/v1/models", status=200)
-                    m.get("https://news.google.com/rss/search?q=world+news&hl=en-US&gl=US&ceid=US:en", status=200)
+                    m.get(
+                        "https://news.google.com/rss/search?q=world+news&hl=en-US&gl=US&ceid=US:en",
+                        status=200,
+                    )
                     m.get("https://api.weather.gov/points/30.286,-95.566", status=200)
                     results = await run_all_checks(timeout=5.0)
                 return results
@@ -170,20 +204,37 @@ class TestRunAllChecks(TestCase):
 
 
 class TestSmokeTestTimeout(TestCase):
-
     def test_timeout_graceful(self):
         async def check_always_timeout(session, timeout):
             raise asyncio.TimeoutError("mock")
 
         async def run():
             mc = _mock_configs()
-            with mc["llm"], mc["rss_base"], mc["rss_params"], mc["weather_lat"], mc["weather_lon"], mc["weather_url"], mc["categories"]:
+            with (
+                mc["llm"],
+                mc["rss_base"],
+                mc["rss_params"],
+                mc["weather_lat"],
+                mc["weather_lon"],
+                mc["weather_url"],
+                mc["categories"],
+            ):
                 with mock.patch("daily_brief.connectivity.check_llm", check_always_timeout):
                     with mock.patch("daily_brief.connectivity.check_rss", check_always_timeout):
-                        with mock.patch("daily_brief.connectivity.check_weather", check_always_timeout):
-                            with mock.patch("daily_brief.connectivity.check_openmeteo", check_always_timeout):
-                                with mock.patch("daily_brief.connectivity.check_wunderground", check_always_timeout):
-                                    with mock.patch("daily_brief.connectivity.check_lakes", check_always_timeout):
+                        with mock.patch(
+                            "daily_brief.connectivity.check_weather", check_always_timeout
+                        ):
+                            with mock.patch(
+                                "daily_brief.connectivity.check_openmeteo", check_always_timeout
+                            ):
+                                with mock.patch(
+                                    "daily_brief.connectivity.check_wunderground",
+                                    check_always_timeout,
+                                ):
+                                    with mock.patch(
+                                        "daily_brief.connectivity.check_lakes",
+                                        check_always_timeout,
+                                    ):
                                         results = await run_smoke_test(timeout=0.01)
                                     return results
 
@@ -195,7 +246,6 @@ class TestSmokeTestTimeout(TestCase):
 
 
 class TestFormatResults(TestCase):
-
     def test_format_ok_and_fail(self):
         results = [
             {"ok": True, "duration_ms": 10, "message": "ok1"},
@@ -224,7 +274,6 @@ class TestFormatResults(TestCase):
 
 
 class TestEnsureV1(TestCase):
-
     def test_already_has_and_needs_v1(self):
         self.assertEqual(_ensure_v1("http://localhost:11434/v1"), "http://localhost:11434/v1")
         self.assertEqual(_ensure_v1("http://localhost:11434"), "http://localhost:11434/v1")
@@ -236,6 +285,7 @@ class TestLLMTLS(TestCase):
     def test_llm_no_ssl_disabled(self):
         """check_llm must not disable TLS verification (ssl=False)."""
         import inspect
+
         source = inspect.getsource(check_llm)
         self.assertNotIn("ssl=False", source)
         self.assertNotIn("ssl=", source)
@@ -250,12 +300,20 @@ def _capturing_cm(method="GET", status=200):
 
     class _Resp:
         status = _status
-        async def __aenter__(self): return self
-        async def __aexit__(self, *a): pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            pass
 
     class _CM:
-        async def __aenter__(self): return _Resp()
-        async def __aexit__(self, *a): pass
+        async def __aenter__(self):
+            return _Resp()
+
+        async def __aexit__(self, *a):
+            pass
+
         def __call__(self, *a, **kw):
             captured["method"] = _method
             captured["headers"] = dict(kw.get("headers", {}))
@@ -332,13 +390,15 @@ class TestUserAgent(TestCase):
 
     def test_lakes_sends_user_agent(self):
         async def run():
-            with mock.patch("daily_brief.connectivity.WEATHER_LAKE_URLS", {"Conroe": "https://example.org/lakes"}):
-                with mock.patch("daily_brief.connectivity.USER_AGENT", "TestAgent/1.0"):
-                    captured, cm = _capturing_cm(method="HEAD")
-                    fake = mock.Mock()
-                    fake.head = cm
-                    await check_lakes(fake, timeout=5.0)
-                    return captured
+            with mock.patch(
+                "daily_brief.connectivity.WEATHER_LAKE_URLS",
+                {"Conroe": "https://example.org/lakes"},
+            ), mock.patch("daily_brief.connectivity.USER_AGENT", "TestAgent/1.0"):
+                captured, cm = _capturing_cm(method="HEAD")
+                fake = mock.Mock()
+                fake.head = cm
+                await check_lakes(fake, timeout=5.0)
+                return captured
 
         captured = asyncio.get_event_loop().run_until_complete(run())
         self.assertEqual(captured["headers"]["User-Agent"], "TestAgent/1.0")
@@ -349,15 +409,19 @@ class TestRSSQueryEncoding(TestCase):
 
     def test_rss_encodes_reserved_chars(self):
         async def run():
-            with mock.patch("daily_brief.connectivity.CATEGORIES", [("energy & markets/ma\u00f1ana", "energy & markets/ma\u00f1ana", 10)]):
-                with mock.patch("daily_brief.connectivity.RSS_BASE", "https://news.google.com/rss/search?q="):
-                    with mock.patch("daily_brief.connectivity.RSS_PARAMS", "&hl=en"):
-                        with aioresponses() as m:
-                            encoded = "energy+%26+markets%2Fma%C3%B1ana"
-                            m.get(f"https://news.google.com/rss/search?q={encoded}&hl=en", status=200)
-                            async with aiohttp.ClientSession() as session:
-                                result = await check_rss(session, timeout=5.0)
-                            return result
+            with mock.patch(
+                "daily_brief.connectivity.CATEGORIES",
+                [("energy & markets/ma\u00f1ana", "energy & markets/ma\u00f1ana", 10)],
+            ), mock.patch(
+                "daily_brief.connectivity.RSS_BASE", "https://news.google.com/rss/search?q="
+            ), mock.patch("daily_brief.connectivity.RSS_PARAMS", "&hl=en"), aioresponses() as m:
+                encoded = "energy+%26+markets%2Fma%C3%B1ana"
+                m.get(
+                    f"https://news.google.com/rss/search?q={encoded}&hl=en", status=200
+                )
+                async with aiohttp.ClientSession() as session:
+                    result = await check_rss(session, timeout=5.0)
+                return result
 
         result = asyncio.get_event_loop().run_until_complete(run())
         self.assertTrue(result["ok"])
@@ -367,7 +431,9 @@ class TestSafeNetloc(TestCase):
     """_safe_netloc handles well-formed and malformed URLs without raising."""
 
     def test_normal_urls(self):
-        self.assertEqual(_safe_netloc("https://waterdatafortexas.org/reservoirs"), "waterdatafortexas.org")
+        self.assertEqual(
+            _safe_netloc("https://waterdatafortexas.org/reservoirs"), "waterdatafortexas.org"
+        )
         self.assertEqual(_safe_netloc("http://example.com"), "example.com")
 
     def test_malformed_urls_fallback(self):
@@ -377,6 +443,7 @@ class TestSafeNetloc(TestCase):
 
     def test_lakes_success_message_safe(self):
         """Check lakes success message does not raise for malformed URLs."""
+
         async def run():
             captured, cm = _capturing_cm(method="HEAD")
             with mock.patch("daily_brief.connectivity.WEATHER_LAKE_URLS", {"Bad": "https://"}):

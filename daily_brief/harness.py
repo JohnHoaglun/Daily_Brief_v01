@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class HarnessResult:
     """Typed result from test harness execution."""
+
     status: str  # "PASS", "WARN", "FAIL", "SKIPPED", "ERROR"
     message: str
     exit_code: Optional[int] = None
@@ -38,7 +39,7 @@ def run_test_harness(run_logfile, script_dir=None) -> HarnessResult:
     if script_dir is None:
         script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-    config_file = os.path.join(script_dir, 'config.yaml')
+    config_file = os.path.join(script_dir, "config.yaml")
 
     if not run_logfile:
         msg = "No run_logfile set — skipping test harness"
@@ -56,7 +57,17 @@ def run_test_harness(run_logfile, script_dir=None) -> HarnessResult:
     run_date, run_version = match.group(1), match.group(2)
 
     logger.info("Running test harness for %s %s...", run_date, run_version)
-    cmd = [sys.executable, "-m", "daily_brief.validation_harness", "--config", config_file, "--date", run_date, "--version", run_version]
+    cmd = [
+        sys.executable,
+        "-m",
+        "daily_brief.validation_harness",
+        "--config",
+        config_file,
+        "--date",
+        run_date,
+        "--version",
+        run_version,
+    ]
 
     try:
         result = subprocess.run(
@@ -66,8 +77,8 @@ def run_test_harness(run_logfile, script_dir=None) -> HarnessResult:
             timeout=30,
         )
 
-        stdout_lines = result.stdout.strip().split('\n') if result.stdout.strip() else []
-        stderr_lines = result.stderr.strip().split('\n') if result.stderr.strip() else []
+        stdout_lines = result.stdout.strip().split("\n") if result.stdout.strip() else []
+        stderr_lines = result.stderr.strip().split("\n") if result.stderr.strip() else []
 
         # Log the full output
         for line in stdout_lines:
@@ -86,7 +97,7 @@ def run_test_harness(run_logfile, script_dir=None) -> HarnessResult:
             stderr_lines=stderr_lines,
         )
     except FileNotFoundError:
-        msg = f"Module daily_brief.validation_harness not found"
+        msg = "Module daily_brief.validation_harness not found"
         logger.error(msg)
         return HarnessResult(status="ERROR", message=msg)
     except subprocess.TimeoutExpired:

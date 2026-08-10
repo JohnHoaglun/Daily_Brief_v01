@@ -1,7 +1,7 @@
 """Regression tests characterizing current external behavior of batch_summarize_all().
 Must pass with current code before and after C.4 refactoring."""
+
 import asyncio
-import time
 from unittest import TestCase, mock
 from unittest.mock import AsyncMock, MagicMock
 
@@ -11,8 +11,15 @@ from daily_brief.llm.summarizer import (
 )
 
 
-def _make_story(title, category, snippet="Snip.", context="Article content long enough for context processing by the LLM summary system."):
-    s = StoryPipelineState(title=title, link="http://x", snippet=snippet, pub_dt="2024-01-01", category=category)
+def _make_story(
+    title,
+    category,
+    snippet="Snip.",
+    context="Article content long enough for context processing by the LLM summary system.",
+):
+    s = StoryPipelineState(
+        title=title, link="http://x", snippet=snippet, pub_dt="2024-01-01", category=category
+    )
     s.context = context
     s.summary = None
     return s
@@ -56,8 +63,10 @@ class TestBatchValidSummariesRetained(TestCase):
                             break
                 parts = []
                 for i, hl in enumerate(hls):
-                    parts.append(f"STORY_{i} | {hl}={hl} summary with detailed analysis and concrete facts. "
-                                 f"Important findings reported across the sector today.")
+                    parts.append(
+                        f"STORY_{i} | {hl}={hl} summary with detailed analysis and concrete facts. "
+                        f"Important findings reported across the sector today."
+                    )
                 content = "\n".join(parts)
                 r = MagicMock()
                 r.choices = [MagicMock(message=MagicMock(content=content))]
@@ -91,7 +100,11 @@ class TestBatchFallbackText(TestCase):
 
         async def run():
             with _retry_patches()[0], _retry_patches()[1], _retry_patches()[2]:
-                with mock.patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, return_value=None):
+                with mock.patch(
+                    "daily_brief.llm.summarizer._summarize",
+                    new_callable=AsyncMock,
+                    return_value=None,
+                ):
                     await batch_summarize_all(client, stories, batch_size=1)
 
         asyncio.get_event_loop().run_until_complete(run())
@@ -108,8 +121,11 @@ class TestBatchFallbackText(TestCase):
 
         async def run():
             with _retry_patches()[0], _retry_patches()[1], _retry_patches()[2]:
-                with mock.patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock,
-                        return_value="Recovered summary with real facts about the tech story. Analysts confirmed the findings."):
+                with mock.patch(
+                    "daily_brief.llm.summarizer._summarize",
+                    new_callable=AsyncMock,
+                    return_value="Recovered summary with real facts about the tech story. Analysts confirmed the findings.",
+                ):
                     await batch_summarize_all(client, stories, batch_size=1)
 
         asyncio.get_event_loop().run_until_complete(run())
@@ -137,7 +153,11 @@ class TestBatchCategoryGrouping(TestCase):
 
         async def run():
             with _retry_patches()[0], _retry_patches()[1], _retry_patches()[2]:
-                with mock.patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, return_value=None):
+                with mock.patch(
+                    "daily_brief.llm.summarizer._summarize",
+                    new_callable=AsyncMock,
+                    return_value=None,
+                ):
                     await batch_summarize_all(client, stories, batch_size=5)
 
         asyncio.get_event_loop().run_until_complete(run())
@@ -162,7 +182,11 @@ class TestBatchCategoryGrouping(TestCase):
 
         async def run():
             with _retry_patches()[0], _retry_patches()[1], _retry_patches()[2]:
-                with mock.patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, return_value=None):
+                with mock.patch(
+                    "daily_brief.llm.summarizer._summarize",
+                    new_callable=AsyncMock,
+                    return_value=None,
+                ):
                     await batch_summarize_all(client, stories, batch_size=5)
 
         asyncio.get_event_loop().run_until_complete(run())
@@ -196,7 +220,11 @@ class TestBatchOrderingPreserved(TestCase):
 
         async def run():
             with _retry_patches()[0], _retry_patches()[1], _retry_patches()[2]:
-                with mock.patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, return_value=None):
+                with mock.patch(
+                    "daily_brief.llm.summarizer._summarize",
+                    new_callable=AsyncMock,
+                    return_value=None,
+                ):
                     await batch_summarize_all(client, stories, batch_size=5)
 
         asyncio.get_event_loop().run_until_complete(run())
@@ -226,7 +254,11 @@ class TestBatchConcurrencyIsolation(TestCase):
 
         async def run():
             with _retry_patches()[0], _retry_patches()[1], _retry_patches()[2]:
-                with mock.patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock, return_value=None):
+                with mock.patch(
+                    "daily_brief.llm.summarizer._summarize",
+                    new_callable=AsyncMock,
+                    return_value=None,
+                ):
                     await batch_summarize_all(client, stories, batch_size=1, max_concurrency=1)
 
         asyncio.get_event_loop().run_until_complete(run())
@@ -247,9 +279,15 @@ class TestBatchEmptyInput(TestCase):
 
         async def side_effect(**kwargs):
             r = MagicMock()
-            r.choices = [MagicMock(message=MagicMock(content=(
-                "STORY_0 | Alpha Boil Testing=This article discusses the implications of the new policy."
-            )))]
+            r.choices = [
+                MagicMock(
+                    message=MagicMock(
+                        content=(
+                            "STORY_0 | Alpha Boil Testing=This article discusses the implications of the new policy."
+                        )
+                    )
+                )
+            ]
             return r
 
         client = MagicMock()
@@ -257,8 +295,11 @@ class TestBatchEmptyInput(TestCase):
 
         async def run():
             with _retry_patches()[0], _retry_patches()[1], _retry_patches()[2]:
-                with mock.patch("daily_brief.llm.summarizer._summarize", new_callable=AsyncMock,
-                        return_value="Valid recovery for the Alpha boil testing. Two sentences here for the story."):
+                with mock.patch(
+                    "daily_brief.llm.summarizer._summarize",
+                    new_callable=AsyncMock,
+                    return_value="Valid recovery for the Alpha boil testing. Two sentences here for the story.",
+                ):
                     await batch_summarize_all(client, stories, batch_size=1)
 
         asyncio.get_event_loop().run_until_complete(run())

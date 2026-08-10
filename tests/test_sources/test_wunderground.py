@@ -2,15 +2,16 @@
 Unit tests for daily_brief/sources/wunderground.py.
 Wunderground station scraping, precipitation parsing, and metrics fetching.
 """
+
 import asyncio
 from datetime import datetime
 from unittest import TestCase, mock
 from unittest.mock import AsyncMock
 
 from daily_brief.sources.wunderground import (
-    _parse_wu_monthly_precipitation,
-    _fetch_station_monthly_rainfall,
     _fetch_station_metrics,
+    _fetch_station_monthly_rainfall,
+    _parse_wu_monthly_precipitation,
 )
 
 
@@ -23,7 +24,9 @@ class TestParseWuMonthlyPrecipitation(TestCase):
         self.assertIsNotNone(result)
         self.assertAlmostEqual(result, 3.45, places=1)
 
-        html2 = "<html><body><div>Summary Precipitation 5 in next</div><div>graph</div></body></html>"
+        html2 = (
+            "<html><body><div>Summary Precipitation 5 in next</div><div>graph</div></body></html>"
+        )
         result2 = _parse_wu_monthly_precipitation(html2, "2026-01-01", "2026-01-31")
         self.assertAlmostEqual(result2, 5.0, places=1)
 
@@ -49,15 +52,22 @@ class TestParseWuMonthlyPrecipitation(TestCase):
 
     def test_no_match_and_invalid_range(self):
         self.assertIsNone(_parse_wu_monthly_precipitation(None, "2026-01-01", "2026-01-31"))
-        self.assertIsNone(_parse_wu_monthly_precipitation("<html></html>", "2026-01-01", "2026-01-31"))
-        self.assertIsNone(_parse_wu_monthly_precipitation(
-            "<html><body>Summary unrelated content</body></html>", "2026-01-01", "2026-01-31"))
+        self.assertIsNone(
+            _parse_wu_monthly_precipitation("<html></html>", "2026-01-01", "2026-01-31")
+        )
+        self.assertIsNone(
+            _parse_wu_monthly_precipitation(
+                "<html><body>Summary unrelated content</body></html>", "2026-01-01", "2026-01-31"
+            )
+        )
 
         over = "<html><body>Summary Precipitation 50.0 in</body></html>"
         self.assertIsNone(_parse_wu_monthly_precipitation(over, "2026-01-01", "2026-01-31"))
 
         zero = "<html><body>Summary Precipitation 0.0 in</body></html>"
-        self.assertAlmostEqual(_parse_wu_monthly_precipitation(zero, "2026-01-01", "2026-01-31"), 0.0, places=1)
+        self.assertAlmostEqual(
+            _parse_wu_monthly_precipitation(zero, "2026-01-01", "2026-01-31"), 0.0, places=1
+        )
 
     def test_both_source_merge(self):
         async def runner():
@@ -73,9 +83,13 @@ class TestParseWuMonthlyPrecipitation(TestCase):
             def mock_parse_climate(html, date):
                 return {"avg_monthly_rainfall": 3.0, "current_monthly_rainfall": 4.1}
 
-            with mock.patch("daily_brief.sources.wunderground._fetch_text", new=AsyncMock(side_effect=mock_fetch_text)):
-                with mock.patch("daily_brief.sources.wunderground._parse_climate_summary", mock_parse_climate):
-                    result = await _fetch_station_monthly_rainfall(None, ref)
+            with mock.patch(
+                "daily_brief.sources.wunderground._fetch_text",
+                new=AsyncMock(side_effect=mock_fetch_text),
+            ), mock.patch(
+                "daily_brief.sources.wunderground._parse_climate_summary", mock_parse_climate
+            ):
+                result = await _fetch_station_monthly_rainfall(None, ref)
 
             self.assertEqual(len(station_fetches), 2)
             self.assertIsNotNone(result["current_monthly_rainfall"])
@@ -95,9 +109,13 @@ class TestParseWuMonthlyPrecipitation(TestCase):
             def mock_parse_climate(html, date):
                 return {"avg_monthly_rainfall": 2.0, "current_monthly_rainfall": 3.5}
 
-            with mock.patch("daily_brief.sources.wunderground._fetch_text", new=AsyncMock(side_effect=mock_fetch_text)):
-                with mock.patch("daily_brief.sources.wunderground._parse_climate_summary", mock_parse_climate):
-                    result = await _fetch_station_monthly_rainfall(None, ref)
+            with mock.patch(
+                "daily_brief.sources.wunderground._fetch_text",
+                new=AsyncMock(side_effect=mock_fetch_text),
+            ), mock.patch(
+                "daily_brief.sources.wunderground._parse_climate_summary", mock_parse_climate
+            ):
+                result = await _fetch_station_monthly_rainfall(None, ref)
 
             self.assertEqual(result["current_monthly_rainfall"], "3.5")
             self.assertEqual(result["avg_monthly_rainfall"], "2.0")
@@ -113,7 +131,10 @@ class TestParseWuMonthlyPrecipitation(TestCase):
                     return "<html><body>Summary March 1, 2026 - March 10, 2026 Precipitation 1.2 in</body></html>"
                 return None
 
-            with mock.patch("daily_brief.sources.wunderground._fetch_text", new=AsyncMock(side_effect=mock_fetch_text)):
+            with mock.patch(
+                "daily_brief.sources.wunderground._fetch_text",
+                new=AsyncMock(side_effect=mock_fetch_text),
+            ):
                 result = await _fetch_station_monthly_rainfall(None, ref)
 
             self.assertIsNotNone(result["current_monthly_rainfall"])
@@ -133,9 +154,13 @@ class TestParseWuMonthlyPrecipitation(TestCase):
             def mock_parse_climate(html, date):
                 return {"avg_monthly_rainfall": 99.0, "current_monthly_rainfall": 50.0}
 
-            with mock.patch("daily_brief.sources.wunderground._fetch_text", new=AsyncMock(side_effect=mock_fetch_text)):
-                with mock.patch("daily_brief.sources.wunderground._parse_climate_summary", mock_parse_climate):
-                    result = await _fetch_station_monthly_rainfall(None, ref)
+            with mock.patch(
+                "daily_brief.sources.wunderground._fetch_text",
+                new=AsyncMock(side_effect=mock_fetch_text),
+            ), mock.patch(
+                "daily_brief.sources.wunderground._parse_climate_summary", mock_parse_climate
+            ):
+                result = await _fetch_station_monthly_rainfall(None, ref)
 
             self.assertIsNone(result["avg_monthly_rainfall"])
             self.assertIsNone(result["current_monthly_rainfall"])
@@ -170,18 +195,22 @@ class TestParseWuMonthlyPrecipitation(TestCase):
                     return await gated_climate(session, url)
                 return None
 
-            with mock.patch("daily_brief.sources.wunderground._fetch_text", new=AsyncMock(side_effect=url_route)):
-                with mock.patch("daily_brief.sources.wunderground._parse_climate_summary", mock_parse_climate):
-                    task = asyncio.create_task(_fetch_station_monthly_rainfall(None, today))
-                    await asyncio.wait_for(
-                        asyncio.gather(
-                            wunderground_entered.wait(),
-                            climate_entered.wait(),
-                        ),
-                        timeout=1,
-                    )
-                    release.set()
-                    result = await task
+            with mock.patch(
+                "daily_brief.sources.wunderground._fetch_text",
+                new=AsyncMock(side_effect=url_route),
+            ), mock.patch(
+                "daily_brief.sources.wunderground._parse_climate_summary", mock_parse_climate
+            ):
+                task = asyncio.create_task(_fetch_station_monthly_rainfall(None, today))
+                await asyncio.wait_for(
+                    asyncio.gather(
+                        wunderground_entered.wait(),
+                        climate_entered.wait(),
+                    ),
+                    timeout=1,
+                )
+                release.set()
+                result = await task
 
             self.assertTrue(wunderground_entered.is_set())
             self.assertTrue(climate_entered.is_set())

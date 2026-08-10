@@ -2,14 +2,15 @@
 Unit tests for daily_brief/sources/article.py.
 Article extraction and context building.
 """
+
 from __future__ import annotations
 
 import asyncio
-from unittest import TestCase, mock
+from unittest import TestCase
 
+from daily_brief.config import LLM_CONTEXT_PREVIEW_CHARS
 from daily_brief.sources.article import stage_extract_article
 from daily_brief.utils import build_context
-from daily_brief.config import LLM_CONTEXT_PREVIEW_CHARS
 
 
 class MockStory:
@@ -209,10 +210,13 @@ class TestStageExtractArticle(TestCase):
 
     def test_non_200_status_not_parsed(self):
         """Non-200 response should not be parsed — error pages should never enter context."""
+
         class ErrorResp:
             status = 500
             headers = {}
-            content = _FakeContent("<html><body>Error page content that should never be parsed</body></html>")
+            content = _FakeContent(
+                "<html><body>Error page content that should never be parsed</body></html>"
+            )
 
             async def text(self):
                 return "<html><body>Error page content that should never be parsed</body></html>"
@@ -244,7 +248,9 @@ class TestBuildContext(TestCase):
 
     def test_context_used_when_long_enough(self):
         story = MockStory(
-            title="T", link="https://x.com", category="Cat",
+            title="T",
+            link="https://x.com",
+            category="Cat",
             context="This is a long enough context string that exceeds fifty characters easily.",
         )
         result = build_context(story)
@@ -252,7 +258,9 @@ class TestBuildContext(TestCase):
 
     def test_fallback_to_snippet_title(self):
         story = MockStory(
-            title="My Title", link="https://x.com", category="MyCat",
+            title="My Title",
+            link="https://x.com",
+            category="MyCat",
             snippet="My snippet text here",
         )
         result = build_context(story)
@@ -262,7 +270,9 @@ class TestBuildContext(TestCase):
 
     def test_fallback_no_snippet(self):
         story = MockStory(
-            title="Alone", link="https://x.com", category="Solo",
+            title="Alone",
+            link="https://x.com",
+            category="Solo",
         )
         result = build_context(story)
         self.assertIn("Alone", result)
@@ -270,7 +280,9 @@ class TestBuildContext(TestCase):
 
     def test_short_context_fallback(self):
         story = MockStory(
-            title="Title", link="https://x.com", category="Cat",
+            title="Title",
+            link="https://x.com",
+            category="Cat",
             snippet="Snippet text here",
             context="Short",
         )
@@ -279,7 +291,9 @@ class TestBuildContext(TestCase):
 
     def test_empty_parts_category_title(self):
         story = MockStory(
-            title="", link="https://x.com", category="Blank",
+            title="",
+            link="https://x.com",
+            category="Blank",
             snippet="",
         )
         result = build_context(story)
@@ -287,7 +301,9 @@ class TestBuildContext(TestCase):
 
     def test_context_truncated(self):
         story = MockStory(
-            title="T", link="https://x.com", category="Cat",
+            title="T",
+            link="https://x.com",
+            category="Cat",
             context="A" * 2000,
         )
         result = build_context(story)

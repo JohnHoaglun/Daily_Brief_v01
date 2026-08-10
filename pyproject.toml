@@ -38,3 +38,41 @@ daily_brief = ["config.yaml"]
 
 [tool.setuptools.dynamic]
 version = {attr = "daily_brief._version.__version__"}
+
+[tool.ruff]
+target-version = "py39"
+line-length = 99
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "RUF",
+]
+ignore = [
+    "E501", "B008", "B905", "SIM102", "UP032",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["daily_brief"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short -m \"not smoke\" --strict-markers"
+markers = [
+    "slow: marks tests as slow",
+    "integration: marks integration tests",
+    "smoke: marks smoke tests requiring network",
+]
+filterwarnings = [
+    "error::RuntimeWarning:daily_brief",
+    "error::DeprecationWarning:daily_brief",
+]

@@ -1,10 +1,11 @@
 """
 Unit tests for daily_brief/validation.py -- report-level validation.
 """
+
+import datetime
 import os
 import re
 import tempfile
-import datetime
 from unittest import TestCase, mock
 
 from daily_brief.validation import (
@@ -12,10 +13,10 @@ from daily_brief.validation import (
     validate_report,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _valid_report():
     frontmatter = (
@@ -34,7 +35,13 @@ def _valid_report():
     body += "## Weather Forecast 77316\n\n"
     body += "| Day | High | Low | Precip | Wind |\n"
     body += "|-----|------|-----|--------|------|\n"
-    for day, h, lo, p, w in [("Mon", "85", "68", "0%", "5"), ("Tue", "80", "65", "60%", "10"), ("Wed", "82", "66", "10%", "8"), ("Thu", "84", "67", "0%", "6"), ("Fri", "86", "69", "20%", "7")]:
+    for day, h, lo, p, w in [
+        ("Mon", "85", "68", "0%", "5"),
+        ("Tue", "80", "65", "60%", "10"),
+        ("Wed", "82", "66", "10%", "8"),
+        ("Thu", "84", "67", "0%", "6"),
+        ("Fri", "86", "69", "20%", "7"),
+    ]:
         body += f"| {day} | {h}   | {lo}  | {p}    | {w}    |\n"
     body += "\n## World News (10 stories)\n\n"
     for i in range(1, 11):
@@ -63,6 +70,7 @@ def _rm(path):
 # Return type
 # ---------------------------------------------------------------------------
 
+
 class TestReturnType(TestCase):
     def test_returns_bool_and_list(self):
         p = _write(None, _valid_report())
@@ -81,6 +89,7 @@ class TestReturnType(TestCase):
 # Valid report
 # ---------------------------------------------------------------------------
 
+
 class TestValidReport(TestCase):
     def test_valid_report_passes(self):
         p = _write(None, _valid_report())
@@ -97,12 +106,20 @@ class TestValidReport(TestCase):
 # Report-level checks (parametrized matrix)
 # ---------------------------------------------------------------------------
 
+
 class TestReportChecks(TestCase):
     """One parametrized test for all report-level invalidation paths."""
 
     def test_missing_frontmatter_fields(self):
         """All 6 required fields each trigger REPORT-1 when absent."""
-        for field in ["title", "date", "time_generated", "story_count_total", "categories", "tags"]:
+        for field in [
+            "title",
+            "date",
+            "time_generated",
+            "story_count_total",
+            "categories",
+            "tags",
+        ]:
             content = _valid_report()
             line = f"{field}:"
             if line in content:
@@ -134,7 +151,9 @@ class TestReportChecks(TestCase):
         data_rows = 0
         for line in lines:
             s = line.strip()
-            if s.startswith("|") and not all(c == "-" for c in s.replace("|", "").replace(" ", "")):
+            if s.startswith("|") and not all(
+                c == "-" for c in s.replace("|", "").replace(" ", "")
+            ):
                 data_rows += 1
                 if data_rows > 1:
                     continue
@@ -166,7 +185,9 @@ class TestReportChecks(TestCase):
             p = _write(None, content)
             try:
                 _, issues = validate_report(p)
-                assert any("[REPORT-5]" in i for i in issues), f"Expected REPORT-5 for count={bad_count}"
+                assert any("[REPORT-5]" in i for i in issues), (
+                    f"Expected REPORT-5 for count={bad_count}"
+                )
             finally:
                 _rm(p)
 
@@ -175,7 +196,7 @@ class TestReportChecks(TestCase):
         content = _valid_report()
         content = content.replace(
             "[This Summary Story 2](https://example.com/story2)",
-            "[Dup](https://example.com/story1)"
+            "[Dup](https://example.com/story1)",
         )
         p = _write(None, content)
         try:
@@ -197,7 +218,9 @@ class TestReportChecks(TestCase):
         """REPORT-7 when file exceeds 10MB (mocked)."""
         p = _write(None, _valid_report())
         try:
-            with mock.patch("daily_brief.validation.os.path.getsize", return_value=11 * 1024 * 1024):
+            with mock.patch(
+                "daily_brief.validation.os.path.getsize", return_value=11 * 1024 * 1024
+            ):
                 _, issues = validate_report(p)
                 assert any("[REPORT-7]" in i for i in issues)
         finally:
@@ -209,6 +232,7 @@ class TestReportChecks(TestCase):
 # ---------------------------------------------------------------------------
 
 PAD = "x" * 6000
+
 
 def _story_report(stories_block, count):
     return (
@@ -243,7 +267,7 @@ class TestPerStory(TestCase):
         # Headline repeat
         content = _story_report(
             "1. [Breaking News About the Weather](https://example.com/r)\nBreaking News About the Weather.\n",
-            1
+            1,
         )
         p = _write(None, content)
         try:
@@ -253,10 +277,7 @@ class TestPerStory(TestCase):
             _rm(p)
 
         # Too short
-        content = _story_report(
-            "1. [Short Story](https://example.com/s)\nOnly one sentence.\n",
-            1
-        )
+        content = _story_report("1. [Short Story](https://example.com/s)\nOnly one sentence.\n", 1)
         p = _write(None, content)
         try:
             _, issues = validate_report(p)
@@ -277,7 +298,9 @@ class TestPerStory(TestCase):
 
         # [Headline] fallback marker
         stories = "1. [Bad Story](https://example.com/h)\n[Headline] The headline was the only thing available. No other data could be retrieved.\n"
-        stories += "2. [Good Story](https://example.com/g)\nThis is a good summary with enough detail.\n"
+        stories += (
+            "2. [Good Story](https://example.com/g)\nThis is a good summary with enough detail.\n"
+        )
         content = _story_report(stories, 2)
         p = _write(None, content)
         try:
@@ -302,6 +325,7 @@ class TestPerStory(TestCase):
 # _parse_frontmatter edge cases
 # ---------------------------------------------------------------------------
 
+
 class TestParseFrontmatter(TestCase):
     def test_few_parts(self):
         meta, body = _parse_frontmatter("---\nfoo: bar")
@@ -324,6 +348,7 @@ class TestParseFrontmatter(TestCase):
 # file errors
 # ---------------------------------------------------------------------------
 
+
 class TestFileErrors(TestCase):
     def test_nonexistent_file(self):
         passed, issues = validate_report("/nonexistent/path/to/report.md")
@@ -344,6 +369,7 @@ class TestFileErrors(TestCase):
 # ---------------------------------------------------------------------------
 # Issue format
 # ---------------------------------------------------------------------------
+
 
 class TestIssueFormat(TestCase):
     def test_all_report_issues_prefixed(self):

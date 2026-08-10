@@ -1,18 +1,25 @@
 """Tier 1 unit tests for daily_brief/utils.py."""
-from unittest import TestCase
+
 from types import SimpleNamespace
+from unittest import TestCase
 
 from daily_brief.utils import (
-    _safe_text, _present_weather_value, _clean_number,
-    _safe_sentence_summary, _count_sentences, _coerce_percent,
-    _coerce_temperature_f, _extract_first_match,
-    is_obituary_title, is_realt_estate_title,
-    strip_html, build_context,
+    _clean_number,
+    _coerce_percent,
+    _coerce_temperature_f,
+    _count_sentences,
+    _extract_first_match,
+    _present_weather_value,
+    _safe_sentence_summary,
+    _safe_text,
+    build_context,
+    is_obituary_title,
+    is_realt_estate_title,
+    strip_html,
 )
 
 
 class TestUtils(TestCase):
-
     def test___safe_text(self):
         s = _safe_text
         self.assertEqual(s(None), "N/A")
@@ -113,17 +120,29 @@ class TestUtils(TestCase):
 
     def test_is_obituary_title(self):
         f = is_obituary_title
-        for t in ("John's Obituary", "She Passed Away", "Death Notice: Smith",
-                   "Funeral Services for Jane", "Memorial Service for Bob"):
+        for t in (
+            "John's Obituary",
+            "She Passed Away",
+            "Death Notice: Smith",
+            "Funeral Services for Jane",
+            "Memorial Service for Bob",
+        ):
             self.assertTrue(f(t), t)
         for t in ("Local News Update", "", "Weather Report"):
             self.assertFalse(f(t), t)
 
     def test_is_real_estate_title(self):
         f = is_realt_estate_title
-        for t in ("Zillow listing", "House for sale", "Home for rent",
-                   "New Property", "$500k deal", "Realtor update",
-                   "Redfin search", "Listing expires"):
+        for t in (
+            "Zillow listing",
+            "House for sale",
+            "Home for rent",
+            "New Property",
+            "$500k deal",
+            "Realtor update",
+            "Redfin search",
+            "Listing expires",
+        ):
             self.assertTrue(f(t), t)
         self.assertFalse(f("Local news"))
         self.assertFalse(f(""))

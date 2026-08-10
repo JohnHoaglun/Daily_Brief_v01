@@ -4,6 +4,7 @@ Provides atomic filesystem-based allocation of unique run versions,
 replacing the two separate scans (pipeline log scan + report output scan)
 with a single atomic reservation step.
 """
+
 import os
 import re
 from dataclasses import dataclass
@@ -12,6 +13,7 @@ from dataclasses import dataclass
 @dataclass
 class RunReservation:
     """Identity assigned to a single pipeline run."""
+
     log_ver: int
     log_path: str
     report_dir: str
@@ -32,7 +34,7 @@ class RunAllocator:
             os.makedirs(self.log_dir, exist_ok=True)
             return 0
 
-        pattern = re.compile(r'^run_log_' + re.escape(self.today) + r'_v(\d+)\.md$')
+        pattern = re.compile(r"^run_log_" + re.escape(self.today) + r"_v(\d+)\.md$")
         max_ver = 0
         for entry in os.listdir(self.log_dir):
             m = pattern.search(entry)
@@ -45,7 +47,7 @@ class RunAllocator:
         if not os.path.isdir(self.log_dir):
             return 0
 
-        pattern = re.compile(r'^\.run_reserved_' + re.escape(self.today) + r'_v?(\d+)$')
+        pattern = re.compile(r"^\.run_reserved_" + re.escape(self.today) + r"_v?(\d+)$")
         max_ver = 0
         for entry in os.listdir(self.log_dir):
             m = pattern.search(entry)

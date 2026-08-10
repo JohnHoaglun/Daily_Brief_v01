@@ -6,23 +6,23 @@ Called after config validation, before pipeline Phase 1.
 
 from __future__ import annotations
 
-import sys
 import asyncio
+import sys
 import time
-import aiohttp
-
 from urllib.parse import quote_plus, urlsplit
 
+import aiohttp
+
 from daily_brief.config import (
+    CATEGORIES,
     OLLAMA_HOST,
+    RSS_BASE,
+    RSS_PARAMS,
+    USER_AGENT,
+    WEATHER_LAKE_URLS,
     WEATHER_LAT,
     WEATHER_LON,
     WEATHER_POINT_URL,
-    CATEGORIES,
-    RSS_BASE,
-    RSS_PARAMS,
-    WEATHER_LAKE_URLS,
-    USER_AGENT,
 )
 
 
@@ -169,7 +169,12 @@ async def _wrapped(name: str, fn, session: aiohttp.ClientSession, timeout: float
         res["name"] = name
         return res
     except asyncio.TimeoutError:
-        return {"name": name, "ok": False, "message": f"Timeout after {timeout}s", "duration_ms": int(timeout * 1000)}
+        return {
+            "name": name,
+            "ok": False,
+            "message": f"Timeout after {timeout}s",
+            "duration_ms": int(timeout * 1000),
+        }
     except Exception as e:
         return {"name": name, "ok": False, "message": str(e), "duration_ms": None}
 
@@ -177,13 +182,17 @@ async def _wrapped(name: str, fn, session: aiohttp.ClientSession, timeout: float
 async def run_all_checks(timeout: float = 5.0) -> list[dict]:
     """Run standard 3 connectivity checks (LLM, RSS, Weather) in parallel, returning results with name field."""
     async with aiohttp.ClientSession() as session:
-        return await asyncio.gather(*[_wrapped(name, fn, session, timeout) for name, fn in CHECK_LIST])
+        return await asyncio.gather(
+            *[_wrapped(name, fn, session, timeout) for name, fn in CHECK_LIST]
+        )
 
 
 async def run_smoke_test(timeout: float = 5.0) -> list[dict]:
     """Run full 6 connectivity checks (including Open-Meteo, Wunderground, Lakes) in parallel."""
     async with aiohttp.ClientSession() as session:
-        return await asyncio.gather(*[_wrapped(name, fn, session, timeout) for name, fn in SMOKE_TEST_CHECKS])
+        return await asyncio.gather(
+            *[_wrapped(name, fn, session, timeout) for name, fn in SMOKE_TEST_CHECKS]
+        )
 
 
 def format_results(results: list[dict], labels: list[str] = None) -> str:
@@ -199,9 +208,7 @@ def format_results(results: list[dict], labels: list[str] = None) -> str:
     label_iter = iter(labels) if labels else None
     for i, res in enumerate(results):
         label = (
-            res.get("name")
-            or (next(label_iter, None) if label_iter else None)
-            or f"Check {i + 1}"
+            res.get("name") or (next(label_iter, None) if label_iter else None) or f"Check {i + 1}"
         )
         status = "OK" if res["ok"] else "WARN"
         icon = "+" if res["ok"] else "!"

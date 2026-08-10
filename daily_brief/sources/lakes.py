@@ -59,7 +59,12 @@ async def _extract_lake_value(
             result["today"] = percent
         elif "1 week ago" in label or "week ago" in label or "7 day" in label:
             result["one_week_ago"] = percent
-        elif "30 days ago" in label or "thirty days ago" in label or "1 month ago" in label or "30d" in label:
+        elif (
+            "30 days ago" in label
+            or "thirty days ago" in label
+            or "1 month ago" in label
+            or "30d" in label
+        ):
             result["thirty_days_ago"] = percent
 
         try:

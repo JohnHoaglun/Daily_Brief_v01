@@ -30,8 +30,8 @@ async def fetch_and_dedup(
             deduped: list of (title, link, snippet, pub_dt, category) tuples
             stats: dict with counts
     """
-    from daily_brief.config import CATEGORY_AGE_LIMITS, DEFAULT_AGE_LIMIT_HOURS, TIMEZONE as CFG_TIMEZONE
-    from daily_brief.sources.rss import build_rss_url, fetch_feed, normalize_title
+    from daily_brief.config import CATEGORY_AGE_LIMITS, CATEGORY_SOURCE_WINDOWS, DEFAULT_AGE_LIMIT_HOURS, TIMEZONE as CFG_TIMEZONE
+    from daily_brief.sources.rss import build_rss_url, build_rss_url_with_window, fetch_feed, normalize_title
     try:
         active_tz = ZoneInfo(CFG_TIMEZONE)
     except Exception:
@@ -40,7 +40,7 @@ async def fetch_and_dedup(
 
     now_ct = datetime.now(active_tz)
 
-    rss_items = [(c[0], build_rss_url(c[1]), c[2]) for c in categories if c[1]]
+    rss_items = [(c[0], build_rss_url_with_window(c[1], CATEGORY_SOURCE_WINDOWS.get(c[0], 24)), c[2]) for c in categories if c[1]]
     log_fn(f"\n[Phase 2] Fetching {len(rss_items)} RSS feeds...")
 
     log_fn("  [DEBUG] Categories being fetched:")
@@ -242,15 +242,18 @@ def _widen_category_local(
     """
     from daily_brief.sources.rss import normalize_title
     from daily_brief.utils import is_obituary_title, is_realt_estate_title
+    from daily_brief.config import CATEGORY_AGE_LIMITS, CATEGORY_SOURCE_WINDOWS
 
     age_filtered = 0
     dup_filtered = 0
     recovered = 0
-    prev_hours = 24.0
+    min_age = CATEGORY_AGE_LIMITS.get(cat_name, 24)
+    prev_hours = float(min_age)
 
     seen = seen_map.setdefault(cat_name, set())
 
-    for widen_days in range(2, 8):
+    max_window_hrs = CATEGORY_SOURCE_WINDOWS.get(cat_name, 24)
+    for widen_days in range(2, min(max(3, max_window_hrs // 24), 8)):
         widen_hours = widen_days * 24
 
         for title, link, snippet, pub_dt in candidates:

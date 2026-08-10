@@ -14,7 +14,8 @@ from daily_brief.pipelines.rss_dedup import (
     dedup_entries,
     fetch_and_dedup,
 )
-from daily_brief.sources.rss import normalize_title
+from daily_brief.sources.rss import build_rss_url, normalize_title
+from urllib.parse import unquote_plus
 
 
 TZ = ZoneInfo("America/Chicago")
@@ -72,20 +73,26 @@ def _rss_xml(items: List[dict]) -> str:
 def _make_session(body_map: dict):
     class FakeSession:
         def get(self, url, **kw):
+            decoded = unquote_plus(url)
             for k, v in body_map.items():
-                if k in url:
+                if k in url or k in decoded:
                     return _AsyncCM(FakeResp(v))
             return _AsyncCM(FakeResp(_rss_xml([])))
     return FakeSession()
 
 
-def _feed_run(session, cats):
+def _feed_run(session, cats, widen=True):
     """Run fetch_and_dedup with mocked datetime.now."""
     logs = []
     async def _r():
-        with mock.patch("daily_brief.pipelines.rss_dedup.datetime", wraps=datetime) as dt_mock:
-            dt_mock.now.return_value = NOW
-            return await fetch_and_dedup(session, cats, logs.append)
+        with mock.patch("daily_brief.sources.rss.build_rss_url_with_window", side_effect=lambda q, w: build_rss_url(q)):
+            with mock.patch("daily_brief.pipelines.rss_dedup.datetime", wraps=datetime) as dt_mock:
+                dt_mock.now.return_value = NOW
+                if widen:
+                    cat_windows = {c[0]: 720 for c in cats}
+                    with mock.patch("daily_brief.config.CATEGORY_SOURCE_WINDOWS", cat_windows):
+                        return await fetch_and_dedup(session, cats, logs.append)
+                return await fetch_and_dedup(session, cats, logs.append)
     return _await(_r()), logs
 
 

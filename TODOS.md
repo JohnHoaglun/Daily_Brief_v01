@@ -1,7 +1,7 @@
-# TODO: Daily Brief v01 - v1.0.133 (Concurrent Weather Provider Collection) ✅ COMPLETE
+# TODO: Daily Brief v01 - v1.0.134 (Concurrent Weather Provider Collection) ✅ COMPLETE
 
 ## Status
-v1.0.133: All four weather providers (NWS, climate, rainfall, lakes) now start concurrently in `fetch_weather()`. Deterministic event-gated concurrency test added. 530/530 tests passing.
+v1.0.134: All four weather providers (NWS, climate, rainfall, lakes) now start concurrently in `fetch_weather()`. Deterministic event-gated concurrency test added. 530/530 tests passing.
 - [x] `write_report()` uses temp file + `os.replace();` cleanup on failure.
 - [x] Test: interrupted write leaves previous report byte-for-byte intact.
 
@@ -118,7 +118,7 @@ v1.0.133: All four weather providers (NWS, climate, rainfall, lakes) now start c
 
 ## Priority 2 - Performance, Backpressure, And Network Safety
 - [x] Start independent weather providers concurrently rather than waiting for NWS, then climate/rainfall, then lakes.
-  - Completed v1.0.133. `fetch_weather()` launches NWS, climate normal, monthly rainfall, and lake collection together via single `asyncio.gather`. Deterministic 4-provider event-gated test added.
+  - Completed v1.0.134. `fetch_weather()` launches NWS, climate normal, monthly rainfall, and lake collection together via single `asyncio.gather`. Deterministic 4-provider event-gated test added.
 - [ ] Fetch independent Wunderground and weather.gov rainfall sources concurrently. Evidence: `daily_brief/sources/wunderground.py:96-118`.
 - [x] Start Phase 1 weather and Phase 2 RSS concurrently while retaining separate timing and failure metrics. Evidence: `daily_brief/pipeline.py` — concurrent dispatch via `asyncio.gather()`.
   - Completed v1.0.127.

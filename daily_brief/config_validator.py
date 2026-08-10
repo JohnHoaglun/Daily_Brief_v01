@@ -194,6 +194,9 @@ def check_types(config: dict):
         val = _get(rss, int_k)
         if val is not None and not _is_int(val):
             issues.append(f"'rss.{int_k}' must be an integer")
+    dsw = _get(rss, "default_source_window_hours")
+    if dsw is not None and not _is_int(dsw):
+        issues.append("'rss.default_source_window_hours' must be an integer")
 
     # runtime
     runtime = _get(config, "runtime", {})
@@ -398,6 +401,15 @@ def check_categories(config: dict):
                 issues.append(f"'categories.{cname}.min_age_hours' must be an integer")
             elif mah <= 0 or mah > 168:
                 issues.append(f"'categories.{cname}.min_age_hours' should be in (0, 168]: {mah}")
+        sw = cinfo.get("source_window_hours")
+        if sw is not None:
+            if not _is_int(sw):
+                issues.append(f"'categories.{cname}.source_window_hours' must be an integer")
+            elif sw < 1 or sw > 168:
+                issues.append(f"'categories.{cname}.source_window_hours' should be in (0, 168]: {sw}")
+        dsw = _get(_get(config, "rss", {}), "default_source_window_hours")
+        if dsw is not None and not _is_int(dsw):
+            issues.append("'rss.default_source_window_hours' must be an integer")
 
     # category_priority — every entry must exist in categories
     cp = _get(config, "category_priority", [])

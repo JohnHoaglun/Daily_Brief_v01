@@ -101,11 +101,23 @@ class TestSortAndFormat(TestCase):
 class TestBuildRssUrl(TestCase):
     def test_query_base_params(self):
         url = build_rss_url("technology news")
-        self.assertIn("technology news", url)
+        self.assertIn("technology+news", url)
         self.assertIn("news.google.com", url)
         self.assertIn("hl=", url)
         self.assertIn("gl=US", url)
         self.assertIn("AI", build_rss_url("AI"))
+
+    def test_query_encoding(self):
+        url = build_rss_url("O'Brien's test & query")
+        self.assertIn("O%27Brien%27s", url)
+        self.assertIn("%26", url)
+        self.assertNotIn("&amp;", url)
+
+    def test_windowed_url(self):
+        from daily_brief.sources.rss import build_rss_url_with_window
+        url = build_rss_url_with_window("local news", 72)
+        self.assertIn("when%3A72d", url)
+        self.assertIn("local+news", url)
 
 
 # ---------------------------------------------------------------------------

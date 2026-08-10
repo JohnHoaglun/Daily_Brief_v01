@@ -17,7 +17,8 @@ from zoneinfo import ZoneInfo
 import aiohttp
 import feedparser
 
-from daily_brief.config import RSS_BASE, RSS_PARAMS, TIMEZONE, USER_AGENT
+from daily_brief.config import RSS_BASE, RSS_PARAMS, TIMEZONE, USER_AGENT, CATEGORY_SOURCE_WINDOWS
+from urllib.parse import quote_plus
 from daily_brief.http_client import _fetch_text
 from daily_brief.utils import strip_html
 
@@ -107,8 +108,16 @@ def _sort_entries(
 
 
 def build_rss_url(query: str) -> str:
-    """Construct a Google News RSS feed URL for *query*."""
-    return f"{RSS_BASE}{query}{RSS_PARAMS}"
+    """Construct a Google News RSS feed URL for *query*, encoding the value."""
+    encoded = quote_plus(query, safe="")
+    return f"{RSS_BASE}{encoded}{RSS_PARAMS}"
+
+
+def build_rss_url_with_window(query: str, window_hours: int) -> str:
+    """Construct URL with when: prefix to widen the source time window."""
+    windowed_query = f"when:{window_hours}d {query}"
+    encoded = quote_plus(windowed_query, safe="")
+    return f"{RSS_BASE}{encoded}{RSS_PARAMS}"
 
 
 async def fetch_feed(

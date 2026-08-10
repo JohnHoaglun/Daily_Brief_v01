@@ -1,9 +1,9 @@
-# PLAN: v1.0.133 — Concurrent Rainfall Sources + Stale TODO Cleanup ✅ COMPLETE
+# PLAN: v1.0.134 — Concurrent Rainfall Sources + Stale TODO Cleanup ✅ COMPLETE
 
 ## Objective
 Launch the independent Wunderground station-range request and weather.gov climate-summary request concurrently inside `_fetch_station_monthly_rainfall()`. Reconcile stale completed TODO items.
 
-## Status: COMPLETED — all objectives met, v1.0.133 committed & pushed.
+## Status: COMPLETED — all objectives met, v1.0.134 committed & pushed.
 
 ## Scope Decisions
 - [x] Concurrent Wunderground/weather.gov rainfall fetches via `asyncio.gather()`

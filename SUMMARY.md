@@ -4,11 +4,19 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.134 — Category-Aware RSS Windows with tiered query windows
+- **Tiered source windows**: `build_rss_url_with_window()` prefixes `when:Xd` (`World/US=24h`, `Texas/Houston=72h`, `Conroe/Montgomery=168h`) to widen candidate pool for sparse local feeds while preserving strict recency filtering via `min_age_hours`.
+- **URL encoding**: all query values encoded via `quote_plus(safe="")` in `build_rss_url()`.
+- **Config**: `default_source_window_hours` in RSS section, per-category `source_window_hours` in categories, `CATEGORY_SOURCE_WINDOWS` exported from config.
+- **Widening capped** at category source window in `_widen_category_local()` — no longer hardcoded to 7 days.
+- **Config fixes**: `hl=int-US` → `hl=en-US`, `category_source_windows` removed from YAML (source window is per-category).
+- **Validation**: `source_window_hours` validated (1-168) at category and RSS default levels.
+- **Tests**: URL encoding tests, windowed URL tests, dedup mocks for category-aware widening, 533/533 passing.
+
 ### v1.0.133 — Concurrent rainfall sources + tracking cleanup
 - **Concurrent rainfall fetches** in `_fetch_station_monthly_rainfall()`: Wunderground station-range and weather.gov climate-summary now launch simultaneously via `asyncio.gather()`.
 - **Test conversion**: replaced call-order mocks with URL-based dispatch in Wunderground tests. Event-gated concurrency test added (`test_rainfall_fetches_concurrently`).
 - **Stale TODO reconciliation**: weather-provider concurrency (v1.0.132), atomic report/log allocation (v1.0.127), RunContext globals (v1.0.127) now checked off.
-- **PLAN.md rewrite**: stale Wave 4 metadata replaced with accurate release description.
 - **530+ tests passing**, config validate PASS.
 ---
 ### v1.0.132

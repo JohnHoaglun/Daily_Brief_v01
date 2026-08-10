@@ -4,7 +4,14 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
-### v1.0.139 — HTML Parsing Offload
+### v1.0.141 — Connectivity Hardening
+- **TLS verification restored**: removed `ssl=False` from LLM probe — aiohttp default certificate and hostname verification retained.
+- **User-Agent forwarding**: all connectivity probes (LLM, RSS, weather.gov, Open-Meteo, Wunderground, lakes) now send the configured `USER_AGENT` header. Matches production session contract.
+- **RSS query encoding**: RSS probe URL uses `urllib.parse.quote_plus` for percent-encoding of reserved characters. Aligns with production RSS URL construction.
+- **Safe lake URL parsing**: replaced `url.split("/")[2]` display with `urllib.parse.urlsplit(parsed).netloc`. Malformed configured URLs that pass the shallow validator now produce safe output instead of raising.
+- **Tests**: 24 connectivity tests (13 existing + 11 new): TLS regression (`ssl=` absent from check_llm), User-Agent forwarding to all 6 probes, reserved-character RSS encoding, normal and malformed lake URL safety. 585/585 passing, config validate PASS.
+
+### v1.0.140 — HTML Parsing Offload
 - **Threaded parsing**: BeautifulSoup CPU work extracted to `_parse_article_html(html) -> str`, dispatched via `asyncio.to_thread()`. Parse timing retained as `extract_parse_time_s`.
 - **Event-loop safety**: Only the synchronous parse/clean step runs in a worker thread. HTTP fetch, retries, semaphore ownership, error handling, and `story.context` assignment remain on the event loop.
 - **Tests**: 5 new offload tests in `test_extraction_metrics.py`: parse parity, dispatch verification, error containment, event-loop responsiveness, concurrency cap preservation. 574/574 passing.

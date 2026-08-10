@@ -11,6 +11,8 @@ import asyncio
 import time
 import aiohttp
 
+from urllib.parse import quote_plus, urlsplit
+
 from daily_brief.config import (
     OLLAMA_HOST,
     WEATHER_LAT,
@@ -20,6 +22,7 @@ from daily_brief.config import (
     RSS_BASE,
     RSS_PARAMS,
     WEATHER_LAKE_URLS,
+    USER_AGENT,
 )
 
 
@@ -27,8 +30,21 @@ def _ensure_v1(base: str) -> str:
     return base if "/v1" in base else f"{base}/v1"
 
 
+def _headers() -> dict:
+    return {"User-Agent": USER_AGENT}
+
+
 def _result(ok: bool, message: str, duration_ms: int | None) -> dict:
     return {"ok": ok, "message": message, "duration_ms": duration_ms}
+
+
+def _safe_netloc(url: str) -> str:
+    """Return the netloc of a URL, or the original URL if parsing fails."""
+    try:
+        parsed = urlsplit(url)
+        return parsed.netloc or url
+    except Exception:
+        return url
 
 
 async def check_llm(session: aiohttp.ClientSession, timeout: float = 5.0) -> dict:
@@ -36,7 +52,7 @@ async def check_llm(session: aiohttp.ClientSession, timeout: float = 5.0) -> dic
     t0 = time.time()
     try:
         async with session.get(
-            url, timeout=aiohttp.ClientTimeout(total=timeout), ssl=False
+            url, timeout=aiohttp.ClientTimeout(total=timeout), headers=_headers()
         ) as resp:
             elapsed_ms = int((time.time() - t0) * 1000)
             if resp.status == 200:
@@ -49,11 +65,12 @@ async def check_llm(session: aiohttp.ClientSession, timeout: float = 5.0) -> dic
 
 async def check_rss(session: aiohttp.ClientSession, timeout: float = 5.0) -> dict:
     sample_query = CATEGORIES[0][1] if CATEGORIES else "world news"
-    url = f"{RSS_BASE}{sample_query}{RSS_PARAMS}"
+    encoded_query = quote_plus(sample_query, safe="")
+    url = f"{RSS_BASE}{encoded_query}{RSS_PARAMS}"
     t0 = time.time()
     try:
         async with session.get(
-            url, timeout=aiohttp.ClientTimeout(total=timeout)
+            url, timeout=aiohttp.ClientTimeout(total=timeout), headers=_headers()
         ) as resp:
             elapsed_ms = int((time.time() - t0) * 1000)
             if resp.status in (200, 206):
@@ -69,7 +86,7 @@ async def check_weather(session: aiohttp.ClientSession, timeout: float = 5.0) ->
     t0 = time.time()
     try:
         async with session.get(
-            url, timeout=aiohttp.ClientTimeout(total=timeout)
+            url, timeout=aiohttp.ClientTimeout(total=timeout), headers=_headers()
         ) as resp:
             elapsed_ms = int((time.time() - t0) * 1000)
             if resp.status == 200:
@@ -85,7 +102,7 @@ async def check_openmeteo(session: aiohttp.ClientSession, timeout: float = 5.0) 
     t0 = time.time()
     try:
         async with session.get(
-            url, timeout=aiohttp.ClientTimeout(total=timeout)
+            url, timeout=aiohttp.ClientTimeout(total=timeout), headers=_headers()
         ) as resp:
             elapsed_ms = int((time.time() - t0) * 1000)
             if resp.status == 200:
@@ -101,7 +118,7 @@ async def check_wunderground(session: aiohttp.ClientSession, timeout: float = 5.
     t0 = time.time()
     try:
         async with session.head(
-            url, timeout=aiohttp.ClientTimeout(total=timeout)
+            url, timeout=aiohttp.ClientTimeout(total=timeout), headers=_headers()
         ) as resp:
             elapsed_ms = int((time.time() - t0) * 1000)
             if resp.status in (200, 301, 302):
@@ -118,11 +135,11 @@ async def check_lakes(session: aiohttp.ClientSession, timeout: float = 5.0) -> d
     t0 = time.time()
     try:
         async with session.head(
-            url, timeout=aiohttp.ClientTimeout(total=timeout)
+            url, timeout=aiohttp.ClientTimeout(total=timeout), headers=_headers()
         ) as resp:
             elapsed_ms = int((time.time() - t0) * 1000)
             if resp.status in (200, 301, 302):
-                return _result(True, f"Lakes source reachable ({url.split('/')[2]})", elapsed_ms)
+                return _result(True, f"Lakes source reachable ({_safe_netloc(url)})", elapsed_ms)
             return _result(False, f"Lakes source returned HTTP {resp.status} ({url})", elapsed_ms)
     except Exception as e:
         elapsed_ms = int((time.time() - t0) * 1000)

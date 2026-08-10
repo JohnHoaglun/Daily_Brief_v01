@@ -1,3 +1,3 @@
-"""Daily Brief v1.0.139 package."""
+"""Daily Brief v1.0.141 package."""
 
-__version__ = "1.0.139"
+__version__ = "1.0.141"

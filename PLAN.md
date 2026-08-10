@@ -1,4 +1,4 @@
-# PLAN: v1.0.141 — Priority 2 Hardening (In Progress)
+# PLAN: v1.0.142 — Priority 2 Hardening (In Progress)
 
 ## Status: IN PROGRESS — connectivity hardening, logging consolidation, benchmark driver.
 

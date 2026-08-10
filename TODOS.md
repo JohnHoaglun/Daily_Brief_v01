@@ -1,7 +1,7 @@
-# TODO: Daily Brief v01 - v1.0.141 (Logging Consolidation) ACTIVE
+# TODO: Daily Brief v01 - v1.0.142 (Logging Consolidation) ACTIVE
 
 ## Status
-v1.0.141: Connectivity hardening — TLS verification restored, User-Agent forwarding, safe URL parsing. 585/585 passing.
+v1.0.142: Logging consolidation — retired legacy `log()` global, replaced `_log_ctx()` direct file writes with run-scoped `daily_brief` logger. 585/585 passing.
 - [x] `write_report()` uses temp file + `os.replace();` cleanup on failure.
 - [x] Test: interrupted write leaves previous report byte-for-byte intact.
 - [x] Harden connectivity checks: preserve TLS verification, use production-equivalent headers, parse configured URLs safely. `daily_brief/connectivity.py` — Completed v1.0.141.

@@ -4,6 +4,13 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.142 — Logging Consolidation
+- **Run-scoped logger**: replaced direct `_log_ctx()` file writes with a dedicated per-run `logging.Logger` instance. Each pipeline invocation creates a new logger with file + stderr handlers, configured after `RunAllocator.reserve()` sets the log path. Handlers are closed/removed in `finally` via `_teardown_run_logger()` to prevent cross-run contamination during concurrent invocations.
+- **Retired legacy `log()` global**: the module-level `log()` function and `log_lock` are removed. `_coerce_temperature_f()` now writes extreme-temperature warnings directly to `sys.stderr`.
+- **`_RunTimestampFormatter`**: custom formatter producing `[YYYY-MM-DD HH:MM:SS] msg` to match legacy log output format.
+- **RSS dedup callback**: `fetch_and_dedup()` receives `lgr.info` (bound method) as the `log_fn` callback.
+- **Tests**: 585/585 passing. Config validate PASS. All concurrency-contract tests verified — concurrent runs maintain independent log files with no handler leakage.
+
 ### v1.0.141 — Connectivity Hardening
 - **TLS verification restored**: removed `ssl=False` from LLM probe — aiohttp default certificate and hostname verification retained.
 - **User-Agent forwarding**: all connectivity probes (LLM, RSS, weather.gov, Open-Meteo, Wunderground, lakes) now send the configured `USER_AGENT` header. Matches production session contract.

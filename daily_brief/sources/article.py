@@ -1,5 +1,5 @@
 """
-Daily Brief v1.0.141 — Article Extraction
+Daily Brief v1.0.142 — Article Extraction
 =========================================
 Fetch full article text for summary context. ``build_context`` is in utils.py.
 

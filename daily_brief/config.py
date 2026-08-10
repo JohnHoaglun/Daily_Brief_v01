@@ -16,7 +16,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Defaults — single nested structure matching the canonical YAML shape
 # ---------------------------------------------------------------------------
 DEFAULTS = {
-    "version": "1.0.141",
+    "version": "1.0.142",
     "llm": {
         "model": "gemma4-e2b",
         "host": "http://localhost:11434/v1",

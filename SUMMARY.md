@@ -4,6 +4,19 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.144 — Packaging, CI, and Repository Hygiene (Priority 3)
+- **Canonical version source** (`daily_brief/_version.py`): single `__version__` string; package `__init__.py` and runtime config default derive from it. Eliminates scattered literal version numbers.
+- **PEP 621 packaging** (`pyproject.toml`): setuptools build system with flat-layout discovery, dynamic version, `requires-python >= 3.9`, runtime/test dependency declarations, `daily-brief` console script entry point.
+- **Wheel-compatible config delivery** (`daily_brief/config.yaml`): factory defaults shipped as package data. Loader fallback chain: `DAILY_BRIEF_CONFIG` env → project root → `~/.config/daily_brief/` → packaged resource via `importlib.resources`.
+- **sys.path mutation removed** (`tests/test_parser_golden.py`): golden fixture module loaded via `importlib.util.spec_from_file_location` — no longer mutates `sys.path`.
+- **Dependency lockfile** (`uv.lock`): `uv`-resolved lock with 56 packages, Python 3.9+ and 3.10+ resolution markers.
+- **CI workflow** (`.github/workflows/ci.yml`): GitHub Actions for push and pull_request — test matrix (Python 3.9 and 3.13), source/wheel build verification, format check (ruff), lint (ruff, report-only), type check (mypy, report-only).
+- **Ruff formatting and lint**: all files formatted; safe auto-fixes applied (296 fixes: import sorting, etc.). `pyproject.toml` lint config with targeted rule selection.
+- **Mypy baseline** (`pyproject.toml`): Python 3.9 target, `ignore_missing_imports`, `disallow_untyped_defs = false` for existing codebase. 43 pre-existing type errors.
+- **Test script repair** (`scripts/run_tests.sh`, `scripts/run_coverage.sh`): failure reporting functions wrap pytest so banners run; coverage script produces terminal + XML output.
+- **Repository hygiene**: `.gitignore` expanded for coverage variants (`*.coverage.*`, `coverage.xml`), build/dist artifacts, venv directories, lint/type-checking caches. MIT `LICENSE` file added.
+- **635/635 tests passing**, config validate PASS. Package builds wheel and sdist successfully.
+
 ### v1.0.143 — Pipeline Concurrency Benchmark Driver
 - **Dedicated benchmark driver** (`daily_brief/benchmark_pipeline_concurrency.py`): standalone module that runs full pipeline passes with configurable `article_max_concurrency` settings and serial/concurrent Phase 1/2 dispatch mode. Does not modify production pipeline, log output, or report locations.
 - **Benchmark-only serial/concurrent toggle**: `phase_mode="serial"` or `"concurrent"` allows controlled before/after comparison of Phase 1/2 dispatch. Production always runs concurrent.

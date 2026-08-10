@@ -1,4 +1,4 @@
-"""Run reservation system for concurrent CLI processes. (v1.0.143)
+"""Run reservation system for concurrent CLI processes. (v1.0.144)
 
 Provides atomic filesystem-based allocation of unique run versions,
 replacing the two separate scans (pipeline log scan + report output scan)

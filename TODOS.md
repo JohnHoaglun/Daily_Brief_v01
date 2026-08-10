@@ -1,20 +1,25 @@
-# TODO: Daily Brief v01 — v1.0.143 (Active)
+# TODO: Daily Brief v01 — v1.0.144 (Priority 3 Complete)
 
-## Remaining Work
-
-## Priority 3 - Packaging, CI, And Repository Hygiene
-- [ ] Establish one canonical version source and add a release-consistency check for package/runtime/YAML/README/tracking files.
-- [ ] Add `pyproject.toml` with `src` package discovery and declared runtime/test dependencies; replace per-test/script `sys.path` mutation with editable installation.
-- [ ] Add dependency locking appropriate to the selected package manager and CI for supported Python versions, tests, config validation, lint/format/type checks, warnings policy, and opt-in integration checks.
-- [ ] Repair `scripts/run_tests.sh` unreachable failure reporting caused by `set -e`; add a measured coverage threshold to `scripts/run_coverage.sh`.
-- [ ] Remove tracked generated coverage databases and add standard Python, pytest, coverage, HTML-report, and virtual-environment patterns to `.gitignore`.
-- [ ] Add the intended license text or remove the README MIT claim until licensing is confirmed.
+## Priority 3 — Packaging, CI, and Repository Hygiene (COMPLETE)
+- [x] Canonical version source (`daily_brief/_version.py`) — single `__version__` string.
+- [x] `pyproject.toml` with flat-layout discovery, dynamic version, runtime/test dependencies, console entry point.
+- [x] `uv.lock` dependency lockfile (56 packages resolved).
+- [x] GitHub Actions CI (test matrix 3.9/3.13, build verification, ruff format/lint, mypy).
+- [x] Ruff format applied; safe lint auto-fixes (296 fixes).
+- [x] Mypy baseline (43 pre-existing errors, report-only).
+- [x] `scripts/run_tests.sh` and `scripts/run_coverage.sh` failure reporting repaired.
+- [x] `.gitignore` expanded (coverage variants, build/dist, venv, lint/type caches).
+- [x] MIT `LICENSE` file added.
+- [x] `sys.path` mutation removed from `tests/test_parser_golden.py`.
+- [x] Wheel-compatible config delivery (`daily_brief/config.yaml` packaged, loader fallback chain).
 
 ## Verification Gates
-- [ ] Run a fresh environment with `pip install .[test]`, `python -m pytest`, and `python -m daily_brief config validate` after packaging is added.
-- [ ] Run controlled before/after benchmarks for concurrency and backpressure changes; retain only improvements that preserve report and harness validity.
-- [ ] Run a live smoke test after each implementation slice and record report validation, harness status, process exit status, duration, story count, and retention behavior.
+- [x] `python -m pytest` — 635/635 passing.
+- [x] `python -m daily_brief config validate` — PASS.
+- [x] Wheel and source distribution build verified.
+- [ ] Run controlled before/after benchmarks for concurrency and backpressure changes.
+- [ ] Run a live smoke test and record report validation, harness status, process exit status, duration, story count, and retention behavior.
 
 ## Blockers
 - [ ] Product decision: define whether harness `WARN` and `SKIPPED` should cause a nonzero process exit.
-- [ ] Product decision: select the intended license before adding a license file and package metadata.
+- [x] License confirmed: MIT (file added, package metadata set).

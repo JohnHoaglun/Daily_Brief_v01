@@ -1,4 +1,4 @@
-# Daily Brief v1.0.143
+# Daily Brief v1.0.144
 Automated daily news brief generator that fetches stories from 17 configured categories via Google News RSS, enriches them with weather and lake-level data, summarizes them with AI, and produces a structured Markdown report.
 
 ## Architecture
@@ -40,7 +40,7 @@ All runtime settings in `config.yaml`. Key groups:
 
 | Key | Description | Configured Value |
 |---|---|---|
-| `version` | Pipeline version | `1.0.143` |
+| `version` | Pipeline version | `1.0.144` |
 | `llm.model` | Model for summarization | `gemma4-e2b` |
 | `llm.host` | vLLM API endpoint | `http://192.168.4.52:8007` |
 | `directories.log_dir` | Log output directory | `.../Shared_AI/vault/OpenCode/Daily_Brief_v01/Dev/logs` |

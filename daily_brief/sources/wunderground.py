@@ -1,5 +1,5 @@
 """
-Daily Brief v1.0.143 — Wunderground Sources
+Daily Brief v1.0.144 — Wunderground Sources
 ============================================
 Wunderground station scraping and precipitation parsing.
 """

@@ -1,5 +1,5 @@
 """
-Daily Brief v1.0.143 — Pipeline Concurrency Benchmark Driver
+Daily Brief v1.0.144 — Pipeline Concurrency Benchmark Driver
 =============================================================
 Dedicated, non-default benchmark driver for measuring the effect of
 article extraction concurrency settings and Phase 1/2 dispatch mode

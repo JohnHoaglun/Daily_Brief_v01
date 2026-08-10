@@ -1,0 +1,773 @@
+version: 1.0.143
+llm:
+  model: gemma4-e2b
+  host: http://192.168.4.52:8007
+  summary_options:
+    temperature: 0.3
+    top_p: 0.8
+  context_preview_chars: 600
+  summary_context_chars: 6000
+  summary_trim_min_chars: 100
+  summary_retry:
+    attempts: 2
+    backoff:
+    - 0.5
+    - 1.0
+  summary_batch_size: 4
+  summary_max_concurrency: 2
+directories:
+  log_dir: /Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/Dev/logs
+  news_dir: /Users/johnhoaglun/Documents/Obsidian_Shared_AI/Shared_AI/vault/OpenCode/Daily_Brief_v01/Dev/news
+weather:
+  lat: 30.286
+  lon: -95.566
+  wunderground_station_id: KTXMONTG645
+  wunderground_monthly_template: https://www.wunderground.com/dashboard/pws/{station_id}/graph/{date}/{date}/monthly
+  lake_urls:
+    conroe: https://waterdatafortexas.org/reservoirs/individual/conroe
+    livingston: https://waterdatafortexas.org/reservoirs/individual/livingston
+    waco: https://waterdatafortexas.org/reservoirs/individual/waco
+    travis: https://waterdatafortexas.org/reservoirs/individual/travis
+    ray_roberts: https://waterdatafortexas.org/reservoirs/individual/ray-roberts
+    lewisville: https://waterdatafortexas.org/reservoirs/individual/lewisville
+    ray_hubbard: https://waterdatafortexas.org/reservoirs/individual/ray-hubbard
+    choke_canyon: https://waterdatafortexas.org/reservoirs/individual/choke-canyon
+    corpus_christi: https://waterdatafortexas.org/reservoirs/individual/corpus-christi
+    caddo: https://waterdatafortexas.org/reservoirs/individual/caddo
+    toledo_bend: https://waterdatafortexas.org/reservoirs/individual/toledo-bend
+  forecast_suffix: forecast
+  section_title: Weather Forecast
+rss:
+  base_url: https://news.google.com/rss/search?q=
+  params: '&hl=en-US&gl=US&ceid=US:en'
+  default_age_limit_hours: 24
+  default_source_window_hours: 24
+  candidate_pool_limit: 50
+  dedupe_window_hours: 24
+network:
+  user_agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36
+  weather_user_agent_suffix: /DailyBrief/1.0
+runtime:
+  timezone: America/Chicago
+  preflight_checks_enabled: false
+  frontmatter_tag_segments:
+  - daily-intelligently
+  - news-summary
+  - ai-generated
+  frontmatter_fallback_tag: '#news'
+  max_log_versions: 5
+  article_max_concurrency: 4
+prompts:
+  summary: "You are an objective news editor. Write a detailed summary of at least\
+    \ 3 sentences covering the key facts of this article. Use concrete facts only:\
+    \ names, places, numbers, dates, specific actions. Use active voice with specific\
+    \ actors: 'X announced', 'Y filed', 'Z said'. CRITICAL: DO NOT use filler phrases\
+    \ like 'This article discusses', 'This story covers', 'The author writes', 'According\
+    \ to', 'The report states', 'In this piece'. ALWAYS state the SPECIFIC subject\
+    \ and event directly. Start with the WHO and WHAT. Be direct and factual."
+  summary_strict: "You are an objective news editor. Write a detailed summary of 3\
+    \ sentences covering the key facts of this article. RULES: Use concrete facts\
+    \ only \u2014 names, places, numbers, dates, specific actions. NEVER use vague\
+    \ phrases like \"This suggests\", \"This indicates\", \"This highlights\", \"\
+    This demonstrates\", \"This underscores\", \"This reflects\", \"This signals\"\
+    , \"Further details\". Use active voice with specific actors: \"X announced\"\
+    , \"Y filed\", \"Z said\". If the content is thin, summarize what the headline\
+    \ communicates directly.\n"
+  system_batch: 'You are a concise news summarization engine. For each story I list,
+    output EXACTLY one numbered short summary block in this format: STORY_0 | <first
+    4 words of headline>=<3-sentence summary> STORY_1 | <first 4 words of headline>=<3-sentence
+    summary> ... STORY_N | <first 4 words of headline>=<3-sentence summary> CRITICAL:
+    Use the EXACT first 4 words from each headline after the number. This is the ONLY
+    way we match summaries to the correct stories. Do not add any preamble, explanations,
+    extra headings, markdown, or bullet points. Each summary must be 3 sentences whenever
+    possible and should not equal the headline. QUALITY RULES: Never write vague boilerplate.
+    Never use phrases like "This suggests", "This indicates", "This highlights", "This
+    demonstrates", "This underscores", "This reflects", "This signals", "Further details
+    on the nature", "Further details are not", "are not specified in the report",
+    "Details regarding". Instead state concrete facts: names, places, numbers, dates,
+    specific actions, outcomes. If the article content is thin, summarize what the
+    headline itself communicates plus any available snippet details. Use active voice
+    with specific actors: "X announced", "Y filed", "Z said".
+
+    '
+filtering_keywords:
+  real_estate:
+  - realtor
+  - z10
+  - redfin
+  - listing
+  - for sale
+  - house for
+  - home for
+  - property
+  - $
+  obituary:
+  - obituary
+  - passed away
+  - died
+  - deceased
+  - funeral services
+  - death notice
+  - memorial service
+  - passed at age
+  - remembering
+tagging_mappings:
+  AI:
+  - artificial intelligence
+  - machine learning
+  - neural network
+  - llm
+  - transformer
+  - deep learning
+  - generative ai
+  - ai
+  - agent
+  tech:
+  - technology
+  - software
+  - programming
+  - computing
+  - cloud computing
+  - data center
+  - tech
+  - mobile
+  - phones
+  - t-mobile
+  - github
+  - startup
+  - start-up
+  economy:
+  - economy
+  - finance
+  - stock market
+  - invest
+  - trade
+  - earnings
+  - revenue
+  - luxury
+  - sales
+  - spending
+  - consumer
+  - demand
+  - supply
+  - trade war
+  - stock
+  - stocks
+  - wall street
+  - loan
+  - loans
+  - shares
+  - bond
+  - bonds
+  - imf
+  - argentina
+  - imf
+  - debt
+  - financing
+  - investment
+  - capital
+  - restaurant
+  - opening
+  - open
+  - dining
+  - food
+  - debt
+  - fha
+  - loan
+  - loans
+  - growth
+  - upcycle
+  - orders
+  weather:
+  - weather
+  - storm
+  - rain
+  - snow
+  - hurricane
+  - tornado
+  - forecast
+  - temperature
+  - heat
+  - hot
+  - hottest
+  - heating
+  - extreme
+  politics:
+  - election
+  - government
+  - politic
+  - policy
+  - congress
+  - senate
+  - president
+  - regulation
+  - law
+  - legislative
+  - session
+  - lawmaker
+  - statehouse
+  - governor
+  - executive order
+  - slams
+  - attack
+  - media
+  - social media
+  - post
+  - statement
+  - trump
+  - biden
+  - iraq
+  - iran
+  - pause
+  - strike
+  - strikes
+  science:
+  - science
+  - research
+  - physics
+  - biology
+  - quantum
+  - chemistry
+  - genetics
+  - symmetry
+  health:
+  - health
+  - medical
+  - hospital
+  - doctor
+  - treatment
+  - vaccine
+  - pharma
+  - hospitalized
+  - outbreak
+  - public health
+  space:
+  - space
+  - rocket
+  - astronaut
+  - nasa
+  - mission
+  - satellite
+  - launch
+  - orbit
+  - lunar
+  semiconductors:
+  - semiconductor
+  - chip
+  - processor
+  - gpu
+  - cpu
+  - transistor
+  - fab
+  - intel
+  - nvidia
+  - tsmc
+  - qualcomm
+  - amd
+  - asml
+  energy:
+  - energy
+  - renewable
+  - solar
+  - wind
+  - grid
+  - electric
+  - battery
+  - charging
+  - fuel cell
+  - oil
+  - plunge
+  infrastructure:
+  - infrastructure
+  - construction
+  - road
+  - bridge
+  - transit
+  security:
+  - security
+  - cybersecurity
+  - privacy
+  - breach
+  - hacking
+  - encryption
+  - data protection
+  companies:
+  - ipo
+  - acquisition
+  - merger
+  - partnership
+  - companies
+  - time
+  - recognized
+  - top
+  - ranked
+  - workplace
+  - top workplace
+  - 3m
+  - 3m
+  - citic
+  - securities
+  - growth
+  - orders
+  people:
+  - founder
+  - ceo
+  - entrepreneur
+  - investor
+  - researcher
+  - scientist
+  - ceo
+  - executive
+  - director
+  - chairman
+  - head
+  - golf
+  - golfer
+  - cup
+  - winner
+  - winners
+  - trail
+  - golf
+  - golfer
+  - golf
+  - golfer
+  - player
+  - art
+  - artist
+  - saar
+  - died
+  - dead
+  openai:
+  - openai
+  - chatgpt
+  - gpt-4
+  - gpt-5
+  anthropic:
+  - anthropic
+  - claude
+  spacex:
+  - spacex
+  - starship
+  - elon musk
+  - falcon
+  big-tech:
+  - google
+  - meta
+  - apple
+  - microsoft
+  - amazon
+  - nvidia
+  - wall street
+  local:
+  - houston
+  - texas
+  - conroe
+  - montgomery county
+  - houston metro
+  - galveston
+  - magnolia
+  - spring
+  - fort worth
+  - wisconsin
+  - texas parks
+  - wisconsin
+  - wi
+  us-focused:
+  - united states
+  - america
+  - american
+  - washington dc
+  - us
+  - wisconsin
+  - nebraska
+  - washington dc
+  - federal
+  - consulate
+  - wisconsin
+  - washington
+  - federal
+  - nationwide
+  - runaway
+  - children
+  - kids
+  - t-mobile
+  - newsweek
+  - conventional
+  - nevada
+  - travel
+  - wisconsin
+  - wi
+  - presser
+  - new york
+  - iran
+  international:
+  - international
+  - foreign
+  - european
+  - asian
+  - iran
+  - israel
+  - russia
+  - china
+  - ukraine
+  - middle east
+  - europe
+  - africa
+  - asia
+  - un
+  - france
+  - uk
+  - germany
+  - ukraine
+  - turkey
+  - india
+  - united nations
+  - eu
+  - irish
+  - ireland
+  - bbc
+  - british
+  - canadian
+  - australian
+  - japanese
+  - korean
+  - world cup
+  - soccer
+  - imf
+  - milei
+  - debt
+  - iran
+  - strike
+  - strikes
+  - military
+  sports:
+  - nfl
+  - nba
+  - mlb
+  - nhl
+  - soccer
+  - football
+  - basketball
+  - baseball
+  - hockey
+  - olympics
+  - championship
+  - strikeout
+  - touchdown
+  - touchdowns
+  - rangers
+  - astros
+  - rockets
+  - cougars
+  - cowboys
+  - volleyball
+  - golf
+  - tennis
+  - cricket
+  - rugby
+  - swim
+  - training camp
+  - season
+  - soccer
+  - world cup
+  - soccer
+  - world cup
+  - transfer
+  - man city
+  - player
+  regulatory:
+  - regulation
+  - legal
+  - legislation
+  - lawsuit
+  - compliance
+  - ruling
+  - court
+  innovation:
+  - breakthrough
+  - cutting-edge
+  market-impact:
+  - stock market
+  - trading
+  - investment
+  - return
+  - valuation
+  - earnings
+  environment:
+  - environment
+  - sustainability
+  - carbon
+  - emissions
+  - green
+  - ecological
+  - climate
+  - scorched
+  - melting
+  - glacier
+  - drought
+  - wildfire
+  - floods
+  - earthquake
+  - sustainable
+  - wildlife
+  - water
+  - sustainable
+  - water
+  - green
+  - greens
+  - cup
+  - black
+  crime:
+  - arrest
+  - police
+  - murder
+  - shooting
+  - crime
+  - investigator
+  - investigating
+  - charged
+  - suspect
+  - execution
+  - executions
+  - death penalty
+  - charged
+  - suspect
+  - trial
+  - conviction
+  - convict
+  - kidnapp
+  - hazing
+  agriculture:
+  - livestock
+  - farm
+  - ranch
+  - cattle
+  - crop
+  - farmer
+  - drought
+  education:
+  - school
+  - university
+  - college
+  - student
+  - education
+  - teacher
+  - classroom
+  public-safety:
+  - emergency
+  - fire
+  - rescue
+  - evacuation
+  - warning
+  - alert
+  surveillance:
+  - camera
+  - surveillance
+  - privacy
+  - data release
+  public-health:
+  - measles
+  - disease
+  - outbreak
+  - vaccine
+  - health official
+  - cases
+  geopolitical:
+  - conflict
+  - crisis
+  - war
+  - military
+  - diplomacy
+  - sanction
+  - un
+  defense:
+  - defense
+  - troops
+  - defense
+  - pentagon
+  - military
+  - army
+  - navy
+  - air force
+  - veterans
+  government:
+  - government
+  - executive
+  - congressional
+  - biden
+  - trump
+  - obama
+  - white house
+  - department
+  - federal
+  - agency
+  - nist
+  - doj
+  - usa
+  - usaid
+  diplomacy:
+  - peace
+  - mediation
+  - diplomatic
+  - negotiation
+  - deal
+  - agreement
+  - accord
+  - ceasefire
+tagging_config:
+  max_tags: 5
+  score_cap: 5.0
+  score_threshold: 0.3
+tag_conflicts:
+- - international
+  - local
+category_boosts:
+  OpenAI News:
+  - openai
+  - ai
+  - chatgpt
+  Anthropic News:
+  - anthropic
+  - ai
+  - claude
+  SpaceX News:
+  - spacex
+  - space
+  - starship
+  Big Tech:
+  - google
+  - meta
+  - apple
+  - microsoft
+  - amazon
+  - big-tech
+  Conroe TX News:
+  - local
+  Montgomery County TX News:
+  - local
+  Texas News:
+  - local
+  Houston Tropical Weather:
+  - weather
+  Artificial Intelligence:
+  - ai
+  - tech
+  Andrej Karpathy Activity:
+  - openai
+  - ai
+  - tech
+  Hermes Agent News:
+  - ai
+  - tech
+  Semiconductors:
+  - tech
+  - semiconductors
+  Market News:
+  - economy
+  - market-impact
+# Space News removed (category does not exist — only SpaceX News)
+category_priority:
+- Conroe TX News
+- Houston Tropical Weather
+- Montgomery County TX News
+- World News
+- US News
+- Texas News
+- Market News
+- Semiconductors
+- Big Tech
+- Artificial Intelligence
+- OpenAI News
+- Anthropic News
+- SpaceX News
+- Andrej Karpathy Activity
+- Hermes Agent News
+- Weather Forecast 77316
+weather_labels:
+  titles:
+  - Date
+  - Day Condition
+  - Night Condition
+  - High Temp
+  - Low Temp
+  - Precip. Chance
+  - Wind
+  station_rows:
+  - Climate Normal High for today 77316
+  - Average Monthly rainfall for 77316
+  - Current Monthly rainfall for 77316
+  lake_headers:
+  - Where
+  - Today
+  - 1 Week Ago
+  - 30 Days ago
+categories:
+  World News:
+    query: world news
+    max_stories: 10
+    min_age_hours: 24
+  US News:
+    query: us news
+    max_stories: 10
+    min_age_hours: 24
+  Texas News:
+    query: Texas news
+    max_stories: 5
+    min_age_hours: 24
+  Conroe TX News:
+    query: Conroe TX
+    source_window_hours: 72
+    candidate_pool_limit: 100
+    max_stories: 5
+    min_age_hours: 24
+  Montgomery County TX News:
+    query: Montgomery County TX
+    source_window_hours: 168
+    candidate_pool_limit: 100
+    max_stories: 5
+    min_age_hours: 24
+  Houston Tropical Weather:
+    query: Houston Tropical Weather
+    source_window_hours: 72
+    max_stories: 5
+    min_age_hours: 24
+  Market News:
+    query: market news
+    max_stories: 5
+    min_age_hours: 24
+  Semiconductors:
+    query: semiconductors
+    max_stories: 5
+    min_age_hours: 24
+  Big Tech:
+    query: big tech
+    max_stories: 5
+    min_age_hours: 24
+  Artificial Intelligence:
+    query: artificial intelligence
+    max_stories: 5
+    min_age_hours: 24
+  OpenAI News:
+    query: OpenAI news
+    max_stories: 5
+    min_age_hours: 24
+  Anthropic News:
+    query: anthropic news
+    max_stories: 5
+    min_age_hours: 24
+  SpaceX News:
+    query: SpaceX news
+    max_stories: 5
+    min_age_hours: 24
+  Andrej Karpathy Activity:
+    query: Andrej Karpathy
+    max_stories: 5
+    min_age_hours: 24
+  Hermes Agent News:
+    query: hermes agent
+    max_stories: 5
+    min_age_hours: 24
+  Weather Forecast 77316:
+    query: ''
+    max_stories: 0
+    min_age_hours: 8

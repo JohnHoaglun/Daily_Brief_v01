@@ -7,11 +7,14 @@ all module-level constants from canonical YAML paths.  No globals().update().
 
 import os
 import yaml
+from importlib import resources as importlib_resources
 from pathlib import Path
+from typing import Optional
 
 from daily_brief._version import __version__ as PACKAGE_VERSION
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+CONFIG_HOME = Path.home() / ".config" / "daily_brief" / "config.yaml"
 
 
 # ---------------------------------------------------------------------------
@@ -66,20 +69,63 @@ DEFAULTS = {
 }
 
 
-def load_raw_config(yaml_path=None):
-    """Return unvalidated YAML data, or an empty dict when it cannot be read."""
-    config_path = Path(yaml_path) if yaml_path is not None else Path(
-        os.environ.get("DAILY_BRIEF_CONFIG", BASE_DIR / "config.yaml")
-    )
+def _find_config_path() -> Optional[Path]:
+    """Resolve config path with fallback chain: env override, project root, package default."""
+    explicit = os.environ.get("DAILY_BRIEF_CONFIG")
+    if explicit:
+        return Path(explicit)
+
+    project_config = BASE_DIR / "config.yaml"
+    if project_config.is_file():
+        return project_config
+
+    home_config = CONFIG_HOME
+    if home_config.is_file():
+        return home_config
+
+    shipped = BASE_DIR / "daily_brief" / "config.yaml"
+    if shipped.is_file():
+        return shipped
+
+    return None
+
+
+def _read_config_path(path: Path) -> dict:
+    """Read and parse a single YAML config file."""
+    if path is None:
+        return _read_package_default()
     try:
-        with open(config_path, "r", encoding="utf-8") as fh:
-            raw_config = yaml.safe_load(fh)
-            return raw_config if isinstance(raw_config, dict) else {}
-    except FileNotFoundError:
-        return {}
+        data = path.read_text(encoding="utf-8")
+        raw = yaml.safe_load(data)
+        return raw if isinstance(raw, dict) else {}
     except Exception as exc:
-        print(f"YAML load error: {exc}")
+        print(f"YAML load error ({path}): {exc}")
         return {}
+
+
+def _read_package_default() -> dict:
+    """Load the factory defaults shipped with the wheel."""
+    try:
+        cfg_bytes = importlib_resources.files("daily_brief").joinpath("config.yaml").read_bytes()
+        raw = yaml.safe_load(cfg_bytes)
+        return raw if isinstance(raw, dict) else {}
+    except Exception:
+        return {}
+
+
+def load_raw_config(yaml_path=None):
+    """Return unvalidated YAML data, or an empty dict when it cannot be read.
+
+    Resolution order:
+    1. Explicit ``yaml_path`` argument
+    2. ``DAILY_BRIEF_CONFIG`` environment variable
+    3. ``config.yaml`` in project root (source install)
+    4. ``~/.config/daily_brief/config.yaml`` (user config)
+    5. Packaged ``daily_brief/config.yaml`` (wheel default)
+    """
+    if yaml_path is not None:
+        return _read_config_path(Path(yaml_path))
+    return _read_config_path(_find_config_path())
 
 
 def load_config_yaml(yaml_path=None):

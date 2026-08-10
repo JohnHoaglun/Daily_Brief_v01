@@ -114,10 +114,15 @@ class TestTransientBatchException(TestCase):
 
         async def run():
             patches = _retry_patches()
-            with patches[0], patches[1], patches[2], patch(
-                "daily_brief.llm.summarizer._summarize",
-                new_callable=AsyncMock,
-                side_effect=mock_summarize,
+            with (
+                patches[0],
+                patches[1],
+                patches[2],
+                patch(
+                    "daily_brief.llm.summarizer._summarize",
+                    new_callable=AsyncMock,
+                    side_effect=mock_summarize,
+                ),
             ):
                 await batch_summarize_all(client, stories, batch_size=2)
 
@@ -150,10 +155,15 @@ class TestTransientBatchException(TestCase):
 
         async def run():
             patches = _retry_patches()
-            with patches[0], patches[1], patches[2], patch(
-                "daily_brief.llm.summarizer._summarize",
-                new_callable=AsyncMock,
-                return_value=None,
+            with (
+                patches[0],
+                patches[1],
+                patches[2],
+                patch(
+                    "daily_brief.llm.summarizer._summarize",
+                    new_callable=AsyncMock,
+                    return_value=None,
+                ),
             ):
                 await batch_summarize_all(client, stories, batch_size=2)
 
@@ -204,10 +214,15 @@ class TestMalformedBatchResponse(TestCase):
 
         async def run():
             patches = _retry_patches()
-            with patches[0], patches[1], patches[2], patch(
-                "daily_brief.llm.summarizer._summarize",
-                new_callable=AsyncMock,
-                side_effect=mock_summarize,
+            with (
+                patches[0],
+                patches[1],
+                patches[2],
+                patch(
+                    "daily_brief.llm.summarizer._summarize",
+                    new_callable=AsyncMock,
+                    side_effect=mock_summarize,
+                ),
             ):
                 await batch_summarize_all(client, stories, batch_size=4)
 
@@ -256,10 +271,15 @@ class TestPartialParseFailure(TestCase):
 
         async def run():
             patches = _retry_patches()
-            with patches[0], patches[1], patches[2], patch(
-                "daily_brief.llm.summarizer._summarize",
-                new_callable=AsyncMock,
-                return_value=None,
+            with (
+                patches[0],
+                patches[1],
+                patches[2],
+                patch(
+                    "daily_brief.llm.summarizer._summarize",
+                    new_callable=AsyncMock,
+                    return_value=None,
+                ),
             ):
                 await batch_summarize_all(client, stories, batch_size=2)
 
@@ -307,10 +327,15 @@ class TestInvalidSingleRecovery(TestCase):
 
         async def run():
             patches = _retry_patches()
-            with patches[0], patches[1], patches[2], patch(
-                "daily_brief.llm.summarizer._summarize",
-                new_callable=AsyncMock,
-                side_effect=mock_summarize,
+            with (
+                patches[0],
+                patches[1],
+                patches[2],
+                patch(
+                    "daily_brief.llm.summarizer._summarize",
+                    new_callable=AsyncMock,
+                    side_effect=mock_summarize,
+                ),
             ):
                 await batch_summarize_all(client, stories, batch_size=2)
 
@@ -340,10 +365,15 @@ class TestInvalidSingleRecovery(TestCase):
 
         async def run():
             patches = _retry_patches()
-            with patches[0], patches[1], patches[2], patch(
-                "daily_brief.llm.summarizer._summarize",
-                new_callable=AsyncMock,
-                side_effect=mock_summarize,
+            with (
+                patches[0],
+                patches[1],
+                patches[2],
+                patch(
+                    "daily_brief.llm.summarizer._summarize",
+                    new_callable=AsyncMock,
+                    side_effect=mock_summarize,
+                ),
             ):
                 await batch_summarize_all(client, stories, batch_size=2)
 
@@ -384,10 +414,15 @@ class TestInvalidSingleRecovery(TestCase):
 
             async def run():
                 patches = _retry_patches()
-                with patches[0], patches[1], patches[2], patch(
-                    "daily_brief.llm.summarizer._summarize",
-                    new_callable=AsyncMock,
-                    side_effect=mock_summarize,
+                with (
+                    patches[0],
+                    patches[1],
+                    patches[2],
+                    patch(
+                        "daily_brief.llm.summarizer._summarize",
+                        new_callable=AsyncMock,
+                        side_effect=mock_summarize,
+                    ),
                 ):
                     await batch_summarize_all(client, stories, batch_size=2)
 
@@ -415,10 +450,15 @@ class TestInvalidSingleRecovery(TestCase):
 
         async def run():
             patches = _retry_patches()
-            with patches[0], patches[1], patches[2], patch(
-                "daily_brief.llm.summarizer._summarize",
-                new_callable=AsyncMock,
-                side_effect=mock_summarize,
+            with (
+                patches[0],
+                patches[1],
+                patches[2],
+                patch(
+                    "daily_brief.llm.summarizer._summarize",
+                    new_callable=AsyncMock,
+                    side_effect=mock_summarize,
+                ),
             ):
                 return await batch_summarize_all(client, stories, batch_size=2)
 
@@ -449,10 +489,15 @@ class TestInvalidSingleRecovery(TestCase):
 
         async def run():
             patches = _retry_patches()
-            with patches[0], patches[1], patches[2], patch(
-                "daily_brief.llm.summarizer._summarize",
-                new_callable=AsyncMock,
-                side_effect=mock_summarize,
+            with (
+                patches[0],
+                patches[1],
+                patches[2],
+                patch(
+                    "daily_brief.llm.summarizer._summarize",
+                    new_callable=AsyncMock,
+                    side_effect=mock_summarize,
+                ),
             ):
                 await batch_summarize_all(client, stories, batch_size=2)
 
@@ -580,16 +625,19 @@ class TestInvalidSingleRecovery(TestCase):
 
         async def run():
             patches = _retry_patches()
-            with patches[0], patches[1], patches[2], patch(
-                "daily_brief.llm.summarizer._summarize",
-                new_callable=AsyncMock,
-                side_effect=mock_summarize,
+            with (
+                patches[0],
+                patches[1],
+                patches[2],
+                patch(
+                    "daily_brief.llm.summarizer._summarize",
+                    new_callable=AsyncMock,
+                    side_effect=mock_summarize,
+                ),
             ):
                 poll_task = asyncio.create_task(poll_and_release())
                 recovery_task = asyncio.create_task(
-                    batch_summarize_all(
-                        client, stories, batch_size=2, recovery_max_concurrency=1
-                    )
+                    batch_summarize_all(client, stories, batch_size=2, recovery_max_concurrency=1)
                 )
                 await recovery_task
                 await poll_task
@@ -634,12 +682,16 @@ class TestInvalidSingleRecovery(TestCase):
 
         async def run():
             patches = _retry_patches()
-            with patches[0], patches[1], patches[2], patch(
-                "daily_brief.llm.summarizer._summarize",
-                new_callable=AsyncMock,
-                side_effect=mock_summarize,
-            ), patch(
-                "daily_brief.llm.summarizer.time.monotonic", side_effect=mock_monotonic
+            with (
+                patches[0],
+                patches[1],
+                patches[2],
+                patch(
+                    "daily_brief.llm.summarizer._summarize",
+                    new_callable=AsyncMock,
+                    side_effect=mock_summarize,
+                ),
+                patch("daily_brief.llm.summarizer.time.monotonic", side_effect=mock_monotonic),
             ):
                 return await batch_summarize_all(
                     client,
@@ -689,10 +741,15 @@ class TestInvalidSingleRecovery(TestCase):
 
         async def run():
             patches = _retry_patches()
-            with patches[0], patches[1], patches[2], patch(
-                "daily_brief.llm.summarizer._summarize",
-                new_callable=AsyncMock,
-                side_effect=mock_summarize,
+            with (
+                patches[0],
+                patches[1],
+                patches[2],
+                patch(
+                    "daily_brief.llm.summarizer._summarize",
+                    new_callable=AsyncMock,
+                    side_effect=mock_summarize,
+                ),
             ):
                 return await batch_summarize_all(client, stories, batch_size=2)
 

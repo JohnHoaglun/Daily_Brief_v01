@@ -33,22 +33,28 @@ class TestNwsFailureIndependentCollection(TestCase):
         async def raise_dns(*a, **k):
             raise ConnectionError("DNS failure")
 
-        with mock.patch(
-            "daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=raise_dns)
-        ), mock.patch(
-            "daily_brief.sources.weather.get_reference_datetime", return_value=self.today
-        ), mock.patch(
-            "daily_brief.sources.weather._fetch_climate_normal_high",
-            new=AsyncMock(return_value=91),
-        ), mock.patch(
-            "daily_brief.sources.weather._fetch_station_monthly_rainfall",
-            new=AsyncMock(
-                return_value={
-                    "avg_monthly_rainfall": 3.2,
-                    "current_monthly_rainfall": 2.1,
-                }
+        with (
+            mock.patch(
+                "daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=raise_dns)
             ),
-        ), mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
+            mock.patch(
+                "daily_brief.sources.weather.get_reference_datetime", return_value=self.today
+            ),
+            mock.patch(
+                "daily_brief.sources.weather._fetch_climate_normal_high",
+                new=AsyncMock(return_value=91),
+            ),
+            mock.patch(
+                "daily_brief.sources.weather._fetch_station_monthly_rainfall",
+                new=AsyncMock(
+                    return_value={
+                        "avg_monthly_rainfall": 3.2,
+                        "current_monthly_rainfall": 2.1,
+                    }
+                ),
+            ),
+            mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}),
+        ):
             return await fetch_weather(None, 30.286, -95.566)
 
     def test_nws_fail_collects_era5_rainfall_lakes(self):
@@ -130,15 +136,17 @@ class TestProviderFailurePermutations(TestCase):
             side_effect.cc += 1
             return point if side_effect.cc == 1 else forecast
 
-        with mock.patch(
-            "daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=side_effect)
-        ), mock.patch(
-            "daily_brief.sources.weather.get_reference_datetime", return_value=self.today
-        ), mock.patch(
-            "daily_brief.sources.weather._fetch_climate_normal_high", climate_coro
-        ), mock.patch(
-            "daily_brief.sources.weather._fetch_station_monthly_rainfall", rain_coro
-        ), mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
+        with (
+            mock.patch(
+                "daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=side_effect)
+            ),
+            mock.patch(
+                "daily_brief.sources.weather.get_reference_datetime", return_value=self.today
+            ),
+            mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", climate_coro),
+            mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall", rain_coro),
+            mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}),
+        ):
             return await fetch_weather(None, 30.286, -95.566)
 
     def test_climate_fail_rain_succeeds(self):

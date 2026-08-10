@@ -11,7 +11,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        python-version: ["3.9", "3.13"]
+        python-version: ["3.9", "3.11"]
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python ${{ matrix.python-version }}
@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
-        run: pip install ".[test]" --python-version ${{ matrix.python-version }}
+        run: pip install --upgrade pip && pip install ".[test]"
       - name: Validate config
         run: python -m daily_brief config validate
       - name: Run tests
@@ -29,7 +29,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        python-version: ["3.9", "3.13"]
+        python-version: ["3.9", "3.11"]
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -40,8 +40,16 @@ jobs:
         run: pip install build
       - name: Build package
         run: python -m build
-      - name: Verify wheel
-        run: python -c "import zipfile; zipfile.ZipFile('dist/daily_brief-*.whl').printdir()"
+      - name: List wheel contents
+        run: |
+          ls dist/daily_brief-*.whl
+          python -c "
+          import glob, zipfile
+          for whl in glob.glob('dist/daily_brief-*.whl'):
+              print(f'Wheel: {whl}')
+              zipfile.ZipFile(whl).printdir()
+              break
+          "
 
   quality:
     runs-on: macos-latest
@@ -52,7 +60,7 @@ jobs:
         with:
           python-version: "3.9"
       - name: Install dependencies
-        run: pip install ".[test]" ruff mypy
+        run: pip install --upgrade pip && pip install ".[test]" ruff mypy
       - name: Check format
         run: ruff format --check daily_brief/ tests/
       - name: Lint (report only)

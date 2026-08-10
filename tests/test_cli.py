@@ -96,17 +96,27 @@ class TestCmdCheckConnectivity(TestCase):
         return loop.run_until_complete(coro)
 
     def test_all_pass_returns_zero(self):
-        with mock.patch(
-            "daily_brief.cli._cmd_check_connectivity_impl", new_callable=AsyncMock, return_value=0
-        ) as mock_impl, mock.patch("asyncio.run", side_effect=self._run_on_existing_loop):
+        with (
+            mock.patch(
+                "daily_brief.cli._cmd_check_connectivity_impl",
+                new_callable=AsyncMock,
+                return_value=0,
+            ) as mock_impl,
+            mock.patch("asyncio.run", side_effect=self._run_on_existing_loop),
+        ):
             rv = cmd_check_connectivity()
         mock_impl.assert_awaited_once()
         self.assertEqual(rv, 0)
 
     def test_any_fail_returns_one(self):
-        with mock.patch(
-            "daily_brief.cli._cmd_check_connectivity_impl", new_callable=AsyncMock, return_value=1
-        ) as mock_impl, mock.patch("asyncio.run", side_effect=self._run_on_existing_loop):
+        with (
+            mock.patch(
+                "daily_brief.cli._cmd_check_connectivity_impl",
+                new_callable=AsyncMock,
+                return_value=1,
+            ) as mock_impl,
+            mock.patch("asyncio.run", side_effect=self._run_on_existing_loop),
+        ):
             rv = cmd_check_connectivity()
         mock_impl.assert_awaited_once()
         self.assertEqual(rv, 1)

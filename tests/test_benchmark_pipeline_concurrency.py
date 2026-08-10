@@ -709,9 +709,12 @@ class TestBenchmarkCLI(unittest.TestCase):
 
             return CellResult(concurrency=conc, phase_mode=mode, timings=PhaseTimings(total_s=1.0))
 
-        with patch(
-            "daily_brief.benchmark_pipeline_concurrency._run_benchmark_cell", new=_fake_cell
-        ), patch("daily_brief.benchmark_pipeline_concurrency.run_benchmark") as mock_run:
+        with (
+            patch(
+                "daily_brief.benchmark_pipeline_concurrency._run_benchmark_cell", new=_fake_cell
+            ),
+            patch("daily_brief.benchmark_pipeline_concurrency.run_benchmark") as mock_run,
+        ):
             from daily_brief.benchmark_pipeline_concurrency import BenchmarkRun
 
             mock_run.return_value = BenchmarkRun(cells=[{"concurrency": 1}], duration_s=1.0)

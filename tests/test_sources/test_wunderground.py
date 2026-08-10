@@ -83,11 +83,14 @@ class TestParseWuMonthlyPrecipitation(TestCase):
             def mock_parse_climate(html, date):
                 return {"avg_monthly_rainfall": 3.0, "current_monthly_rainfall": 4.1}
 
-            with mock.patch(
-                "daily_brief.sources.wunderground._fetch_text",
-                new=AsyncMock(side_effect=mock_fetch_text),
-            ), mock.patch(
-                "daily_brief.sources.wunderground._parse_climate_summary", mock_parse_climate
+            with (
+                mock.patch(
+                    "daily_brief.sources.wunderground._fetch_text",
+                    new=AsyncMock(side_effect=mock_fetch_text),
+                ),
+                mock.patch(
+                    "daily_brief.sources.wunderground._parse_climate_summary", mock_parse_climate
+                ),
             ):
                 result = await _fetch_station_monthly_rainfall(None, ref)
 
@@ -109,11 +112,14 @@ class TestParseWuMonthlyPrecipitation(TestCase):
             def mock_parse_climate(html, date):
                 return {"avg_monthly_rainfall": 2.0, "current_monthly_rainfall": 3.5}
 
-            with mock.patch(
-                "daily_brief.sources.wunderground._fetch_text",
-                new=AsyncMock(side_effect=mock_fetch_text),
-            ), mock.patch(
-                "daily_brief.sources.wunderground._parse_climate_summary", mock_parse_climate
+            with (
+                mock.patch(
+                    "daily_brief.sources.wunderground._fetch_text",
+                    new=AsyncMock(side_effect=mock_fetch_text),
+                ),
+                mock.patch(
+                    "daily_brief.sources.wunderground._parse_climate_summary", mock_parse_climate
+                ),
             ):
                 result = await _fetch_station_monthly_rainfall(None, ref)
 
@@ -154,11 +160,14 @@ class TestParseWuMonthlyPrecipitation(TestCase):
             def mock_parse_climate(html, date):
                 return {"avg_monthly_rainfall": 99.0, "current_monthly_rainfall": 50.0}
 
-            with mock.patch(
-                "daily_brief.sources.wunderground._fetch_text",
-                new=AsyncMock(side_effect=mock_fetch_text),
-            ), mock.patch(
-                "daily_brief.sources.wunderground._parse_climate_summary", mock_parse_climate
+            with (
+                mock.patch(
+                    "daily_brief.sources.wunderground._fetch_text",
+                    new=AsyncMock(side_effect=mock_fetch_text),
+                ),
+                mock.patch(
+                    "daily_brief.sources.wunderground._parse_climate_summary", mock_parse_climate
+                ),
             ):
                 result = await _fetch_station_monthly_rainfall(None, ref)
 
@@ -195,11 +204,14 @@ class TestParseWuMonthlyPrecipitation(TestCase):
                     return await gated_climate(session, url)
                 return None
 
-            with mock.patch(
-                "daily_brief.sources.wunderground._fetch_text",
-                new=AsyncMock(side_effect=url_route),
-            ), mock.patch(
-                "daily_brief.sources.wunderground._parse_climate_summary", mock_parse_climate
+            with (
+                mock.patch(
+                    "daily_brief.sources.wunderground._fetch_text",
+                    new=AsyncMock(side_effect=url_route),
+                ),
+                mock.patch(
+                    "daily_brief.sources.wunderground._parse_climate_summary", mock_parse_climate
+                ),
             ):
                 task = asyncio.create_task(_fetch_station_monthly_rainfall(None, today))
                 await asyncio.wait_for(

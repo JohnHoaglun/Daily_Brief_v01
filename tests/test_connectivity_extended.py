@@ -390,10 +390,13 @@ class TestUserAgent(TestCase):
 
     def test_lakes_sends_user_agent(self):
         async def run():
-            with mock.patch(
-                "daily_brief.connectivity.WEATHER_LAKE_URLS",
-                {"Conroe": "https://example.org/lakes"},
-            ), mock.patch("daily_brief.connectivity.USER_AGENT", "TestAgent/1.0"):
+            with (
+                mock.patch(
+                    "daily_brief.connectivity.WEATHER_LAKE_URLS",
+                    {"Conroe": "https://example.org/lakes"},
+                ),
+                mock.patch("daily_brief.connectivity.USER_AGENT", "TestAgent/1.0"),
+            ):
                 captured, cm = _capturing_cm(method="HEAD")
                 fake = mock.Mock()
                 fake.head = cm
@@ -409,16 +412,19 @@ class TestRSSQueryEncoding(TestCase):
 
     def test_rss_encodes_reserved_chars(self):
         async def run():
-            with mock.patch(
-                "daily_brief.connectivity.CATEGORIES",
-                [("energy & markets/ma\u00f1ana", "energy & markets/ma\u00f1ana", 10)],
-            ), mock.patch(
-                "daily_brief.connectivity.RSS_BASE", "https://news.google.com/rss/search?q="
-            ), mock.patch("daily_brief.connectivity.RSS_PARAMS", "&hl=en"), aioresponses() as m:
+            with (
+                mock.patch(
+                    "daily_brief.connectivity.CATEGORIES",
+                    [("energy & markets/ma\u00f1ana", "energy & markets/ma\u00f1ana", 10)],
+                ),
+                mock.patch(
+                    "daily_brief.connectivity.RSS_BASE", "https://news.google.com/rss/search?q="
+                ),
+                mock.patch("daily_brief.connectivity.RSS_PARAMS", "&hl=en"),
+                aioresponses() as m,
+            ):
                 encoded = "energy+%26+markets%2Fma%C3%B1ana"
-                m.get(
-                    f"https://news.google.com/rss/search?q={encoded}&hl=en", status=200
-                )
+                m.get(f"https://news.google.com/rss/search?q={encoded}&hl=en", status=200)
                 async with aiohttp.ClientSession() as session:
                     result = await check_rss(session, timeout=5.0)
                 return result

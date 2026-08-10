@@ -33,25 +33,29 @@ class TestWeatherForecastUrl(TestCase):
                 return {"properties": {"forecast": self.forecast_url_no_suffix}}
             return {"properties": {"periods": []}}
 
-        with mock.patch(
-            "daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=capture_fetch)
-        ), mock.patch(
-            "daily_brief.sources.weather.get_reference_datetime", return_value=self.today
-        ), mock.patch(
-            "daily_brief.sources.weather._fetch_climate_normal_high",
-            new=AsyncMock(return_value=None),
-        ), mock.patch(
-            "daily_brief.sources.weather._fetch_station_monthly_rainfall",
-            new=AsyncMock(
-                return_value={
-                    "avg_monthly_rainfall": None,
-                    "current_monthly_rainfall": None,
-                }
+        with (
+            mock.patch(
+                "daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=capture_fetch)
             ),
-        ), mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
-            asyncio.get_event_loop().run_until_complete(
-                fetch_weather(None, 30.286, -95.566)
-            )
+            mock.patch(
+                "daily_brief.sources.weather.get_reference_datetime", return_value=self.today
+            ),
+            mock.patch(
+                "daily_brief.sources.weather._fetch_climate_normal_high",
+                new=AsyncMock(return_value=None),
+            ),
+            mock.patch(
+                "daily_brief.sources.weather._fetch_station_monthly_rainfall",
+                new=AsyncMock(
+                    return_value={
+                        "avg_monthly_rainfall": None,
+                        "current_monthly_rainfall": None,
+                    }
+                ),
+            ),
+            mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}),
+        ):
+            asyncio.get_event_loop().run_until_complete(fetch_weather(None, 30.286, -95.566))
 
         self.assertEqual(len(calls), 2)
         self.assertEqual(calls[1], self.forecast_url_no_suffix)
@@ -68,25 +72,29 @@ class TestWeatherForecastUrl(TestCase):
                 return {"properties": {}}
             return {"properties": {"periods": []}}
 
-        with mock.patch(
-            "daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=capture_fetch)
-        ), mock.patch(
-            "daily_brief.sources.weather.get_reference_datetime", return_value=self.today
-        ), mock.patch(
-            "daily_brief.sources.weather._fetch_climate_normal_high",
-            new=AsyncMock(return_value=None),
-        ), mock.patch(
-            "daily_brief.sources.weather._fetch_station_monthly_rainfall",
-            new=AsyncMock(
-                return_value={
-                    "avg_monthly_rainfall": None,
-                    "current_monthly_rainfall": None,
-                }
+        with (
+            mock.patch(
+                "daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=capture_fetch)
             ),
-        ), mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
-            asyncio.get_event_loop().run_until_complete(
-                fetch_weather(None, 30.286, -95.566)
-            )
+            mock.patch(
+                "daily_brief.sources.weather.get_reference_datetime", return_value=self.today
+            ),
+            mock.patch(
+                "daily_brief.sources.weather._fetch_climate_normal_high",
+                new=AsyncMock(return_value=None),
+            ),
+            mock.patch(
+                "daily_brief.sources.weather._fetch_station_monthly_rainfall",
+                new=AsyncMock(
+                    return_value={
+                        "avg_monthly_rainfall": None,
+                        "current_monthly_rainfall": None,
+                    }
+                ),
+            ),
+            mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}),
+        ):
+            asyncio.get_event_loop().run_until_complete(fetch_weather(None, 30.286, -95.566))
 
         self.assertEqual(len(calls), 2)
         self.assertTrue(calls[1].rstrip("/").endswith("forecast"))
@@ -106,22 +114,26 @@ class TestWeatherForecastPayloadNotDict(TestCase):
                 return {"properties": {"forecast": "https://example.com/forecast"}}
             return [{"periods": []}]
 
-        with mock.patch(
-            "daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=side_effect)
-        ), mock.patch(
-            "daily_brief.sources.weather.get_reference_datetime", return_value=today
-        ), mock.patch(
-            "daily_brief.sources.weather._fetch_climate_normal_high",
-            new=AsyncMock(return_value=None),
-        ), mock.patch(
-            "daily_brief.sources.weather._fetch_station_monthly_rainfall",
-            new=AsyncMock(
-                return_value={
-                    "avg_monthly_rainfall": None,
-                    "current_monthly_rainfall": None,
-                }
+        with (
+            mock.patch(
+                "daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=side_effect)
             ),
-        ), mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
+            mock.patch("daily_brief.sources.weather.get_reference_datetime", return_value=today),
+            mock.patch(
+                "daily_brief.sources.weather._fetch_climate_normal_high",
+                new=AsyncMock(return_value=None),
+            ),
+            mock.patch(
+                "daily_brief.sources.weather._fetch_station_monthly_rainfall",
+                new=AsyncMock(
+                    return_value={
+                        "avg_monthly_rainfall": None,
+                        "current_monthly_rainfall": None,
+                    }
+                ),
+            ),
+            mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}),
+        ):
             with mock.patch("daily_brief.sources.weather.logger") as mock_logger:
                 result = asyncio.get_event_loop().run_until_complete(
                     fetch_weather(None, 30.286, -95.566)
@@ -155,26 +167,30 @@ class TestWeatherLakeFetchLoop(TestCase):
 
         mock_extract_lake.called_keys = []
 
-        with mock.patch(
-            "daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=fetch_json_side)
-        ), mock.patch(
-            "daily_brief.sources.weather.get_reference_datetime", return_value=today
-        ), mock.patch(
-            "daily_brief.sources.weather._fetch_climate_normal_high",
-            new=AsyncMock(return_value=None),
-        ), mock.patch(
-            "daily_brief.sources.weather._fetch_station_monthly_rainfall",
-            new=AsyncMock(
-                return_value={
-                    "avg_monthly_rainfall": None,
-                    "current_monthly_rainfall": None,
-                }
+        with (
+            mock.patch(
+                "daily_brief.sources.weather._fetch_json",
+                new=AsyncMock(side_effect=fetch_json_side),
             ),
-        ), mock.patch(
-            "daily_brief.sources.weather.WEATHER_LAKE_URLS", lake_urls
-        ), mock.patch(
-            "daily_brief.sources.weather._extract_lake_value",
-            mock_extract_lake,
+            mock.patch("daily_brief.sources.weather.get_reference_datetime", return_value=today),
+            mock.patch(
+                "daily_brief.sources.weather._fetch_climate_normal_high",
+                new=AsyncMock(return_value=None),
+            ),
+            mock.patch(
+                "daily_brief.sources.weather._fetch_station_monthly_rainfall",
+                new=AsyncMock(
+                    return_value={
+                        "avg_monthly_rainfall": None,
+                        "current_monthly_rainfall": None,
+                    }
+                ),
+            ),
+            mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", lake_urls),
+            mock.patch(
+                "daily_brief.sources.weather._extract_lake_value",
+                mock_extract_lake,
+            ),
         ):
             result = asyncio.get_event_loop().run_until_complete(
                 fetch_weather(None, 30.286, -95.566)
@@ -216,15 +232,19 @@ class TestWeatherSourceConcurrency(TestCase):
             return ([], [])
 
         async def run():
-            with mock.patch(
-                "daily_brief.sources.weather.get_reference_datetime", return_value=today
-            ), mock.patch("daily_brief.sources.weather.fetch_nws_forecast", gated_nws), mock.patch(
-                "daily_brief.sources.weather._fetch_climate_normal_high", gated_climate
-            ), mock.patch(
-                "daily_brief.sources.weather._fetch_station_monthly_rainfall",
-                gated_rainfall,
-            ), mock.patch(
-                "daily_brief.sources.weather.fetch_lakes", gated_lakes
+            with (
+                mock.patch(
+                    "daily_brief.sources.weather.get_reference_datetime", return_value=today
+                ),
+                mock.patch("daily_brief.sources.weather.fetch_nws_forecast", gated_nws),
+                mock.patch(
+                    "daily_brief.sources.weather._fetch_climate_normal_high", gated_climate
+                ),
+                mock.patch(
+                    "daily_brief.sources.weather._fetch_station_monthly_rainfall",
+                    gated_rainfall,
+                ),
+                mock.patch("daily_brief.sources.weather.fetch_lakes", gated_lakes),
             ):
                 task = asyncio.create_task(fetch_weather(None, 30.286, -95.566))
                 await asyncio.gather(

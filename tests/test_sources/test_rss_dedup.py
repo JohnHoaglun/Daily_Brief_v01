@@ -107,10 +107,13 @@ def _feed_run(session, cats, widen=True):
     logs = []
 
     async def _r():
-        with mock.patch(
-            "daily_brief.sources.rss.build_rss_url_with_window",
-            side_effect=lambda q, w: build_rss_url(q),
-        ), mock.patch("daily_brief.pipelines.rss_dedup.datetime", wraps=datetime) as dt_mock:
+        with (
+            mock.patch(
+                "daily_brief.sources.rss.build_rss_url_with_window",
+                side_effect=lambda q, w: build_rss_url(q),
+            ),
+            mock.patch("daily_brief.pipelines.rss_dedup.datetime", wraps=datetime) as dt_mock,
+        ):
             dt_mock.now.return_value = NOW
             if widen:
                 cat_windows = {c[0]: 720 for c in cats}

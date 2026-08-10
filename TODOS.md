@@ -1,9 +1,10 @@
-# TODO: Daily Brief v01 - v1.0.141 (HTML Parsing Offload) ACTIVE
+# TODO: Daily Brief v01 - v1.0.141 (Logging Consolidation) ACTIVE
 
 ## Status
-v1.0.141: BeautifulSoup parsing offloaded to worker thread via asyncio.to_thread. 574/574 passing.
+v1.0.141: Connectivity hardening — TLS verification restored, User-Agent forwarding, safe URL parsing. 585/585 passing.
 - [x] `write_report()` uses temp file + `os.replace();` cleanup on failure.
 - [x] Test: interrupted write leaves previous report byte-for-byte intact.
+- [x] Harden connectivity checks: preserve TLS verification, use production-equivalent headers, parse configured URLs safely. `daily_brief/connectivity.py` — Completed v1.0.141.
 
 ### Agent B — Filesystem-backed run allocator ✅
 - [x] New `daily_brief/lifecycle.py`: `RunAllocator` class with atomic `O_CREAT | O_EXCL` reservation.
@@ -133,7 +134,8 @@ v1.0.141: BeautifulSoup parsing offloaded to worker thread via asyncio.to_thread
   - Completed v1.0.141. BeautifulSoup work extracted to pure `_parse_article_html()` and dispatched via `asyncio.to_thread`. HTTP, semaphore, error handling, and `story.context` assignment remain on the event loop. 5 focused offload tests.
 - [x] Correct climate-normal semantics: accept reference date from caller; updated docstring to describe 1991-2020 climatology, not single-day ERA5.
   - Completed v1.0.125. `_fetch_climate_normal_high(session, lat, lon, reference_date)`. Remaining Wave 2 work: full 30-year averaging endpoint.
-- [ ] Harden connectivity checks: preserve TLS verification, use production-equivalent headers, and parse configured URLs safely. Evidence: `daily_brief/connectivity.py:38-40,71-73,123-126`.
+- [x] Harden connectivity checks: preserve TLS verification, use production-equivalent headers, and parse configured URLs safely. Evidence: `daily_brief/connectivity.py:38-40,71-73,123-126`.
+  - Completed v1.0.141. Removed `ssl=False` from LLM probe. All probes send `USER_AGENT`. RSS query uses `quote_plus` encoding. Lake URL display uses `urlsplit`. 24 tests (11 new). 585/585 passing.
 - [ ] Benchmark concurrent weather/RSS and bounded extraction against the current 50.41s live baseline before adopting settings.
 
 ## Priority 2 - Output Lifecycle And Shared State

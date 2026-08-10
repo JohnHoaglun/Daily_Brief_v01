@@ -9,11 +9,15 @@ echo "║  Daily Brief Test Suite                         ║"
 echo "╚══════════════════════════════════════════════════╝"
 echo ""
 
-# Run all tests
-python3 -m pytest tests/ -v --tb=short --color=yes "$@"
+run_tests() {
+    python3 -m pytest tests/ -v --tb=short --color=yes "$@"
+    return $?
+}
+
+EXIT_CODE=0
+run_tests || EXIT_CODE=$?
 
 echo ""
-EXIT_CODE=$?
 if [ $EXIT_CODE -eq 0 ]; then
     echo "✅ All tests passed."
 else

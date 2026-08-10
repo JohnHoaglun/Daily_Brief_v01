@@ -1,15 +1,19 @@
 """Golden-fixture + edge-case tests for parse_batch_summary_response()."""
 from __future__ import annotations
 
+import importlib.util
 import os
-import sys
 from unittest import TestCase
 
 from daily_brief.llm.summarizer import parse_batch_summary_response
 
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
-sys.path.insert(0, FIXTURES_DIR)
-from parser_golden_fixtures import FIXTURES
+_fixture_spec = importlib.util.spec_from_file_location(
+    "parser_golden_fixtures", os.path.join(FIXTURES_DIR, "parser_golden_fixtures.py")
+)
+_fixture_mod = importlib.util.module_from_spec(_fixture_spec)
+_fixture_spec.loader.exec_module(_fixture_mod)
+FIXTURES = _fixture_mod.FIXTURES
 
 
 def _run(self, fixture):

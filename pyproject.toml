@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools-scm[toml]>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "daily-brief"
+dynamic = ["version"]
+description = "Automated daily news brief generator with weather and lake-level enrichment"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+authors = [
+    {name = "John Hoaglun"},
+]
+dependencies = [
+    "aiohttp",
+    "feedparser",
+    "beautifulsoup4",
+    "openai",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "aioresponses",
+    "pytest-cov",
+]
+
+[project.scripts]
+daily-brief = "daily_brief.__main__:console_entry"
+
+[tool.setuptools.packages.find]
+include = ["daily_brief*"]
+
+[tool.setuptools.package-data]
+daily_brief = ["config.yaml"]
+
+[tool.setuptools.dynamic]
+version = {attr = "daily_brief._version.__version__"}

@@ -1,13 +1,15 @@
 """
-Daily Brief v1.0.138 — Article Extraction
+Daily Brief v1.0.139 — Article Extraction
 =========================================
 Fetch full article text for summary context. ``build_context`` is in utils.py.
 
+HTML parsing is offloaded to a worker thread via asyncio.to_thread.
 Includes per-article fetch/parse timing instrumentation.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from typing import Any
@@ -22,12 +24,28 @@ from daily_brief.utils import is_obituary_title
 logger = logging.getLogger(__name__)
 
 
+def _parse_article_html(html: str) -> str:
+    """Pure synchronous HTML-to-clean-text extraction.
+
+    Removes script/style/nav/header/footer/aside tags, extracts and
+    normalizes text, and truncates to the configured preview length.
+    Safe to run in a worker thread — takes only a string, returns a string.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup(["script", "style", "nav", "header", "footer", "aside"]):
+        tag.decompose()
+    text = soup.get_text(separator=" ", strip=True)
+    return " ".join(text.split())[:LLM_CONTEXT_PREVIEW_CHARS]
+
+
 async def stage_extract_article(story: Any, session: aiohttp.ClientSession) -> None:
     """Fetch full article text and build story context for summarization.
 
     Skips obituary titles, invalid URLs, and Google News tracking links. On
     success, populates ``story.context`` with cleaned text capped at the
     configured preview length.
+
+    HTML parsing is offloaded to a worker thread via ``asyncio.to_thread``.
 
     Sets timing attributes on the story for instrumentation:
     - ``extract_fetch_time_s``: seconds from fetch start to completion
@@ -56,11 +74,7 @@ async def stage_extract_article(story: Any, session: aiohttp.ClientSession) -> N
 
         story.extract_bytes = len(html)
         t_parse = time.monotonic()
-        soup = BeautifulSoup(html, "html.parser")
-        for tag in soup(["script", "style", "nav", "header", "footer", "aside"]):
-            tag.decompose()
-        text = soup.get_text(separator=" ", strip=True)
-        text = " ".join(text.split())[:LLM_CONTEXT_PREVIEW_CHARS]
+        text = await asyncio.to_thread(_parse_article_html, html)
         story.extract_parse_time_s = time.monotonic() - t_parse
         if len(text) >= 50:
             story.context = text

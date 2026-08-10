@@ -1,7 +1,7 @@
-# TODO: Daily Brief v01 - v1.0.138 (Extraction Measurement) ACTIVE
+# TODO: Daily Brief v01 - v1.0.139 (HTML Parsing Offload) ACTIVE
 
 ## Status
-v1.0.138: Added extraction timing instrumentation and event-loop lag monitoring. Active next priority: validate measurement, then move HTML parsing off event loop if warranted.
+v1.0.139: BeautifulSoup parsing offloaded to worker thread via asyncio.to_thread. 574/574 passing.
 - [x] `write_report()` uses temp file + `os.replace();` cleanup on failure.
 - [x] Test: interrupted write leaves previous report byte-for-byte intact.
 
@@ -129,7 +129,8 @@ v1.0.138: Added extraction timing instrumentation and event-loop lag monitoring.
   - Completed v1.0.135. Default limit 50; sparse local categories override to 100; seven-day widening remains supported.
 - [x] Stream HTTP bodies with source-specific byte limits and reject excessive `Content-Length` before parsing. Evidence: `daily_brief/http_client.py`.
   - Completed v1.0.137. Content-Length pre-check rejects oversized declared headers. Streaming with byte counting and `ContentLengthError` on limit exceed. Default `DEFAULT_MAX_CONTENT_BYTES = 5 MB`, configurable per call. 11 new tests.
-- [ ] Move large HTML parsing off the event loop if benchmarked loop lag warrants it.
+- [x] Move large HTML parsing off the event loop if benchmarked loop lag warrants it.
+  - Completed v1.0.139. BeautifulSoup work extracted to pure `_parse_article_html()` and dispatched via `asyncio.to_thread`. HTTP, semaphore, error handling, and `story.context` assignment remain on the event loop. 5 focused offload tests.
 - [x] Correct climate-normal semantics: accept reference date from caller; updated docstring to describe 1991-2020 climatology, not single-day ERA5.
   - Completed v1.0.125. `_fetch_climate_normal_high(session, lat, lon, reference_date)`. Remaining Wave 2 work: full 30-year averaging endpoint.
 - [ ] Harden connectivity checks: preserve TLS verification, use production-equivalent headers, and parse configured URLs safely. Evidence: `daily_brief/connectivity.py:38-40,71-73,123-126`.

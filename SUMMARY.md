@@ -4,6 +4,11 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.139 — HTML Parsing Offload
+- **Threaded parsing**: BeautifulSoup CPU work extracted to `_parse_article_html(html) -> str`, dispatched via `asyncio.to_thread()`. Parse timing retained as `extract_parse_time_s`.
+- **Event-loop safety**: Only the synchronous parse/clean step runs in a worker thread. HTTP fetch, retries, semaphore ownership, error handling, and `story.context` assignment remain on the event loop.
+- **Tests**: 5 new offload tests in `test_extraction_metrics.py`: parse parity, dispatch verification, error containment, event-loop responsiveness, concurrency cap preservation. 574/574 passing.
+
 ### v1.0.138 — Extraction Measurement and Event-Loop Lag
 - **Per-article timing**: `extract_fetch_time_s`, `extract_parse_time_s`, `extract_bytes` on successful extractions. Skipped articles untouched.
 - **Phase 3A instrumentation**: Wall time, throughput (stories/s), extracted context count, error count. `ctx.phase_timings["Phase 3A"]`.

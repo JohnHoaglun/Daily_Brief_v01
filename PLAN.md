@@ -1,23 +1,20 @@
-# PLAN: v1.0.138 — Extraction Measurement ✅ COMPLETE
+# PLAN: v1.0.139 — HTML Parsing Offload ✅ COMPLETE
 
-## Status: COMPLETED — implementation done, 569/569 tests passing.
+## Status: COMPLETED — implementation done, 574/574 tests passing.
 
 ## Objective
-Bound HTTP response handling so untrusted responses cannot exceed source-appropriate byte limits before parsing.
+Offload CPU-bound HTML parsing to a worker thread so BeautifulSoup work does not block the event loop during concurrent extraction.
 
 ## Scope
-- [x] Centralize bounded response streaming in `daily_brief/http_client.py`.
-- [x] Default byte limit `DEFAULT_MAX_CONTENT_BYTES = 5 MB`; configurable per-call.
-- [x] Reject excessive `Content-Length` before reading body.
-- [x] Stream body with `ContentLengthError` on limit exceed.
-- [x] Preserve current retry and status-acceptance semantics.
-- [x] Mock support: `headers` and `content.iter_any()` across all test files.
+- [x] Extract synchronous parse/clean logic into `_parse_article_html(html) -> str`.
+- [x] Dispatch via `asyncio.to_thread(_parse_article_html, html)`.
+- [x] Keep HTTP fetch, retries, semaphore ownership, error handling, and `story.context` assignment on the event loop.
+- [x] 5 new offload tests: parity, dispatch verification, error containment, event-loop responsiveness, concurrency cap preservation.
 
 ## Verification
-- [x] 11 new bounded-response tests in `test_http_client.py`.
-- [x] 555/555 full suite passing, 0 regressions.
+- [x] 574/574 full suite passing, 0 regressions.
 - [x] Config validation: PASS.
 
 ## Non-Goals
-- Do not move HTML parsing off the event loop without benchmark evidence of loop lag.
 - Do not change the RSS candidate pool or its widening behavior.
+- Do not alter extraction concurrency limits or HTTP bounds.

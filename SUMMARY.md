@@ -4,6 +4,13 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.135 — Bounded RSS Candidate Pool Limits + URL hours-to-days fix
+- **Bounded candidate pool**: `RSS_CANDIDATE_POOL_LIMIT` defaults to 50; sparse local categories (`Conroe`, `Montgomery Co`, `Houston Tropical`) override to 100. Prevents unbounded memory growth from wide `when:` queries on feeds with thousands of daily stories.
+- **URL hours-to-days**: `build_rss_url_with_window()` converts hours to whole days via ceiling division (168h→7d, 169h→8d) for Google News `when:` syntax.
+- **Widening cap**: `_widen_category_local()` capped at category's `source_window_hours` — won't inspect a 48h age band for a category with a 24h source window.
+- **Config validator**: fixed `NameError` in `check_categories` (unbound `rss` variable); added type/range validation for `rss.candidate_pool_limit` and per-category `candidate_pool_limit`.
+- **Tests**: new `TestBuildRssUrlWithWindow`, `TestCandidatePoolConfig`, widening cap test; cleaned broken tests from old `TestBuildRssUrl`. 545/545 passing.
+
 ### v1.0.134 — Category-Aware RSS Windows with tiered query windows
 - **Tiered source windows**: `build_rss_url_with_window()` prefixes `when:Xd` (`World/US=24h`, `Texas/Houston=72h`, `Conroe/Montgomery=168h`) to widen candidate pool for sparse local feeds while preserving strict recency filtering via `min_age_hours`.
 - **URL encoding**: all query values encoded via `quote_plus(safe="")` in `build_rss_url()`.

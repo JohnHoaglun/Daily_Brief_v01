@@ -1,9 +1,9 @@
-# PLAN: v1.0.135 — Concurrent Rainfall Sources + Stale TODO Cleanup ✅ COMPLETE
+# PLAN: v1.0.136 — Coder Dispatch Analysis Correction ✅ COMPLETE
 
 ## Objective
-Launch the independent Wunderground station-range request and weather.gov climate-summary request concurrently inside `_fetch_station_monthly_rainfall()`. Reconcile stale completed TODO items.
+Correct the Coder-agent analysis to assign responsibility accurately, document Build's single-file dispatch contract, and establish an evidence-based evaluation plan.
 
-## Status: COMPLETED — all objectives met, v1.0.135 committed & pushed.
+## Status: COMPLETED — all objectives met, v1.0.136 committed & pushed.
 
 ## Scope Decisions
 - [x] Concurrent Wunderground/weather.gov rainfall fetches via `asyncio.gather()`

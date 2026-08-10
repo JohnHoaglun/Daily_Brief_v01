@@ -5,7 +5,7 @@
 **Build agent**: qwen3.6 (27B, 131k context) — orchestrator.
 **Coder agent**: qwen3-8b (FP8, 32k context, non-thinking mode) — delegated execution.
 **Task**: Write unit tests for 3 new features across 3 test files.
-**Result**: Coder failed. All its output contained structural bugs. Build rewrote everything directly. Net waste: ~1 delegation cycle + cleanup overhead.
+**Result**: The delegated output required correction and Build rewrote it. The primary preventable failure was Build orchestration: it dispatched a multi-file, cross-module task to an agent explicitly intended for a scoped, single-file lane, then did not promptly run a syntax check and focused test command before continuing.
 
 ---
 
@@ -22,7 +22,15 @@ Coverage needed:
 Include imports. Follow existing test conventions. Return all test code with correct indentation."
 ```
 
-This task was inherently multi-file (~120 lines across 3 modules). It should have been split into 3 separate delegations.
+This task was inherently multi-file (~120 lines across 3 modules), depended on different fixtures and imports in each file, and was not an appropriate Coder lane. This is a Build assignment and management failure, not evidence that Coder is incapable of understanding the relevant conventions.
+
+The correct decomposition was three independent, self-contained assignments:
+
+1. `tests/test_sources/test_rss.py`: add only URL hours-to-days cases to the named test class.
+2. `tests/test_sources/test_rss_dedup.py`: add only the source-window widening-cap case, reusing the existing helpers named in the prompt.
+3. `tests/test_config.py`: add only global/per-category candidate-pool configuration and validation cases.
+
+Each assignment should have stated the precise insertion point, provided the immediately surrounding source, limited the expected diff, and required an exact test command before return.
 
 ---
 
@@ -91,7 +99,7 @@ async def _fetch_fresh_with_window(...):
 
 **Problem**: The `elif` block was indented to the wrong level. The function's closing brace was at incorrect depth. The second `_widen_category_local()` call appeared after the function ended, making it unreachable code (actually a `SyntaxError`).
 
-**Root cause**: Coder doesn't maintain indentation context well. It generates plausible-looking Python that doesn't parse. No internal syntax checker.
+**Evidence-based conclusion**: The returned edit had invalid structure and had not been syntax-checked. It is not possible to attribute that solely to model capability from one oversized task. The operational failure is that Build accepted the return path without requiring and independently confirming syntax/test verification.
 
 ### Bug 3: Syntax Error in Test Code
 
@@ -148,6 +156,16 @@ The coder's output had test methods nested inside other test methods. A test met
 
 ## Lessons Learned
 
+### Responsibility Matrix
+
+| Observation | Primary owner | Why |
+|---|---|---|
+| One task covered three files with separate fixtures and conventions | Build | Coder's documented lane is a scoped, single-file change. Build chose the task boundary. |
+| The prompt required Coder to reason across source and test modules | Build | Build should have decomposed production and test work, or supplied the minimal local context for one file. |
+| Returned edit contained structural defects | Shared, with Build owning containment | Coder produced the edit, but Build owns validation and must prevent an unverified edit from contaminating the active worktree. |
+| Syntax and focused tests were not run immediately after the lane returned | Build | Verification is an orchestration responsibility even if Coder is also asked to run it. |
+| No demonstrated evidence that 32k context caused the failure | Build analysis | The prior report inferred a model limitation without a controlled, correctly scoped comparison. |
+
 ### For Build (Orchestrator)
 
 1. **Don't delegate multi-file tasks to coder as a single task**. The task had 3 output files, ~120 lines of code, imports from 4 different modules. This exceeds coder's scope. Should have been split into 3 separate `task` calls: one per file.
@@ -157,11 +175,11 @@ The coder's output had test methods nested inside other test methods. A test met
    - Run the tests before accepting
    - Treat "accepted" as provisional — don't commit until verified
 
-3. **Provide the exact file content to coder**. When delegating, include the existing code context that coder needs to understand conventions. Don't assume coder can "read" the file — it may not be able to. Include the relevant section as a string in the prompt.
+3. **Provide the exact local context needed for the one-file lane**. A 32k context limit is not itself an issue for a small, properly scoped change. Build must send the target function/class, relevant imports and fixtures, exact insertion point, and acceptance tests. The prompt should not require Coder to reconstruct conventions across several files.
 
-4. **Be explicit about indentation**. Coder doesn't maintain consistent indentation. Include a rule: "Use exactly 4 spaces per indentation level. No tabs."
+4. **Specify formatting and verify it**. State "Use exactly 4 spaces per indentation level. No tabs" for Python edits, then immediately run syntax and focused tests. One failed oversized task is not enough evidence to declare a general Coder indentation limitation.
 
-5. **Coder is unreliable with function bodies that have nested control flow**. It handles simple if/else okay but breaks with multi-level nesting (if/elif/else inside for loops inside try/except). Prefer delegating tasks that don't require deep nesting.
+5. **Assign Coder only atomic edit units**. Do not infer a general inability to write nested control flow from this incident. Instead, keep its assignment to one named function, test class, or declarative configuration block and verify its output immediately.
 
 6. **Don't trust variable names**. Coder produced `$$candidate_pool_limit_value$$` — a template literal. It also used names like `cat_pool_limit` that weren't defined anywhere. Build should verify that all variables are defined before accepting.
 
@@ -175,31 +193,31 @@ Current coder config (from AGENTS.md):
 **Problems with current config**:
 1. **No syntax checking step** — coder generates code and returns it without verifying it parses.
 2. **No test execution** — coder writes tests but doesn't run pytest to verify.
-3. **32k context is insufficient** for tasks that require understanding existing code conventions (imports, helper functions, test fixtures).
+3. **32k context is a hard boundary, not a demonstrated root cause here**. It is ample for a small, self-contained file edit when Build provides the local context. It becomes a risk only when Build sends a multi-file task or expects Coder to discover many independent conventions.
 4. **"No cross-file dependencies" is unclear** — does this mean coder shouldn't read other files? Can't reference other modules? The boundary is ambiguous.
 5. **Non-thinking mode disables reasoning** — for a 8B model, this means it's generating code without any self-correction pass. The difference between "fast" and "broken" is a single syntax-check step.
 
 ### Recommendations
 
 **For Build**:
-1. Split multi-file tasks into per-file delegations
-2. Run syntax check + unit tests after every coder task
-3. Don't commit coder output until verified
-4. Include existing code context in the prompt, not just file paths
-5. Set a hard stop condition: if coder's output has any syntax errors, don't retry — take over
+1. Treat Coder as a scoped execution worker, not a mini-orchestrator: one file, one cohesive change, one test command.
+2. Split independent file changes into parallel per-file delegations only after confirming that the files do not overlap.
+3. Provide the local source context, exact insertion/replacement location, expected symbols, and acceptance criteria in every task prompt.
+4. Require Coder to run a syntax check and the focused test command; Build independently repeats the focused test before integrating other work.
+5. Do not commit coder output until verified.
+6. On a failed syntax check or focused test, stop the lane, inspect the diff, and either issue one narrowly defined repair task or take over. Do not layer another broad request on a broken working tree.
 
 **For Coder Configuration** (potential AGENTS.md changes):
 1. Add a mandatory "verify step": `python3 -c "import ast; ast.parse(open('file.py').read())"` before returning
 2. Add a mandatory "test step": `python3 -m pytest <file> -v` before returning
-3. Clarify the scope: "Single function in a single file. No cross-module imports beyond what the file already uses."
-4. Consider enabling thinking mode for test-writing tasks (8B model might benefit from a reasoning pass)
-5. Add a max-output rule: "If the task requires more than 20 lines of new code, report back to build — it may need to be split."
+3. Clarify the scope: "One file only; one named function, class, or configuration block; do not modify adjacent files; stop and report if required context is absent."
+4. Require Coder to report the exact files changed, the test command run, and its result, rather than only describing the intended change.
+5. Add a dispatch guard for Build: if a request names more than one file or requires changing production code and tests together, Build must decompose it before delegation.
+6. Evaluate thinking mode only after applying the above workflow controls. Model configuration may help, but it is not the first corrective action because the task violated the documented lane contract.
 
-**Fundamental Question**: Is coder producing *any* value? In this session:
-- Build attempted 1 coder delegation → coder returned broken code → Build rewrote everything → net time wasted
-- If build had done the task directly, same effort, but no wasted cycle
+**Fundamental Question**: Is Coder producing value? This session does not answer that fairly because Build gave it a task outside its stated lane. The evidence shows that this particular dispatch was net-negative. It does not establish that Coder is net-negative for correctly scoped single-file work.
 
-The agent is faster *if* the output is correct. But if the output requires full rewrites, the speed advantage is negated by the review + rewrite overhead. Current coder is faster but not accurate enough to be net-positive for complex tasks. It may be net-positive for trivial tasks (single-line edits, simple config additions) but not for anything requiring understanding of existing code.
+The next evaluation must compare like-for-like work: a few independently scoped, one-file changes with local context and mandatory verification. Measure success rate, review/rework time, and end-to-end elapsed time against Build doing the same task directly.
 
 ---
 
@@ -207,23 +225,22 @@ The agent is faster *if* the output is correct. But if the output requires full 
 
 | Metric | Value |
 |---|---|
-| Coder delegations attempted | 1 |
+| Coder delegations attempted | 1, but outside the documented single-file lane |
 | Coder output accepted as-is | 0 |
-| Lines of coder code that required rewriting | ~50 |
-| Lines of coder code that were syntactically valid | ~15 |
-| Build rewrite effort (lines) | ~80 |
-| Tests written by coder (passed) | 0 |
-| Tests written by coder (failed) | ~8 |
+| Lines of coder code that required rewriting | Approximately 50 |
+| Lines of coder code that were syntactically valid | Approximately 15; estimate, not a measured metric |
+| Build rewrite effort (lines) | Approximately 80 |
+| Tests written by coder (passed) | 0 accepted from this lane |
 | Tests written by Build (passed) | 15 |
-| Time wasted on coder cycle | ~3-5 minutes (delegation + review + rewrite) |
-| Would Build have been faster alone? | Yes — no initial delegation cycle |
+| Time lost in this dispatch | Approximately 3-5 minutes; estimate |
+| Primary owner of the failed dispatch | Build orchestration |
 
 ---
 
 ## Next Steps for Agent Tuning
 
-1. **Try 3 per-file delegations** for the next multi-file task — see if scoped to 1 file, coder performs better.
-2. **Add mandatory verification steps** to coder system prompt.
-3. **Track success rate** over 5 sessions before declaring coder net-positive or net-negative.
-4. **Consider retiring coder** as an automatic routing target if success rate stays below 50% — force build to do direct edits for all coding tasks.
-5. **Evaluate alternative models** for the coder role — could a larger model with thinking mode be more reliable?
+1. **Run a controlled trial**: choose 5 atomic, independent, one-file edits. Give each Coder the needed local source context and one focused test command.
+2. **Use a Build dispatch checklist** before every Coder task: one file, no conflicting parallel writers, clear insertion/replacement point, acceptance test, and maximum expected diff.
+3. **Make verification mandatory**: Coder syntax-checks and runs the focused test; Build independently repeats the focused test before integration.
+4. **Track success rate and rework cost** over the controlled trial before changing models or disabling Coder.
+5. **Only then evaluate model configuration**: if correctly scoped tasks still fail materially, test thinking mode or a different execution model.

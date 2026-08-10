@@ -1,7 +1,7 @@
-# TODO: Daily Brief v01 - v1.0.135 (Concurrent Weather Provider Collection) ✅ COMPLETE
+# TODO: Daily Brief v01 - v1.0.136 (Coder Dispatch Analysis Correction) ✅ COMPLETE
 
 ## Status
-v1.0.135: All four weather providers (NWS, climate, rainfall, lakes) now start concurrently in `fetch_weather()`. Deterministic event-gated concurrency test added. 530/530 tests passing.
+v1.0.136: Corrected the Coder analysis to distinguish Build orchestration failures from Coder limitations. Added a single-file dispatch contract, mandatory verification, and a controlled evaluation plan.
 - [x] `write_report()` uses temp file + `os.replace();` cleanup on failure.
 - [x] Test: interrupted write leaves previous report byte-for-byte intact.
 

@@ -4,6 +4,12 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.136 — Coder Dispatch Analysis Correction
+- **Responsibility corrected**: the failed Coder delegation in v1.0.135 was primarily a Build orchestration failure. Build assigned a three-file cross-module task outside Coder's single-file lane and did not immediately verify the returned edit.
+- **32k context conclusion corrected**: it is a boundary to respect, not demonstrated evidence of a Coder limitation for small self-contained work. Build must provide the local source context, exact insertion point, and acceptance test.
+- **Operating contract**: one file, one cohesive edit, no overlapping writers, mandatory syntax/focused-test verification, and a Build-side repeat of the focused test before integration.
+- **Evaluation plan**: run five independent, correctly scoped one-file lanes and measure acceptance rate, rework time, and total elapsed time before changing models or disabling Coder.
+
 ### v1.0.135 — Bounded RSS Candidate Pool Limits + URL hours-to-days fix
 - **Bounded candidate pool**: `RSS_CANDIDATE_POOL_LIMIT` defaults to 50; sparse local categories (`Conroe`, `Montgomery Co`, `Houston Tropical`) override to 100. Prevents unbounded memory growth from wide `when:` queries on feeds with thousands of daily stories.
 - **URL hours-to-days**: `build_rss_url_with_window()` converts hours to whole days via ceiling division (168h→7d, 169h→8d) for Google News `when:` syntax.

@@ -1,10 +1,7 @@
-# TODO: Daily Brief v01 - v1.0.131 (Stale Reference Cleanup + Registry Fix) ✅ COMPLETE
+# TODO: Daily Brief v01 - v1.0.132 (Concurrent Weather Provider Collection) ✅ COMPLETE
 
 ## Status
-v1.0.131: All stale version references across entire codebase updated to v1.0.131 per versions_locations.md registry. 530/530 tests passing.
-
-## Active Work
-### Agent A — Atomic report writes ✅
+v1.0.132: All four weather providers (NWS, climate, rainfall, lakes) now start concurrently in `fetch_weather()`. Deterministic event-gated concurrency test added. 530/530 tests passing.
 - [x] `write_report()` uses temp file + `os.replace();` cleanup on failure.
 - [x] Test: interrupted write leaves previous report byte-for-byte intact.
 

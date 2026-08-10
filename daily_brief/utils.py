@@ -1,5 +1,5 @@
 """
-Daily Brief v1.0.131 — Utilities
+Daily Brief v1.0.132 — Utilities
 =================================
 Helper functions used throughout the pipeline. No config dependencies.
 """

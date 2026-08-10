@@ -124,45 +124,60 @@ class TestWeatherLakeFetchLoop(TestCase):
 
 
 class TestWeatherSourceConcurrency(TestCase):
-    """weather.py: climate normal and monthly rainfall fetch concurrently."""
+    """weather.py: all four providers (NWS, climate, rainfall, lakes) start concurrently."""
 
-    def test_sources_fetch_concurrently(self):
+    def test_all_four_providers_start_concurrently(self):
         today = datetime(2026, 7, 18, tzinfo=CHICTZ)
-        active_count = [0]
-        max_concurrent = [0]
-        lock = asyncio.Lock()
 
-        async def track_fetch(*a, **k):
-            async with lock:
-                active_count[0] += 1
-                if active_count[0] > max_concurrent[0]:
-                    max_concurrent[0] = active_count[0]
-            await asyncio.sleep(0.02)
-            async with lock:
-                active_count[0] -= 1
-            return None
+        nws_entered = asyncio.Event()
+        climate_entered = asyncio.Event()
+        rainfall_entered = asyncio.Event()
+        lakes_entered = asyncio.Event()
+        release = asyncio.Event()
 
-        async def track_climate(*a, **k):
-            await track_fetch(*a, **k)
+        async def gated_nws(*a, **k):
+            nws_entered.set()
+            await release.wait()
+            return []
+
+        async def gated_climate(*a, **k):
+            climate_entered.set()
+            await release.wait()
             return 75
 
-        async def track_monthly(*a, **k):
-            await track_fetch(*a, **k)
+        async def gated_rainfall(*a, **k):
+            rainfall_entered.set()
+            await release.wait()
             return {"avg_monthly_rainfall": None, "current_monthly_rainfall": None}
 
-        async def fetch_json_side(*a, **k):
-            if not hasattr(fetch_json_side, "cc"):
-                fetch_json_side.cc = 0
-            fetch_json_side.cc += 1
-            return {"properties": {"forecast": "https://example.com/forecast"}} if fetch_json_side.cc == 1 else {"properties": {"periods": []}}
+        async def gated_lakes(*a, **k):
+            lakes_entered.set()
+            await release.wait()
+            return ([], [])
 
-        with mock.patch("daily_brief.sources.weather._fetch_json", new=AsyncMock(side_effect=fetch_json_side)):
+        async def run():
             with mock.patch("daily_brief.sources.weather.get_reference_datetime", return_value=today):
-                with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", track_climate):
-                    with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall", track_monthly):
-                        with mock.patch("daily_brief.sources.weather.WEATHER_LAKE_URLS", {}):
-                            with mock.patch("daily_brief.sources.weather._extract_lake_value"):
-                                result = asyncio.get_event_loop().run_until_complete(fetch_weather(None, 30.286, -95.566))
-                                self.assertGreaterEqual(max_concurrent[0], 2)
-                                self.assertIn("station", result)
-                                self.assertIn("avg_temp_today", result["station"])
+                with mock.patch("daily_brief.sources.weather.fetch_nws_forecast", gated_nws):
+                    with mock.patch("daily_brief.sources.weather._fetch_climate_normal_high", gated_climate):
+                        with mock.patch("daily_brief.sources.weather._fetch_station_monthly_rainfall", gated_rainfall):
+                            with mock.patch("daily_brief.sources.weather.fetch_lakes", gated_lakes):
+                                task = asyncio.create_task(fetch_weather(None, 30.286, -95.566))
+                                await asyncio.gather(
+                                    nws_entered.wait(),
+                                    climate_entered.wait(),
+                                    rainfall_entered.wait(),
+                                    lakes_entered.wait(),
+                                )
+                                release.set()
+                                result = await task
+
+            self.assertTrue(nws_entered.is_set())
+            self.assertTrue(climate_entered.is_set())
+            self.assertTrue(rainfall_entered.is_set())
+            self.assertTrue(lakes_entered.is_set())
+            self.assertIn("forecast", result)
+            self.assertIn("station", result)
+            self.assertIn("avg_temp_today", result["station"])
+            self.assertIn("lakes", result)
+
+        asyncio.get_event_loop().run_until_complete(run())

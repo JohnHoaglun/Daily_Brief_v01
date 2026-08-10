@@ -1,5 +1,5 @@
 """
-Daily Brief v1.0.131 — Test Harness Runner
+Daily Brief v1.0.132 — Test Harness Runner
 ===========================================
 Runs the daily_brief.validation_harness module via subprocess.
 """

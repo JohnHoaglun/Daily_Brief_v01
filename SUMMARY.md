@@ -4,6 +4,11 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.132 — Concurrent weather-provider collection
+- **All four weather providers start concurrently** in `fetch_weather()`: NWS forecast, climate normal, Wunderground rainfall, and lake collection are launched together via single `asyncio.gather(..., return_exceptions=True)`. Replaces sequential NWS → climate/rainfall → lakes orchestration.
+- **Deterministic concurrency test** with event-gated mocks in `test_weather_extended.py` verifies all four providers enter before any completes.
+- **530/530 tests passing**, config validate PASS.
+---
 ### v1.0.131 — Stale reference cleanup + registry fix
 - **All version references** across 24 files updated from v1.0.127 to v1.0.131 per `versions_locations.md` registry.
 - **Registry updated**: added `PLAN.md`, `SUMMARY.md`, `daily_brief/config.py`.

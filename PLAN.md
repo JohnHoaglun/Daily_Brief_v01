@@ -1,9 +1,9 @@
-# PLAN: v1.0.131 — Wave 4 Concurrency Safety ✅ COMPLETE
+# PLAN: v1.0.132 — Wave 4 Concurrency Safety ✅ COMPLETE
 
 ## Objective
 Resolve the four known concurrency-contract failures and add Phase 1/2 parallelism, bounded article extraction, and filesystem-backed run reservations.
 
-## Status: COMPLETED — all objectives met, v1.0.131 committed & pushed.
+## Status: COMPLETED — all objectives met, v1.0.132 committed & pushed.
 
 ## Scope Decisions
 - [x] Filesystem reservation for run identity (cross-process safe)

@@ -1,5 +1,5 @@
 """
-Daily Brief v1.0.131 — Weather Source
+Daily Brief v1.0.132 — Weather Source
 =====================================
 NWS forecast fetch, parse, and orchestration of all weather data sources.
 """
@@ -335,16 +335,18 @@ async def fetch_weather(session: aiohttp.ClientSession, lat: float, lon: float) 
     }
     try:
         # Concurrent collection of all providers
-        nws_result = await fetch_nws_forecast(session, lat, lon, now_ref)
         results = await asyncio.gather(
+            fetch_nws_forecast(session, lat, lon, now_ref),
             _fetch_climate_normal_high(session, lat, lon),
             _fetch_station_monthly_rainfall(session, now_ref),
+            fetch_lakes(session, now_ref),
             return_exceptions=True,
         )
-        climate_high = results[0] if not isinstance(results[0], Exception) else None
-        station_monthly = results[1] if not isinstance(results[1], Exception) else {"avg_monthly_rainfall": None, "current_monthly_rainfall": None}
-        lakes, lake_errors = await fetch_lakes(session, now_ref)
-        logger.debug("[fetch_weather] Completed climate/monthly fetch")
+        nws_result = results[0] if not isinstance(results[0], Exception) else []
+        climate_high = results[1] if not isinstance(results[1], Exception) else None
+        station_monthly = results[2] if not isinstance(results[2], Exception) else {"avg_monthly_rainfall": None, "current_monthly_rainfall": None}
+        lakes, lake_errors = results[3] if not isinstance(results[3], Exception) else ({}, [])
+        logger.debug("[fetch_weather] Completed concurrent fetch")
 
         # Merge all data deterministically
         weather_data = merge_weather_data(nws_result, climate_high, station_monthly, lakes, lake_errors)

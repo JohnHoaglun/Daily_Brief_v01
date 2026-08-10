@@ -1,11 +1,12 @@
 """
-Daily Brief v1.0.132 — Wunderground Sources
+Daily Brief v1.0.133 — Wunderground Sources
 ============================================
 Wunderground station scraping and precipitation parsing.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from datetime import datetime
@@ -13,6 +14,8 @@ from typing import Any, Dict, Optional
 
 import aiohttp
 from bs4 import BeautifulSoup
+
+import asyncio
 
 from daily_brief.config import WUNDERGROUND_MONTHLY_TEMPLATE, WEATHER_WUNDERGROUND_STATION_ID
 from daily_brief.http_client import _fetch_text
@@ -93,7 +96,11 @@ async def _fetch_station_monthly_rainfall(
         station_url,
     )
 
-    station_html = await _fetch_text(session, station_range_url)
+    climate_url = "https://www.weather.gov/hgx/climate_iah_normals_summary"
+    station_html, climate_html = await asyncio.gather(
+        _fetch_text(session, station_range_url),
+        _fetch_text(session, climate_url)
+    )
     if not station_html:
         logger.debug(
             "  Station monthly rainfall: no station monthly range html fetched (%s)",
@@ -103,19 +110,16 @@ async def _fetch_station_monthly_rainfall(
     station_current_rain = _parse_wu_monthly_precipitation(station_html, month_start, month_end)
     if station_current_rain is not None:
         logger.debug("  Station monthly rainfall: parsed station current month value %s", station_current_rain)
-
-    climate_url = "https://www.weather.gov/hgx/climate_iah_normals_summary"
-    html = await _fetch_text(session, climate_url)
-    if not html:
+    if not climate_html:
         logger.debug("  Station monthly rainfall: no climate page HTML fetched")
         return {
             "avg_monthly_rainfall": None,
             "current_monthly_rainfall": station_current_rain,
         }
 
-    text = BeautifulSoup(html, "html.parser").get_text(" ", strip=True)
+    text = BeautifulSoup(climate_html, "html.parser").get_text(" ", strip=True)
     logger.debug("  Station monthly rainfall: climate page text length %s", len(text))
-    parsed = _parse_climate_summary(html, reference.date())
+    parsed = _parse_climate_summary(climate_html, reference.date())
 
     avg_rain = parsed.get("avg_monthly_rainfall")
     curr_rain = parsed.get("current_monthly_rainfall")

@@ -1,7 +1,7 @@
-# TODO: Daily Brief v01 - v1.0.132 (Concurrent Weather Provider Collection) ✅ COMPLETE
+# TODO: Daily Brief v01 - v1.0.133 (Concurrent Weather Provider Collection) ✅ COMPLETE
 
 ## Status
-v1.0.132: All four weather providers (NWS, climate, rainfall, lakes) now start concurrently in `fetch_weather()`. Deterministic event-gated concurrency test added. 530/530 tests passing.
+v1.0.133: All four weather providers (NWS, climate, rainfall, lakes) now start concurrently in `fetch_weather()`. Deterministic event-gated concurrency test added. 530/530 tests passing.
 - [x] `write_report()` uses temp file + `os.replace();` cleanup on failure.
 - [x] Test: interrupted write leaves previous report byte-for-byte intact.
 
@@ -117,7 +117,8 @@ v1.0.132: All four weather providers (NWS, climate, rainfall, lakes) now start c
   - Completed v1.0.125. Return type `Optional[Any]`, docstring warns consumers to validate type. 23 tests in `tests/test_weather_climate_contract.py`.
 
 ## Priority 2 - Performance, Backpressure, And Network Safety
-- [ ] Start independent weather providers concurrently rather than waiting for NWS, then climate/rainfall, then lakes. Evidence: `daily_brief/sources/weather.py:354-362`.
+- [x] Start independent weather providers concurrently rather than waiting for NWS, then climate/rainfall, then lakes.
+  - Completed v1.0.133. `fetch_weather()` launches NWS, climate normal, monthly rainfall, and lake collection together via single `asyncio.gather`. Deterministic 4-provider event-gated test added.
 - [ ] Fetch independent Wunderground and weather.gov rainfall sources concurrently. Evidence: `daily_brief/sources/wunderground.py:96-118`.
 - [x] Start Phase 1 weather and Phase 2 RSS concurrently while retaining separate timing and failure metrics. Evidence: `daily_brief/pipeline.py` — concurrent dispatch via `asyncio.gather()`.
   - Completed v1.0.127.
@@ -132,10 +133,12 @@ v1.0.132: All four weather providers (NWS, climate, rainfall, lakes) now start c
 - [ ] Benchmark concurrent weather/RSS and bounded extraction against the current 50.41s live baseline before adopting settings.
 
 ## Priority 2 - Output Lifecycle And Shared State
-- [ ] Make report/log version allocation atomic for overlapping runs and write reports via temporary file plus `os.replace`. Evidence: `daily_brief/pipeline.py:140-149`, `daily_brief/rendering/report.py:56-68`.
+- [x] Make report/log version allocation atomic for overlapping runs and write reports via temporary file plus `os.replace`.
+  - Completed v1.0.127. `RunAllocator` reserves paired artifacts using `O_CREAT | O_EXCL`; `write_report()` uses temp file and `os.replace()` with failure cleanup.
 - [x] Correct retention ordering so exactly `max_log_versions` reports remain after the new report is written. Evidence: `daily_brief/pipeline.py:297-298`, `daily_brief/rendering/cleanup.py:12-21`.
   - Completed v1.0.119. Moved `cleanup_old_files()` from before to immediately after `write_report()`. 7 new tests.
-- [ ] Replace mutable pipeline module globals (`RUN_LOGFILE`, `PHASE_TIMINGS`, `_llm_client`) with a per-run context to support repeated and concurrent invocation. Evidence: `daily_brief/pipeline.py:60-64`.
+- [x] Replace mutable pipeline module globals (`RUN_LOGFILE`, `PHASE_TIMINGS`, `_llm_client`) with a per-run context to support repeated and concurrent invocation.
+  - Completed v1.0.127. `RunContext` owns per-run logging, timings, output directory, LLM client, and reservation state.
 - [ ] Consolidate direct pipeline logging and standard logging; correct failure output to report `RUN_LOGFILE` directly rather than an unset environment variable. Evidence: `daily_brief/pipeline.py:75-87,283`, `daily_brief/__main__.py:14-36`.
 - [x] Replace hard-coded `77316` in weather subtitle and station labels with config-driven values.
   - Completed v1.0.125. `weather_table.py:44` subtitle generic, station defaults no ZIP. `report.py:153` skip category updated. `WEATHER_SECTION_TITLE` from config.

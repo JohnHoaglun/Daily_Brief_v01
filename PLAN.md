@@ -1,18 +1,21 @@
-# PLAN: v1.0.132 — Wave 4 Concurrency Safety ✅ COMPLETE
+# PLAN: v1.0.133 — Concurrent Rainfall Sources + Stale TODO Cleanup ✅ COMPLETE
 
 ## Objective
-Resolve the four known concurrency-contract failures and add Phase 1/2 parallelism, bounded article extraction, and filesystem-backed run reservations.
+Launch the independent Wunderground station-range request and weather.gov climate-summary request concurrently inside `_fetch_station_monthly_rainfall()`. Reconcile stale completed TODO items.
 
-## Status: COMPLETED — all objectives met, v1.0.132 committed & pushed.
+## Status: COMPLETED — all objectives met, v1.0.133 committed & pushed.
 
 ## Scope Decisions
-- [x] Filesystem reservation for run identity (cross-process safe)
-- [x] Remove dead `widen_category` compatibility wrapper
-- [x] Scope out logging consolidation — deferred to RunContext follow-on
-- [x] Phase 1/2 parallelism in same release
-- [x] Article extraction bounded by configurable `runtime.article_max_concurrency` (default 4)
+- [x] Concurrent Wunderground/weather.gov rainfall fetches via `asyncio.gather()`
+- [x] Exception propagation — no `return_exceptions=True`; outer weather-provider layer handles failure isolation
+- [x] Preserve Wunderground-preferred current-rainfall precedence
+- [x] Convert call-order test mocks to URL-routed mocks
+- [x] Event-gated concurrency contract for rainfall sources
+- [x] Reconcile 3 stale TODO items (weather-provider concurrency, atomic writes, RunContext)
+- [x] Rewrite PLAN.md metadata from stale Wave 4 content
 
 ## Verification Results
-- [x] `tests/test_concurrency_contract.py`: 0 failures (was 4)
-- [x] Full pytest suite: 530/530 passing, 0 regressions
-- [x] Commit: 9b14320, pushed to origin/dev_opencode
+- [x] `tests/test_sources/test_wunderground.py`: all fetch tests URL-routed, concurrency test passes
+- [x] `tests/test_sources/test_weather_extended.py`: 4-provider event-gated concurrency test passes
+- [x] Full pytest suite: 530+ tests passing, 0 regressions
+- [x] Config validation: PASS

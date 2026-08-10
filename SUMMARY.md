@@ -4,7 +4,15 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
-### v1.0.132 — Concurrent weather-provider collection
+### v1.0.133 — Concurrent rainfall sources + tracking cleanup
+- **Concurrent rainfall fetches** in `_fetch_station_monthly_rainfall()`: Wunderground station-range and weather.gov climate-summary now launch simultaneously via `asyncio.gather()`.
+- **Test conversion**: replaced call-order mocks with URL-based dispatch in Wunderground tests. Event-gated concurrency test added (`test_rainfall_fetches_concurrently`).
+- **Stale TODO reconciliation**: weather-provider concurrency (v1.0.132), atomic report/log allocation (v1.0.127), RunContext globals (v1.0.127) now checked off.
+- **PLAN.md rewrite**: stale Wave 4 metadata replaced with accurate release description.
+- **530+ tests passing**, config validate PASS.
+---
+### v1.0.132
+ — Concurrent weather-provider collection
 - **All four weather providers start concurrently** in `fetch_weather()`: NWS forecast, climate normal, Wunderground rainfall, and lake collection are launched together via single `asyncio.gather(..., return_exceptions=True)`. Replaces sequential NWS → climate/rainfall → lakes orchestration.
 - **Deterministic concurrency test** with event-gated mocks in `test_weather_extended.py` verifies all four providers enter before any completes.
 - **530/530 tests passing**, config validate PASS.

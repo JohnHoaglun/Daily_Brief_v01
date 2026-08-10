@@ -86,11 +86,9 @@ class TestParseWuMonthlyPrecipitation(TestCase):
     def test_station_missing(self):
         async def runner():
             ref = datetime(2026, 7, 15)
-            fetch_count = [0]
 
             async def mock_fetch_text(session, url, **kwargs):
-                fetch_count[0] += 1
-                if fetch_count[0] == 1:
+                if "wunderground" in url:
                     return None
                 return "<html><body>climate data</body></html>"
 
@@ -109,11 +107,9 @@ class TestParseWuMonthlyPrecipitation(TestCase):
     def test_climate_missing(self):
         async def runner():
             ref = datetime(2026, 3, 10)
-            call_count = [0]
 
             async def mock_fetch_text(session, url, **kwargs):
-                call_count[0] += 1
-                if call_count[0] == 1:
+                if "wunderground" in url:
                     return "<html><body>Summary March 1, 2026 - March 10, 2026 Precipitation 1.2 in</body></html>"
                 return None
 
@@ -128,11 +124,9 @@ class TestParseWuMonthlyPrecipitation(TestCase):
     def test_out_of_range(self):
         async def runner():
             ref = datetime(2026, 7, 15)
-            call_count = [0]
 
             async def mock_fetch_text(session, url, **kwargs):
-                call_count[0] += 1
-                if call_count[0] == 1:
+                if "wunderground" in url:
                     return None
                 return "<html><body></body></html>"
 
@@ -147,6 +141,54 @@ class TestParseWuMonthlyPrecipitation(TestCase):
             self.assertIsNone(result["current_monthly_rainfall"])
 
         asyncio.get_event_loop().run_until_complete(runner())
+
+    def test_rainfall_fetches_concurrently(self):
+        today = datetime(2026, 7, 15, 10, 0, 0)
+
+        wunderground_entered = asyncio.Event()
+        climate_entered = asyncio.Event()
+        release = asyncio.Event()
+
+        async def gated_wu(session, url, **kwargs):
+            wunderground_entered.set()
+            await release.wait()
+            return "<html><body>Summary July 1, 2026 - July 15, 2026 Precipitation 2.5 in</body></html>"
+
+        async def gated_climate(session, url, **kwargs):
+            climate_entered.set()
+            await release.wait()
+            return "<html><body>climate data</body></html>"
+
+        def mock_parse_climate(html, date):
+            return {"avg_monthly_rainfall": 3.0, "current_monthly_rainfall": 4.1}
+
+        async def run():
+            async def url_route(session, url, **kwargs):
+                if "wunderground" in url:
+                    return await gated_wu(session, url)
+                if "weather.gov" in url:
+                    return await gated_climate(session, url)
+                return None
+
+            with mock.patch("daily_brief.sources.wunderground._fetch_text", new=AsyncMock(side_effect=url_route)):
+                with mock.patch("daily_brief.sources.wunderground._parse_climate_summary", mock_parse_climate):
+                    task = asyncio.create_task(_fetch_station_monthly_rainfall(None, today))
+                    await asyncio.wait_for(
+                        asyncio.gather(
+                            wunderground_entered.wait(),
+                            climate_entered.wait(),
+                        ),
+                        timeout=1,
+                    )
+                    release.set()
+                    result = await task
+
+            self.assertTrue(wunderground_entered.is_set())
+            self.assertTrue(climate_entered.is_set())
+            self.assertEqual(result["avg_monthly_rainfall"], "3.0")
+            self.assertEqual(result["current_monthly_rainfall"], "2.5")
+
+        asyncio.get_event_loop().run_until_complete(run())
 
     def test_retired_metrics_no_op(self):
         async def runner():

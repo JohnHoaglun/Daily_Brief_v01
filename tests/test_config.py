@@ -249,9 +249,11 @@ class TestValidatorScenarios(TestCase):
     def test_full_validation_good_and_bad(self):
         passed, _ = validate_config(_get_cfg())
         self.assertTrue(passed)
-        passed, issues = validate_config({})
+
+        cfg = {**_get_cfg(), "llm": {"summary_options": {"temperature": 5}}}
+        passed, issues = validate_config(cfg)
         self.assertFalse(passed)
-        self.assertGreater(len(issues), 0)
+        self.assertTrue(any("temperature" in i for i in issues))
 
 
 # ---------------------------------------------------------------------------
@@ -347,6 +349,47 @@ class TestArticleMaxConcurrency(TestCase):
         self.assertTrue(any("article_max_concurrency" in i for i in issues))
 
     def test_non_integer_config(self):
-        cfg = {"runtime": {"article_max_concurrency": "four"}}
+        cfg = {"rss": {"candidate_pool_limit": "high"}}
         issues = check_types(cfg)
-        self.assertTrue(any("article_max_concurrency" in i for i in issues))
+        self.assertTrue(any("candidate_pool_limit" in i for i in issues))
+
+
+# ---------------------------------------------------------------------------
+# 8.  Candidate pool limits
+# ---------------------------------------------------------------------------
+
+class TestCandidatePoolConfig(TestCase):
+
+    def test_global_default(self):
+        self.assertEqual(DEFAULTS["rss"]["candidate_pool_limit"], 50)
+
+    def test_typed_coerce_integer(self):
+        r = build_runtime_config({"rss": {"candidate_pool_limit": 75}})
+        self.assertIsInstance(r["RSS_CANDIDATE_POOL_LIMIT"], int)
+        self.assertEqual(r["RSS_CANDIDATE_POOL_LIMIT"], 75)
+
+    def test_typed_coerce_string_fallback(self):
+        r = build_runtime_config({"rss": {"candidate_pool_limit": "high"}})
+        self.assertEqual(r["RSS_CANDIDATE_POOL_LIMIT"], DEFAULTS["rss"]["candidate_pool_limit"])
+
+    def test_valid_range_config(self):
+        for val in (5, 25, 50, 100):
+            cfg = {"rss": {"candidate_pool_limit": val}}
+            issues = check_ranges(cfg)
+            self.assertFalse(any("candidate_pool_limit" in i for i in issues),
+                             f"Value {val} should pass validation")
+
+    def test_below_range_config(self):
+        cfg = {"rss": {"candidate_pool_limit": 0}}
+        issues = check_ranges(cfg)
+        self.assertTrue(any("candidate_pool_limit" in i for i in issues))
+
+    def test_above_range_config(self):
+        cfg = {"rss": {"candidate_pool_limit": 501}}
+        issues = check_ranges(cfg)
+        self.assertTrue(any("candidate_pool_limit" in i for i in issues))
+
+    def test_non_integer_config(self):
+        cfg = {"rss": {"candidate_pool_limit": "high"}}
+        issues = check_types(cfg)
+        self.assertTrue(any("candidate_pool_limit" in i for i in issues))

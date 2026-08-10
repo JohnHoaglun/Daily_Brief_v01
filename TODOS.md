@@ -119,7 +119,8 @@ v1.0.134: All four weather providers (NWS, climate, rainfall, lakes) now start c
 ## Priority 2 - Performance, Backpressure, And Network Safety
 - [x] Start independent weather providers concurrently rather than waiting for NWS, then climate/rainfall, then lakes.
   - Completed v1.0.134. `fetch_weather()` launches NWS, climate normal, monthly rainfall, and lake collection together via single `asyncio.gather`. Deterministic 4-provider event-gated test added.
-- [ ] Fetch independent Wunderground and weather.gov rainfall sources concurrently. Evidence: `daily_brief/sources/wunderground.py:96-118`.
+- [x] Fetch independent Wunderground and weather.gov rainfall sources concurrently.
+  - Completed v1.0.133. Concurrent rainfall fetches in `_fetch_station_monthly_rainfall()`.
 - [x] Start Phase 1 weather and Phase 2 RSS concurrently while retaining separate timing and failure metrics. Evidence: `daily_brief/pipeline.py` — concurrent dispatch via `asyncio.gather()`.
   - Completed v1.0.127.
 - [x] Add configurable bounded concurrency for article extraction; capture and report gathered exceptions.

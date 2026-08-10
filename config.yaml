@@ -42,6 +42,7 @@ rss:
   params: '&hl=en-US&gl=US&ceid=US:en'
   default_age_limit_hours: 24
   default_source_window_hours: 24
+  candidate_pool_limit: 50
   dedupe_window_hours: 24
 network:
   user_agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36
@@ -716,11 +717,13 @@ categories:
   Conroe TX News:
     query: Conroe TX
     source_window_hours: 72
+    candidate_pool_limit: 100
     max_stories: 5
     min_age_hours: 24
   Montgomery County TX News:
     query: Montgomery County TX
     source_window_hours: 168
+    candidate_pool_limit: 100
     max_stories: 5
     min_age_hours: 24
   Houston Tropical Weather:

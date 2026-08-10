@@ -274,3 +274,18 @@ class TestFetchAndDedup(TestCase):
         self.assertNotIn("John Obituary", titles)
         self.assertNotIn("House for sale $200k", titles)
         self.assertNotIn("Too Old", titles)
+
+    def test_widening_no_48h_for_24h_window(self):
+        """With 24h source window, widening cap = 1 day, so range(2, 2) is empty."""
+        from daily_brief.pipelines.rss_dedup import _widen_category_local
+        from unittest.mock import patch
+
+        old_36h = NOW - timedelta(hours=36)
+        candidates = [_entry("At36h", pub_dt=old_36h)]
+
+        with patch("daily_brief.config.CATEGORY_AGE_LIMITS", {"cat": 24}):
+            with patch("daily_brief.config.CATEGORY_SOURCE_WINDOWS", {"cat": 24}):
+                _, _, recovered = _widen_category_local(
+                    "cat", candidates, [], NOW, {"cat": set()}
+                )
+        self.assertEqual(recovered, 0)

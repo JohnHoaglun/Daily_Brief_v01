@@ -113,11 +113,38 @@ class TestBuildRssUrl(TestCase):
         self.assertIn("%26", url)
         self.assertNotIn("&amp;", url)
 
-    def test_windowed_url(self):
+
+# ---------------------------------------------------------------------------
+# 4.  URL hours-to-days conversion
+# ---------------------------------------------------------------------------
+
+class TestBuildRssUrlWithWindow(TestCase):
+    """URL construction converts hours to whole days, rounding up."""
+
+    def test_24h_becomes_1d(self):
+        from daily_brief.sources.rss import build_rss_url_with_window
+        url = build_rss_url_with_window("local news", 24)
+        self.assertIn("when%3A1d", url)
+
+    def test_47h_becomes_2d(self):
+        from daily_brief.sources.rss import build_rss_url_with_window
+        url = build_rss_url_with_window("local news", 47)
+        self.assertIn("when%3A2d", url)
+
+    def test_72h_becomes_3d(self):
         from daily_brief.sources.rss import build_rss_url_with_window
         url = build_rss_url_with_window("local news", 72)
-        self.assertIn("when%3A72d", url)
-        self.assertIn("local+news", url)
+        self.assertIn("when%3A3d", url)
+
+    def test_168h_becomes_7d(self):
+        from daily_brief.sources.rss import build_rss_url_with_window
+        url = build_rss_url_with_window("local news", 168)
+        self.assertIn("when%3A7d", url)
+
+    def test_169h_becomes_8d(self):
+        from daily_brief.sources.rss import build_rss_url_with_window
+        url = build_rss_url_with_window("local news", 169)
+        self.assertIn("when%3A8d", url)
 
 
 # ---------------------------------------------------------------------------
@@ -291,3 +318,36 @@ class TestFetchFeedContract(TestCase):
         combined = " ".join(r.getMessage() for r in records)
         self.assertIn("fail-feed", combined)
         self.assertIn("502", combined)
+
+
+# ---------------------------------------------------------------------------
+# 4.  URL hours-to-days conversion
+# ---------------------------------------------------------------------------
+
+class TestBuildRssUrlWithWindow(TestCase):
+    """URL construction converts hours to whole days, rounding up."""
+
+    def test_24h_becomes_1d(self):
+        from daily_brief.sources.rss import build_rss_url_with_window
+        url = build_rss_url_with_window("local news", 24)
+        self.assertIn("when%3A1d", url)
+
+    def test_47h_becomes_2d(self):
+        from daily_brief.sources.rss import build_rss_url_with_window
+        url = build_rss_url_with_window("local news", 47)
+        self.assertIn("when%3A2d", url)
+
+    def test_72h_becomes_3d(self):
+        from daily_brief.sources.rss import build_rss_url_with_window
+        url = build_rss_url_with_window("local news", 72)
+        self.assertIn("when%3A3d", url)
+
+    def test_168h_becomes_7d(self):
+        from daily_brief.sources.rss import build_rss_url_with_window
+        url = build_rss_url_with_window("local news", 168)
+        self.assertIn("when%3A7d", url)
+
+    def test_169h_becomes_8d(self):
+        from daily_brief.sources.rss import build_rss_url_with_window
+        url = build_rss_url_with_window("local news", 169)
+        self.assertIn("when%3A8d", url)

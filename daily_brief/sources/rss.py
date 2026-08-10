@@ -114,8 +114,13 @@ def build_rss_url(query: str) -> str:
 
 
 def build_rss_url_with_window(query: str, window_hours: int) -> str:
-    """Construct URL with when: prefix to widen the source time window."""
-    windowed_query = f"when:{window_hours}d {query}"
+    """Construct URL with when: prefix to widen the source time window.
+
+    Converts *window_hours* to whole days (ceiling division) for the Google News
+    ``when:<days>d`` query syntax.
+    """
+    days = -(-window_hours // 24)
+    windowed_query = f"when:{days}d {query}"
     encoded = quote_plus(windowed_query, safe="")
     return f"{RSS_BASE}{encoded}{RSS_PARAMS}"
 

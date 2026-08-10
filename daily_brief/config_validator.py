@@ -190,13 +190,10 @@ def check_types(config: dict):
         issues.append("'rss.base_url' must be a non-empty string")
     if not _is_non_empty_str(_get(rss, "params")):
         issues.append("'rss.params' must be a non-empty string")
-    for int_k in ("default_age_limit_hours", "dedupe_window_hours"):
+    for int_k in ("default_age_limit_hours", "dedupe_window_hours", "default_source_window_hours", "candidate_pool_limit"):
         val = _get(rss, int_k)
         if val is not None and not _is_int(val):
             issues.append(f"'rss.{int_k}' must be an integer")
-    dsw = _get(rss, "default_source_window_hours")
-    if dsw is not None and not _is_int(dsw):
-        issues.append("'rss.default_source_window_hours' must be an integer")
 
     # runtime
     runtime = _get(config, "runtime", {})
@@ -316,10 +313,14 @@ def check_ranges(config: dict):
 
     # rss hours
     rss = _get(config, "rss", {})
-    for hk in ("default_age_limit_hours", "dedupe_window_hours"):
+    for hk in ("default_age_limit_hours", "dedupe_window_hours", "candidate_pool_limit"):
         val = _get(rss, hk)
-        if require_int(f"rss.{hk}", val) and (val <= 0 or val > 168):
-            issues.append(f"'rss.{hk}' should be in (0, 168]: {val}")
+        if hk == "candidate_pool_limit":
+            if require_int(f"rss.{hk}", val) and (val < 1 or val > 500):
+                issues.append(f"'rss.{hk}' should be in [1, 500]: {val}")
+        else:
+            if require_int(f"rss.{hk}", val) and (val <= 0 or val > 168):
+                issues.append(f"'rss.{hk}' should be in (0, 168]: {val}")
 
     # runtime
     runtime = _get(config, "runtime", {})
@@ -411,12 +412,26 @@ def check_categories(config: dict):
         if dsw is not None and not _is_int(dsw):
             issues.append("'rss.default_source_window_hours' must be an integer")
 
-    # category_priority — every entry must exist in categories
-    cp = _get(config, "category_priority", [])
-    if isinstance(cp, list):
-        for entry in cp:
-            if entry not in cat_keys:
-                issues.append(f"'category_priority' entry '{entry}' not found in categories")
+        # candidate_pool_limit check (per-category, not per global rss)
+        cpl = cinfo.get("candidate_pool_limit")
+        if cpl is not None:
+            if not _is_int(cpl):
+                issues.append(f"'categories.{cname}.candidate_pool_limit' must be an integer")
+            elif cpl < 1 or cpl > 500:
+                issues.append(f"'categories.{cname}.candidate_pool_limit' must be in [1, 500]")
+
+        # category_priority — every entry must exist in categories
+        cp = _get(config, "category_priority", [])
+        if isinstance(cp, list):
+            for entry in cp:
+                if entry not in cat_keys:
+                    issues.append(f"'category_priority' entry '{entry}' not found in categories")
+
+    # rss.candidate_pool_limit (global)
+    rss = _get(config, "rss", {})
+    if "candidate_pool_limit" in rss:
+        if not _is_int(rss["candidate_pool_limit"]):
+            issues.append("'rss.candidate_pool_limit' must be an integer")
 
     # category_boosts — keys must exist in categories
     cb = _get(config, "category_boosts", {})

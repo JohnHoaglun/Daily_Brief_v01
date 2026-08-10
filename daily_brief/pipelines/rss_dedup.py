@@ -30,7 +30,10 @@ async def fetch_and_dedup(
             deduped: list of (title, link, snippet, pub_dt, category) tuples
             stats: dict with counts
     """
-    from daily_brief.config import CATEGORY_AGE_LIMITS, CATEGORY_SOURCE_WINDOWS, DEFAULT_AGE_LIMIT_HOURS, TIMEZONE as CFG_TIMEZONE
+    from daily_brief.config import (
+        CATEGORY_AGE_LIMITS, CATEGORY_SOURCE_WINDOWS, CATEGORY_CANDIDATE_POOL_LIMITS,
+        DEFAULT_AGE_LIMIT_HOURS, TIMEZONE as CFG_TIMEZONE,
+    )
     from daily_brief.sources.rss import build_rss_url, build_rss_url_with_window, fetch_feed, normalize_title
     try:
         active_tz = ZoneInfo(CFG_TIMEZONE)
@@ -40,16 +43,20 @@ async def fetch_and_dedup(
 
     now_ct = datetime.now(active_tz)
 
-    rss_items = [(c[0], build_rss_url_with_window(c[1], CATEGORY_SOURCE_WINDOWS.get(c[0], 24)), c[2]) for c in categories if c[1]]
+    rss_items = [
+        (c[0], build_rss_url_with_window(c[1], CATEGORY_SOURCE_WINDOWS.get(c[0], 24)),
+         c[2], CATEGORY_CANDIDATE_POOL_LIMITS.get(c[0], 50))
+        for c in categories if c[1]
+    ]
     log_fn(f"\n[Phase 2] Fetching {len(rss_items)} RSS feeds...")
 
     log_fn("  [DEBUG] Categories being fetched:")
-    for name, url, max_stories in rss_items:
-        log_fn(f"    {name}: {url[:100]}... (max: {max_stories})")
+    for name, url, max_stories, pool_limit in rss_items:
+        log_fn(f"    {name}: {url[:100]}... (max: {max_stories}, pool: {pool_limit})")
 
-    # Concurrent fetch — pass None so fetch_feed returns full candidate pool
+    # Concurrent fetch — pass configured pool limit
     all_results = await asyncio.gather(
-        *(fetch_feed(session, n, u, None) for n, u, m in rss_items),
+        *(fetch_feed(session, n, u, pool_limit) for n, u, ms, pool_limit in rss_items),
         return_exceptions=True,
     )
 
@@ -253,7 +260,8 @@ def _widen_category_local(
     seen = seen_map.setdefault(cat_name, set())
 
     max_window_hrs = CATEGORY_SOURCE_WINDOWS.get(cat_name, 24)
-    for widen_days in range(2, min(max(3, max_window_hrs // 24), 8)):
+    max_widen_days = max_window_hrs // 24
+    for widen_days in range(2, min(max_widen_days + 1, 8)):
         widen_hours = widen_days * 24
 
         for title, link, snippet, pub_dt in candidates:

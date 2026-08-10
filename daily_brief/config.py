@@ -46,6 +46,7 @@ DEFAULTS = {
         "params": "&hl=en-US&gl=US&ceid=US:en",
         "default_age_limit_hours": 24,
         "default_source_window_hours": 24,
+        "candidate_pool_limit": 50,
         "dedupe_window_hours": 24,
     },
     "network": {
@@ -121,7 +122,9 @@ def build_runtime_config(raw_cfg):
     categories = []
     category_age_limits = {}
     category_source_windows = {}
+    category_candidate_pool_limits = {}
     default_window = int(number("rss.default_source_window_hours", 24, int))
+    default_pool_limit = int(number("rss.candidate_pool_limit", 50, int))
     for cat_name, cat_info in categories_raw.items():
         if not isinstance(cat_info, dict):
             continue
@@ -131,6 +134,8 @@ def build_runtime_config(raw_cfg):
         category_age_limits[cat_name] = cat_info.get("min_age_hours", 24)
         window_val = cat_info.get("source_window_hours", default_window)
         category_source_windows[cat_name] = int(window_val) if isinstance(window_val, int) and not isinstance(window_val, bool) else default_window
+        pool_val = cat_info.get("candidate_pool_limit", default_pool_limit)
+        category_candidate_pool_limits[cat_name] = int(pool_val) if isinstance(pool_val, int) and not isinstance(pool_val, bool) else default_pool_limit
 
     prompts = value("prompts", {}, dict)
     summary_options = dict(value("llm.summary_options", DEFAULTS["llm"]["summary_options"], dict))
@@ -189,6 +194,8 @@ def build_runtime_config(raw_cfg):
         "CATEGORIES": categories,
         "CATEGORY_AGE_LIMITS": category_age_limits,
         "CATEGORY_SOURCE_WINDOWS": category_source_windows,
+        "CATEGORY_CANDIDATE_POOL_LIMITS": category_candidate_pool_limits,
+        "RSS_CANDIDATE_POOL_LIMIT": default_pool_limit,
         "CATEGORY_AGE_LIMITS_EFFECTIVE": category_age_limits,
         "FILTERING_KEYWORDS": value("filtering_keywords", {}, dict),
         "TAGGING_MAPPINGS": value("tagging_mappings", {}, dict),
@@ -245,6 +252,8 @@ CATEGORIES_RAW = _RUNTIME_CONFIG["CATEGORIES_RAW"]
 CATEGORIES = _RUNTIME_CONFIG["CATEGORIES"]
 CATEGORY_AGE_LIMITS = _RUNTIME_CONFIG["CATEGORY_AGE_LIMITS"]
 CATEGORY_SOURCE_WINDOWS = _RUNTIME_CONFIG["CATEGORY_SOURCE_WINDOWS"]
+CATEGORY_CANDIDATE_POOL_LIMITS = _RUNTIME_CONFIG["CATEGORY_CANDIDATE_POOL_LIMITS"]
+RSS_CANDIDATE_POOL_LIMIT = _RUNTIME_CONFIG["RSS_CANDIDATE_POOL_LIMIT"]
 CATEGORY_AGE_LIMITS_EFFECTIVE = _RUNTIME_CONFIG["CATEGORY_AGE_LIMITS_EFFECTIVE"]
 FILTERING_KEYWORDS = _RUNTIME_CONFIG["FILTERING_KEYWORDS"]
 TAGGING_MAPPINGS = _RUNTIME_CONFIG["TAGGING_MAPPINGS"]

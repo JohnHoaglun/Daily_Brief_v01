@@ -176,9 +176,18 @@ _SAMPLE_RSS = """<?xml version="1.0" encoding="UTF-8"?>
 """
 
 
+class _RssContent:
+    def __init__(self, data: str):
+        self._data = data.encode("utf-8")
+    async def iter_any(self):
+        yield self._data
+
+
 def _fake_session(rss_text: str):
     class FakeResp:
         status = 200
+        headers = {}
+        content = _RssContent(rss_text)
         async def text(self):
             return rss_text
     class _ACM:
@@ -244,6 +253,8 @@ class TestFetchFeedContract(TestCase):
         headers_called = {}
         class FakeResp:
             status = 200
+            headers = {}
+            content = _RssContent(_SAMPLE_RSS)
             async def text(self):
                 return _SAMPLE_RSS
         class _ACM:
@@ -274,6 +285,8 @@ class TestFetchFeedContract(TestCase):
             with self.subTest(status=status_code):
                 class FakeResp:
                     status = status_code
+                    headers = {}
+                    content = _RssContent(_SAMPLE_RSS)
                     async def text(self):
                         return _SAMPLE_RSS
                 class _ACM:
@@ -298,6 +311,8 @@ class TestFetchFeedContract(TestCase):
         import logging
         class FakeResp:
             status = 502
+            headers = {}
+            content = _RssContent("error")
             async def text(self):
                 return "error"
         class _ACM:

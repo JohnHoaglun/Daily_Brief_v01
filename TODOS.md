@@ -1,7 +1,7 @@
-# TODO: Daily Brief v01 - v1.0.136 (Coder Dispatch Analysis Correction) ✅ COMPLETE
+# TODO: Daily Brief v01 - v1.0.137 (HTTP Body-Size Safety) ACTIVE
 
 ## Status
-v1.0.136: Corrected the Coder analysis to distinguish Build orchestration failures from Coder limitations. Added a single-file dispatch contract, mandatory verification, and a controlled evaluation plan.
+v1.0.137: RSS candidate-pool limits are complete. Active next priority: stream HTTP bodies with source-specific byte limits and reject excessive `Content-Length` before parsing.
 - [x] `write_report()` uses temp file + `os.replace();` cleanup on failure.
 - [x] Test: interrupted write leaves previous report byte-for-byte intact.
 
@@ -125,8 +125,10 @@ v1.0.136: Corrected the Coder analysis to distinguish Build orchestration failur
   - Completed v1.0.127.
 - [x] Add configurable bounded concurrency for article extraction; capture and report gathered exceptions.
   - Completed v1.0.127. `asyncio.Semaphore(ARTICLE_MAX_CONCURRENCY)` around `stage_extract_article`. Configurable via `runtime.article_max_concurrency`, default 4.
-- [ ] Add defensible RSS candidate-pool limits that still support seven-day widening. Evidence: `daily_brief/sources/rss.py:134-155`.
-- [ ] Stream HTTP bodies with source-specific byte limits and reject excessive `Content-Length` before parsing. Evidence: `daily_brief/http_client.py:80-84`, `daily_brief/sources/article.py:45-49`.
+- [x] Add defensible RSS candidate-pool limits that still support seven-day widening. Evidence: `daily_brief/sources/rss.py:134-155`.
+  - Completed v1.0.135. Default limit 50; sparse local categories override to 100; seven-day widening remains supported.
+- [x] Stream HTTP bodies with source-specific byte limits and reject excessive `Content-Length` before parsing. Evidence: `daily_brief/http_client.py`.
+  - Completed v1.0.137. Content-Length pre-check rejects oversized declared headers. Streaming with byte counting and `ContentLengthError` on limit exceed. Default `DEFAULT_MAX_CONTENT_BYTES = 5 MB`, configurable per call. 11 new tests.
 - [ ] Move large HTML parsing off the event loop if benchmarked loop lag warrants it.
 - [x] Correct climate-normal semantics: accept reference date from caller; updated docstring to describe 1991-2020 climatology, not single-day ERA5.
   - Completed v1.0.125. `_fetch_climate_normal_high(session, lat, lon, reference_date)`. Remaining Wave 2 work: full 30-year averaging endpoint.

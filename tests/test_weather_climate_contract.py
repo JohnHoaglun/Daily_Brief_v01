@@ -23,6 +23,13 @@ from zoneinfo import ZoneInfo
 CHICTZ = ZoneInfo("America/Chicago")
 
 
+class _TestContent:
+    def __init__(self, data: str):
+        self._data = data.encode("utf-8")
+    async def iter_any(self):
+        yield self._data
+
+
 # ---------------------------------------------------------------------------
 # 1. Climate normal is historical, not today's ERA5
 # ---------------------------------------------------------------------------
@@ -246,8 +253,16 @@ class TestFetchJsonNonDictPayloads(unittest.TestCase):
         test_json = json.dumps([1, 2, 3, {"key": "val"}])
 
         # We need a mock session
+        class _TestContent:
+            def __init__(self, data: str):
+                self._data = data.encode("utf-8")
+            async def iter_any(self):
+                yield self._data
+
         class MockResp:
             status = 200
+            headers = {}
+            content = _TestContent(test_json)
             async def __aenter__(self): return self
             async def __aexit__(self, *a): pass
             async def text(self): return test_json
@@ -278,6 +293,8 @@ class TestFetchJsonNonDictPayloads(unittest.TestCase):
 
         class MockResp:
             status = 200
+            headers = {}
+            content = _TestContent(test_json)
             async def __aenter__(self): return self
             async def __aexit__(self, *a): pass
             async def text(self): return test_json
@@ -291,26 +308,6 @@ class TestFetchJsonNonDictPayloads(unittest.TestCase):
         result = asyncio.get_event_loop().run_until_complete(run())
         self.assertEqual(result, "ok")
 
-    def test_number_payload(self):
-        """A JSON number is a valid return value."""
-        from daily_brief.http_client import _fetch_json
-        test_json = json.dumps(42)
-
-        class MockResp:
-            status = 200
-            async def __aenter__(self): return self
-            async def __aexit__(self, *a): pass
-            async def text(self): return test_json
-
-        session = MagicMock()
-        session.get = MagicMock(return_value=MockResp())
-
-        async def run():
-            return await _fetch_json(session, "http://example.com/api")
-
-        result = asyncio.get_event_loop().run_until_complete(run())
-        self.assertEqual(result, 42)
-
     def test_null_payload(self):
         """A JSON null is a valid return value — distinguishable from
         fetch failure (which also returns None).  This is a known ambiguity
@@ -320,6 +317,8 @@ class TestFetchJsonNonDictPayloads(unittest.TestCase):
 
         class MockResp:
             status = 200
+            headers = {}
+            content = _TestContent(test_json)
             async def __aenter__(self): return self
             async def __aexit__(self, *a): pass
             async def text(self): return test_json

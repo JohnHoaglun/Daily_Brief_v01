@@ -1,11 +1,11 @@
-# Project: Daily Brief v01 (v1.0.136)
+# Project: Daily Brief v01 (v1.0.137)
 
 ## Purpose
 Daily Brief aggregates RSS stories from configured categories, enriches them with weather and lake data, summarizes them through a vLLM OpenAI-compatible endpoint, and writes a Markdown report.
 
 ## Current Status
 - Modular refactoring P0-P6 is complete.
-- Test baseline: 545/545 tests passing; config validate PASS (v1.0.136).
+- Test baseline: 545/545 tests passing; config validate PASS (v1.0.135).
 - Current release/version locations are tracked in `versions_locations.md` and must be checked before every commit.
 - Performance baseline (v1.0.67): 105–114s internal, 137–147s wall-clock. Phase 3 (LLM) dominates at ~96–100s.
 - Phase A complete (v1.0.67). Phase B complete (v1.0.88). Phase C complete (v1.0.97).
@@ -33,6 +33,7 @@ Daily Brief aggregates RSS stories from configured categories, enriches them wit
 - **Concurrent weather-provider collection** (v1.0.134): `fetch_weather()` launches NWS, climate, rainfall, lakes concurrently. `_fetch_station_monthly_rainfall()` also launches Wunderground/weather.gov rainfall requests simultaneously. Added `tests/test_concurrency_contract.py` (669 lines, 13 tests) documenting the Wave 4 concurrency bugs: (1) mutable module globals (`RUN_LOGFILE`, `PHASE_TIMINGS`, `OUTPUT_DIR`, `_llm_client`) shared across concurrent runs, (2) report/log version allocation not atomic — concurrent runs collide on v1, (3) `write_report()` writes directly to final path without temp file + `os.replace()`, (4) Phase 1 and Phase 2 run serially instead of concurrently, (5) article extraction via `asyncio.gather()` is unbounded with no concurrency limit, (6) pipeline global state leaks between concurrent runs. 4 tests fail (documenting bugs), 9 pass (contract baseline).
 - **Pipeline exit-code contract** (v1.0.115): `pipeline.main()` returns explicit integer exit codes for all outcomes: 0=SUCCESS(PASS), 1=WARNING(WARN/CONFIG), 2=FAILURE(FAIL/VALIDATION), 3=ERROR(ERROR/SKIPPED). Replaced internal `sys.exit(1)` with consistent return contract. `__main__.py` propagates via `sys.exit(asyncio.run(main()))`. Added 7 new tests. 991/991 passing, config validate PASS, live smoke exit 1 (WARN).
 - **Summary recovery correctness** (v1.0.116): Extended `_is_valid_summary()` as the sole quality gate for batch and individual LLM recovery — now also rejects refused output and internal fallback markers ([Auto], [Summary Unavailable]). Individual recovery uses `_is_valid_summary(retry, s.title)` instead of a weaker inline condition. [Auto] headline output no longer incorrectly increments `individual_recovered`. 20 new tests (11 unit, 9 recovery integration). 1009/1009 passing, config validate PASS, live smoke exit 1 (WARN, 52.68s, 76 stories).
+- **RSS candidate-pool limits** (v1.0.135): complete. The default is 50, sparse local categories use 100, and seven-day widening remains supported.
 
 ## Architecture
 - `daily_brief/pipeline.py`: asynchronous pipeline orchestration.
@@ -58,4 +59,4 @@ Daily Brief aggregates RSS stories from configured categories, enriches them wit
 - `SUMMARY.md`: completed, dated change history.
 
 ## Current Priorities
-All Phases A–C and P0–P1 items complete. Active P2 work tracked in `TODOS.md`.
+All Phases A–C and P0–P1 items complete. RSS candidate-pool work is complete. The active P2 item is HTTP body-size safety: stream response bodies with source-specific byte limits and reject excessive `Content-Length` before parsing.

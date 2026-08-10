@@ -1,7 +1,12 @@
 """
-Daily Brief v1.0.136 — HTTP Client
+Daily Brief v1.0.137 — HTTP Client
 ==================================
 Async HTTP fetch functions with session management.
+
+Bounded response handling:
+- Pre-check Content-Length header; reject before reading body if it exceeds the limit.
+- Stream body with byte counting for chunked or missing-length responses.
+- Default limit 5 MB; configurable per call via max_bytes.
 """
 
 from __future__ import annotations
@@ -20,6 +25,9 @@ HTTP_RETRY_ATTEMPTS = 3
 HTTP_RETRY_BACKOFF = [0.25, 0.5]
 HTTP_RETRYABLE_STATUSES = {429, 502, 503, 504}
 HTTP_RETRYABLE_EXCEPTIONS = (asyncio.TimeoutError, aiohttp.ClientError)
+
+
+DEFAULT_MAX_CONTENT_BYTES = 5 * 1024 * 1024  # 5 MB
 
 
 _DEFAULT_USER_AGENT = "DailyBrief/1.0"
@@ -48,6 +56,35 @@ def _should_retry(exc_or_status) -> bool:
     return isinstance(exc_or_status, HTTP_RETRYABLE_EXCEPTIONS)
 
 
+def _exceeds_content_length_header(resp: aiohttp.ClientResponse, limit: int) -> bool:
+    """Return True if the Content-Length header declares a body larger than *limit*."""
+    content_length = resp.headers.get("Content-Length")
+    if content_length is None:
+        return False
+    try:
+        return int(content_length) > limit
+    except (ValueError, TypeError):
+        return False
+
+
+async def _read_body_bounded(resp: aiohttp.ClientResponse, limit: int) -> str:
+    """Stream the response body, stopping at *limit* bytes.
+
+    Raises ``aiohttp.http_exceptions.ContentLengthError`` if the body exceeds *limit*.
+    """
+    parts: list[bytes] = []
+    total = 0
+    chunk_size = 8192
+    async for chunk in resp.content.iter_any():
+        total += len(chunk)
+        if total > limit:
+            raise aiohttp.http_exceptions.ContentLengthError(
+                f"Response body exceeded limit of {limit} bytes at {total} bytes"
+            )
+        parts.append(chunk)
+    return b"".join(parts).decode("utf-8", errors="replace")
+
+
 async def _request_with_retry(
     session: aiohttp.ClientSession,
     url: str,
@@ -56,9 +93,16 @@ async def _request_with_retry(
     status_predicate=None,
     max_attempts: int = HTTP_RETRY_ATTEMPTS,
     backoff: Sequence = None,
+    max_bytes: int = DEFAULT_MAX_CONTENT_BYTES,
     **params: Any,
 ):
     """Fetch URL with bounded retry on transient failures.
+
+    Args:
+        max_bytes: maximum response body size in bytes.  Declared Content-Length
+            above this is rejected without reading the body.  For chunked or
+            missing-length responses the body is streamed and the request is
+            aborted when the limit is exceeded.
 
     Returns:
         response_text: str | None (None on failure/exhausted)
@@ -81,7 +125,15 @@ async def _request_with_retry(
                 status = resp.status
                 last_status = status
                 if _is_status_accepted(status, status_predicate):
-                    return await resp.text(), status, attempt + 1
+                    # Pre-check declared Content-Length
+                    if _exceeds_content_length_header(resp, max_bytes):
+                        logger.warning(
+                            "[http oversized] %s Content-Length %s exceeds %d — rejected",
+                            url, resp.headers.get("Content-Length", "unknown"), max_bytes,
+                        )
+                        return None, status, attempt + 1
+                    body = await _read_body_bounded(resp, max_bytes)
+                    return body, status, attempt + 1
                 if attempt < max_attempts - 1 and _should_retry(status):
                     delay = backoff[attempt] if attempt < len(backoff) else backoff[-1]
                     logger.warning(f"[http retry] attempt {attempt + 1}/{max_attempts} — {url} status {status}, retrying in {delay}s")
@@ -98,6 +150,9 @@ async def _request_with_retry(
                 continue
             logger.error(f"[http error] {url}: {exc} (attempt {attempt + 1}/{max_attempts})")
             return None, None, attempt + 1
+        except aiohttp.http_exceptions.ContentLengthError as exc:
+            logger.error(f"[http oversized] {url}: {exc} (attempt {attempt + 1}/{max_attempts})")
+            return None, last_status, attempt + 1
         except Exception as exc:
             logger.error(f"[http error] {url}: {exc} (attempt {attempt + 1}/{max_attempts})")
             return None, last_status, attempt + 1
@@ -110,6 +165,7 @@ async def _fetch_json(
     url: str,
     user_agent: str = _DEFAULT_USER_AGENT,
     timeout: int = 15,
+    max_bytes: int = DEFAULT_MAX_CONTENT_BYTES,
     **params: Any,
 ) -> Optional[Any]:
     """Fetch JSON from URL, return the parsed value or None on failure.
@@ -122,7 +178,7 @@ async def _fetch_json(
     """
     try:
         text, status, _ = await _request_with_retry(
-            session, url, user_agent=user_agent, timeout=timeout, **params
+            session, url, user_agent=user_agent, timeout=timeout, max_bytes=max_bytes, **params
         )
         if text is not None:
             return await _safe_json_parse(text)
@@ -137,6 +193,7 @@ async def _fetch_text(
     url: str,
     user_agent: str = _DEFAULT_USER_AGENT,
     timeout: int = 15,
+    max_bytes: int = DEFAULT_MAX_CONTENT_BYTES,
     **params: Any,
 ) -> Optional[str]:
     """Fetch text from URL, return string or None on failure.
@@ -144,7 +201,7 @@ async def _fetch_text(
     Accepts arbitrary **params forwarded to session.get().
     """
     return (await _request_with_retry(
-        session, url, user_agent=user_agent, timeout=timeout, **params
+        session, url, user_agent=user_agent, timeout=timeout, max_bytes=max_bytes, **params
     ))[0]
 
 

@@ -2,17 +2,42 @@
 
 import asyncio
 import json
+import io
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
+
+import aiohttp
+
+
+class MockContent:
+    """Mock aiohttp.response.content supporting iter_any()."""
+
+    def __init__(self, data: str):
+        self._data = data.encode("utf-8")
+        self._position = 0
+
+    async def iter_any(self):
+        chunk_size = 4
+        start = 0
+        while start < len(self._data):
+            end = min(start + chunk_size, len(self._data))
+            yield self._data[start:end]
+            start = end
 
 
 class MockResp:
     """Mock aiohttp response context manager."""
 
-    def __init__(self, status=200, text="ok", exception=None):
+    def __init__(self, status=200, text="ok", exception=None, content_length=None):
         self.status = status
         self._text = text
         self._exception = exception
+        self.headers = {}
+        if content_length is not None:
+            self.headers["Content-Length"] = str(content_length)
+
+        async_iter = MockContent(text)
+        self.content = async_iter
 
     async def __aenter__(self):
         if self._exception:
@@ -287,6 +312,133 @@ class TestSafeJsonParse(unittest.TestCase):
         self.assertIsNone(result)
         result = self._loop(fn(""))
         self.assertIsNone(result)
+
+
+class TestExceedsContentLengthHeader(unittest.TestCase):
+    """_exceeds_content_length_header — pre-check logic."""
+
+    def _import(self):
+        from daily_brief.http_client import _exceeds_content_length_header
+        return _exceeds_content_length_header
+
+    def test_no_header(self):
+        fn = self._import()
+        resp = MockResp(status=200, text="hello")
+        self.assertFalse(fn(resp, limit=100))
+
+    def test_under_limit(self):
+        fn = self._import()
+        resp = MockResp(status=200, text="hello", content_length=5)
+        self.assertFalse(fn(resp, limit=10))
+
+    def test_at_limit(self):
+        fn = self._import()
+        resp = MockResp(status=200, text="hello", content_length=10)
+        self.assertFalse(fn(resp, limit=10))
+
+    def test_over_limit(self):
+        fn = self._import()
+        resp = MockResp(status=200, text="hello", content_length=15)
+        self.assertTrue(fn(resp, limit=10))
+
+
+class TestRequestWithRetryBounded(unittest.TestCase):
+    """_request_with_retry — bounded content-length handling."""
+
+    def _import(self):
+        from daily_brief.http_client import _request_with_retry
+        return _request_with_retry
+
+    def _loop(self, coro):
+        return asyncio.get_event_loop().run_until_complete(coro)
+
+    def test_content_length_precheck_rejects(self):
+        """Declared Content-Length > limit → rejected without reading body."""
+        fn = self._import()
+        large_text = "x" * 500
+        resp = MockResp(status=200, text=large_text, content_length=500)
+        session = make_session(resp)
+        text, status, attempts = self._loop(fn(session, "http://x", max_bytes=100))
+        self.assertIsNone(text)
+        self.assertEqual(status, 200)
+        self.assertEqual(attempts, 1)
+
+    def test_content_length_within_limit(self):
+        """Declared Content-Length within limit → accepted normally."""
+        fn = self._import()
+        text_content = "small body"
+        resp = MockResp(status=200, text=text_content, content_length=len(text_content))
+        session = make_session(resp)
+        text, status, attempts = self._loop(fn(session, "http://x", max_bytes=1000))
+        self.assertEqual(text, text_content)
+        self.assertEqual(status, 200)
+        self.assertEqual(attempts, 1)
+
+    def test_streaming_within_limit(self):
+        """No Content-Length header; body within limit → accepted via streaming."""
+        fn = self._import()
+        text_content = "streamed body"
+        resp = MockResp(status=200, text=text_content)
+        session = make_session(resp)
+        text, status, attempts = self._loop(fn(session, "http://x", max_bytes=1000))
+        self.assertEqual(text, text_content)
+        self.assertEqual(status, 200)
+        self.assertEqual(attempts, 1)
+
+    def test_streaming_exceeds_limit(self):
+        """Body exceeds limit mid-stream → rejected with None."""
+        fn = self._import()
+        large_text = "x" * 200
+        resp = MockResp(status=200, text=large_text)
+        session = make_session(resp)
+        text, status, attempts = self._loop(fn(session, "http://x", max_bytes=10))
+        self.assertIsNone(text)
+        self.assertEqual(attempts, 1)
+
+
+class TestFetchTextBounded(unittest.TestCase):
+    """_fetch_text — forwards max_bytes."""
+
+    def _import(self):
+        from daily_brief.http_client import _fetch_text
+        return _fetch_text
+
+    def _loop(self, coro):
+        return asyncio.get_event_loop().run_until_complete(coro)
+
+    def test_rejects_oversized(self):
+        fn = self._import()
+        resp = MockResp(status=200, text="a" * 100, content_length=100)
+        session = make_session(resp)
+        result = self._loop(fn(session, "http://x", max_bytes=10))
+        self.assertIsNone(result)
+
+
+class TestFetchJsonBounded(unittest.TestCase):
+    """_fetch_json — forwards max_bytes."""
+
+    def _import(self):
+        from daily_brief.http_client import _fetch_json
+        return _fetch_json
+
+    def _loop(self, coro):
+        return asyncio.get_event_loop().run_until_complete(coro)
+
+    def test_rejects_oversized(self):
+        fn = self._import()
+        payload = json.dumps({"data": "x" * 100})
+        resp = MockResp(status=200, text=payload, content_length=len(payload))
+        session = make_session(resp)
+        result = self._loop(fn(session, "http://x", max_bytes=10))
+        self.assertIsNone(result)
+
+    def test_within_limit(self):
+        fn = self._import()
+        payload = json.dumps({"ok": 1})
+        resp = MockResp(status=200, text=payload)
+        session = make_session(resp)
+        result = self._loop(fn(session, "http://x", max_bytes=1000))
+        self.assertEqual(result, {"ok": 1})
 
 
 if __name__ == "__main__":

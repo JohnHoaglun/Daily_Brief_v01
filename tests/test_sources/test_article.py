@@ -30,11 +30,21 @@ class MockStory:
         self.context = context
 
 
+class _FakeContent:
+    def __init__(self, data: str):
+        self._data = data.encode("utf-8")
+
+    async def iter_any(self):
+        yield self._data
+
+
 class FakeResp:
     status = 200
+    headers = {}
 
     def __init__(self, body):
         self._body = body
+        self.content = _FakeContent(body)
 
     async def text(self):
         return self._body
@@ -201,6 +211,9 @@ class TestStageExtractArticle(TestCase):
         """Non-200 response should not be parsed — error pages should never enter context."""
         class ErrorResp:
             status = 500
+            headers = {}
+            content = _FakeContent("<html><body>Error page content that should never be parsed</body></html>")
+
             async def text(self):
                 return "<html><body>Error page content that should never be parsed</body></html>"
 

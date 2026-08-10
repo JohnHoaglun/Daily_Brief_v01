@@ -34,10 +34,19 @@ def _await(coro):
 # helpers
 # ---------------------------------------------------------------------------
 
+class _DedupContent:
+    def __init__(self, data: str):
+        self._data = data.encode("utf-8")
+    async def iter_any(self):
+        yield self._data
+
+
 class FakeResp:
     status = 200
+    headers = {}
     def __init__(self, body):
         self._body = body
+        self.content = _DedupContent(body)
     async def text(self):
         return self._body
 

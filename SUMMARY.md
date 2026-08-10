@@ -4,6 +4,15 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.137 — Bounded HTTP Response Handling
+- **Content-Length pre-check**: declared `Content-Length` above the configured limit is rejected without reading the body. `_exceeds_content_length_header()` returns True when the header exceeds the limit.
+- **Streaming byte limit**: `_read_body_bounded()` streams the response body via `resp.content.iter_any()`, counting bytes, and raises `ContentLengthError` when the limit is exceeded. Handles chunked or missing-length responses.
+- **Retry/status preserved**: existing retry logic (`_should_retry()` on transient statuses), non-retryable status behavior, and status predicate forwarding remain unchanged.
+- **Parameter forwarding**: `max_bytes` parameter added to `_request_with_retry`, `_fetch_json`, and `_fetch_text`. Default `DEFAULT_MAX_CONTENT_BYTES = 5 MB`. Sources can override per-call.
+- **Tests**: 11 new tests in `test_http_client.py` — Content-Length pre-check (reject/accept/missing), streaming (within limit/exceeds limit), wrapper forwarding for `_fetch_text` and `_fetch_json`. 555/555 passing.
+- **Test infrastructure**: updated `MockResp`/`FakeResp`/`_TestContent` mocks across `test_http_client.py`, `test_article.py`, `test_rss.py`, `test_rss_dedup.py`, `test_weather_climate_contract.py` to support `headers` and `content.iter_any()` required by bounded response handling.
+- **Test fix**: corrected `test_string_payload` assertion (was asserting `42`, fixed to `"ok"`).
+
 ### v1.0.136 — Coder Dispatch Analysis Correction
 - **Responsibility corrected**: the failed Coder delegation in v1.0.135 was primarily a Build orchestration failure. Build assigned a three-file cross-module task outside Coder's single-file lane and did not immediately verify the returned edit.
 - **32k context conclusion corrected**: it is a boundary to respect, not demonstrated evidence of a Coder limitation for small self-contained work. Build must provide the local source context, exact insertion point, and acceptance test.

@@ -1,21 +1,23 @@
-# PLAN: v1.0.136 — Coder Dispatch Analysis Correction ✅ COMPLETE
+# PLAN: v1.0.137 — Bounded HTTP Response Handling ✅ COMPLETE
+
+## Status: COMPLETED — implementation done, 555/555 tests passing.
 
 ## Objective
-Correct the Coder-agent analysis to assign responsibility accurately, document Build's single-file dispatch contract, and establish an evidence-based evaluation plan.
+Bound HTTP response handling so untrusted responses cannot exceed source-appropriate byte limits before parsing.
 
-## Status: COMPLETED — all objectives met, v1.0.136 committed & pushed.
+## Scope
+- [x] Centralize bounded response streaming in `daily_brief/http_client.py`.
+- [x] Default byte limit `DEFAULT_MAX_CONTENT_BYTES = 5 MB`; configurable per-call.
+- [x] Reject excessive `Content-Length` before reading body.
+- [x] Stream body with `ContentLengthError` on limit exceed.
+- [x] Preserve current retry and status-acceptance semantics.
+- [x] Mock support: `headers` and `content.iter_any()` across all test files.
 
-## Scope Decisions
-- [x] Concurrent Wunderground/weather.gov rainfall fetches via `asyncio.gather()`
-- [x] Exception propagation — no `return_exceptions=True`; outer weather-provider layer handles failure isolation
-- [x] Preserve Wunderground-preferred current-rainfall precedence
-- [x] Convert call-order test mocks to URL-routed mocks
-- [x] Event-gated concurrency contract for rainfall sources
-- [x] Reconcile 3 stale TODO items (weather-provider concurrency, atomic writes, RunContext)
-- [x] Rewrite PLAN.md metadata from stale Wave 4 content
+## Verification
+- [x] 11 new bounded-response tests in `test_http_client.py`.
+- [x] 555/555 full suite passing, 0 regressions.
+- [x] Config validation: PASS.
 
-## Verification Results
-- [x] `tests/test_sources/test_wunderground.py`: all fetch tests URL-routed, concurrency test passes
-- [x] `tests/test_sources/test_weather_extended.py`: 4-provider event-gated concurrency test passes
-- [x] Full pytest suite: 530+ tests passing, 0 regressions
-- [x] Config validation: PASS
+## Non-Goals
+- Do not move HTML parsing off the event loop without benchmark evidence of loop lag.
+- Do not change the RSS candidate pool or its widening behavior.

@@ -1,3 +1,4 @@
 """Daily Brief v1.0.143 package."""
 
-__version__ = "1.0.143"
+from . import _version
+__version__ = _version.__version__

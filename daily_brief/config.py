@@ -9,6 +9,8 @@ import os
 import yaml
 from pathlib import Path
 
+from daily_brief._version import __version__ as PACKAGE_VERSION
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -16,7 +18,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Defaults — single nested structure matching the canonical YAML shape
 # ---------------------------------------------------------------------------
 DEFAULTS = {
-    "version": "1.0.143",
+    "version": PACKAGE_VERSION,
     "llm": {
         "model": "gemma4-e2b",
         "host": "http://localhost:11434/v1",

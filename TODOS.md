@@ -148,7 +148,8 @@ v1.0.143: Benchmark driver — `daily_brief/benchmark_pipeline_concurrency.py` w
   - Completed v1.0.119. Moved `cleanup_old_files()` from before to immediately after `write_report()`. 7 new tests.
 - [x] Replace mutable pipeline module globals (`RUN_LOGFILE`, `PHASE_TIMINGS`, `_llm_client`) with a per-run context to support repeated and concurrent invocation.
   - Completed v1.0.127. `RunContext` owns per-run logging, timings, output directory, LLM client, and reservation state.
-- [ ] Consolidate direct pipeline logging and standard logging; correct failure output to report `RUN_LOGFILE` directly rather than an unset environment variable. Evidence: `daily_brief/pipeline.py:75-87,283`, `daily_brief/__main__.py:14-36`.
+- [x] Consolidate direct pipeline logging and standard logging; correct failure output to report `RUN_LOGFILE` directly rather than an unset environment variable. Evidence: `daily_brief/pipeline.py:75-87,283`, `daily_brief/__main__.py:14-36`.
+  - Completed v1.0.142. Replaced direct `_log_ctx()` file writes with run-scoped `logging.Logger` (_setup_run_logger/_teardown_run_logger). Retired legacy `log()` global. Updated `_coerce_temperature_f()`. Handlers configured after reserve, torn down in finally. 0 regressions.
 - [x] Replace hard-coded `77316` in weather subtitle and station labels with config-driven values.
   - Completed v1.0.125. `weather_table.py:44` subtitle generic, station defaults no ZIP. `report.py:153` skip category updated. `WEATHER_SECTION_TITLE` from config.
 

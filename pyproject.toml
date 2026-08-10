@@ -13,7 +13,7 @@ authors = [
     {name = "John Hoaglun"},
 ]
 dependencies = [
-    "aiohttp",
+    "aiohttp<3.11",
     "feedparser",
     "beautifulsoup4",
     "openai",
@@ -24,7 +24,7 @@ dependencies = [
 test = [
     "pytest",
     "aioresponses",
-    "aiohttp<4",
+    "aiohttp<3.11",
     "pytest-cov",
 ]
 

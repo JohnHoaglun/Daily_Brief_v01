@@ -1,7 +1,7 @@
-# TODO: Daily Brief v01 - v1.0.137 (HTTP Body-Size Safety) ACTIVE
+# TODO: Daily Brief v01 - v1.0.138 (Extraction Measurement) ACTIVE
 
 ## Status
-v1.0.137: RSS candidate-pool limits are complete. Active next priority: stream HTTP bodies with source-specific byte limits and reject excessive `Content-Length` before parsing.
+v1.0.138: Added extraction timing instrumentation and event-loop lag monitoring. Active next priority: validate measurement, then move HTML parsing off event loop if warranted.
 - [x] `write_report()` uses temp file + `os.replace();` cleanup on failure.
 - [x] Test: interrupted write leaves previous report byte-for-byte intact.
 

@@ -1,6 +1,6 @@
-# PLAN: v1.0.137 — Bounded HTTP Response Handling ✅ COMPLETE
+# PLAN: v1.0.138 — Extraction Measurement ✅ COMPLETE
 
-## Status: COMPLETED — implementation done, 555/555 tests passing.
+## Status: COMPLETED — implementation done, 569/569 tests passing.
 
 ## Objective
 Bound HTTP response handling so untrusted responses cannot exceed source-appropriate byte limits before parsing.

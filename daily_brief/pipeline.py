@@ -1,5 +1,5 @@
 """
-Daily Brief Pipeline Orchestration
+Daily Brief v1.0.138 — Pipeline Orchestration
 The main() orchestrator — 6 phases: weather, RSS, LLM, render, validate, harness.
 """
 
@@ -89,6 +89,73 @@ from daily_brief.validation import validate_report
 from daily_brief.harness import run_test_harness
 from daily_brief.config_validator import validate_config
 from daily_brief.tagging import precompile_tagging
+
+
+class _EventLoopLagMonitor:
+    """Lightweight event-loop lag monitor.
+
+    Records actual scheduling delays while running. Measures the difference
+    between a scheduled deadline and the actual wake-up time at each tick.
+    """
+
+    def __init__(self, interval_s: float):
+        self._interval = interval_s
+        self._samples: list[float] = []
+        self._task: Optional[asyncio.Task] = None
+        self._stop_event: Optional[asyncio.Event] = None
+
+    def start(self):
+        if self._task is not None and not self._task.done():
+            return
+        self._stop_event = asyncio.Event()
+        self._samples = []
+        self._task = asyncio.create_task(self._run())
+
+    def stop(self) -> list[float]:
+        """Signal stop (synchronous — caller should schedule task cleanup)."""
+        if self._stop_event is not None:
+            self._stop_event.set()
+        if self._task is not None and not self._task.done():
+            self._task.cancel()
+        return list(self._samples)
+
+    async def stop_async(self) -> list[float]:
+        """Signal stop and await task completion."""
+        self.stop()
+        if self._task is not None and not self._task.done():
+            try:
+                await self._task
+            except (asyncio.CancelledError, Exception):
+                pass
+        return list(self._samples)
+
+    async def _run(self):
+        while not self._stop_event.is_set():
+            deadline = time.monotonic() + self._interval
+            try:
+                await asyncio.wait_for(self._stop_event.wait(), timeout=self._interval)
+                return
+            except asyncio.TimeoutError:
+                pass
+            elapsed = time.monotonic() - deadline
+            self._samples.append(max(0, elapsed))
+
+
+def _percentile(sorted_values: list[float], pct: float) -> float:
+    """Calculate the given percentile from sorted values."""
+    if not sorted_values:
+        return 0.0
+    sorted_v = sorted(sorted_values)
+    idx = (pct / 100) * (len(sorted_v) - 1)
+    lower = int(idx)
+    upper = min(lower + 1, len(sorted_v) - 1)
+    frac = idx - lower
+    return sorted_v[lower] + (sorted_v[upper] - sorted_v[lower]) * frac
+
+
+def _count_extracted(stories: list[Any]) -> int:
+    """Count stories that have populated context from extraction."""
+    return sum(1 for s in stories if getattr(s, "context", None))
 
 
 @dataclass
@@ -317,10 +384,25 @@ async def main():
             async with sem_article:
                 return await stage_extract_article(s, session)
 
+        t3a = time.monotonic()
+        looplag = _EventLoopLagMonitor(interval_s=0.02)
+        looplag.start()
         extract_results = await asyncio.gather(
             *[_bounded_extract(s) for s in stories],
             return_exceptions=True,
         )
+        lag_samples = await looplag.stop_async()
+        el3a = time.monotonic() - t3a
+        ctx.phase_timings["Phase 3A"] = el3a
+        extracted_count = _count_extracted(stories)
+        throughput = total / el3a if el3a > 0 else 0
+        lgr(f"  Extraction: {total} in {el3a:.2f}s ({throughput:.1f} stories/s, {extracted_count} contexts)")
+        if lag_samples:
+            p50 = _percentile(lag_samples, 50)
+            p95 = _percentile(lag_samples, 95)
+            p99 = _percentile(lag_samples, 99)
+            lgr(f"  Loop lag during extraction: p50={p50*1000:.1f}ms p95={p95*1000:.1f}ms p99={p99*1000:.1f}ms max={max(lag_samples)*1000:.1f}ms ({len(lag_samples)} samples)")
+
         extract_errs = [r for r in extract_results if isinstance(r, Exception)]
         if extract_errs:
             lgr(f"  Article extraction errors ({len(extract_errs)}): " + "; ".join(str(e) for e in extract_errs[:5]))

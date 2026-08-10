@@ -4,6 +4,12 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.138 — Extraction Measurement and Event-Loop Lag
+- **Per-article timing**: `extract_fetch_time_s`, `extract_parse_time_s`, `extract_bytes` on successful extractions. Skipped articles untouched.
+- **Phase 3A instrumentation**: Wall time, throughput (stories/s), extracted context count, error count. `ctx.phase_timings["Phase 3A"]`.
+- **Event-loop lag**: `_EventLoopLagMonitor` with 20ms ticks, p50/p95/p99/max logged during extraction. `_percentile` and `_count_extracted` utilities.
+- **Tests**: 14 new tests in `test_extraction_metrics.py`. 569/569 passing.
+
 ### v1.0.137 — Bounded HTTP Response Handling
 - **Content-Length pre-check**: declared `Content-Length` above the configured limit is rejected without reading the body. `_exceeds_content_length_header()` returns True when the header exceeds the limit.
 - **Streaming byte limit**: `_read_body_bounded()` streams the response body via `resp.content.iter_any()`, counting bytes, and raises `ContentLengthError` when the limit is exceeded. Handles chunked or missing-length responses.

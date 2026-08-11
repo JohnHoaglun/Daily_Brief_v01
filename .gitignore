@@ -9,3 +9,36 @@ daily_brief.log
 final_run.txt
 pipeline.pid
 pipeline_output.log
+
+# Coverage artifacts
+.coverage
+.coverage.*
+coverage.xml
+coverage_html/
+htmlcov/
+
+# Python bytecode
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Environment files
+.env
+.env.*
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Build and distribution artifacts
+build/
+dist/
+*.egg-info/
+
+# Linting and type-checking caches
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/

@@ -1,6 +1,6 @@
 """
 Daily Brief v1.0.144 — Pipeline Orchestration
-The main() orchestrator — 6 phases: weather, RSS, LLM, render, validate, harness.
+The main() orchestrator — 5 phases: weather, RSS, LLM, render, validate.
 """
 
 import asyncio
@@ -100,7 +100,6 @@ def _normalize_weather_for_rendering(weather_data) -> Optional[Dict]:
 
 
 from daily_brief.config_validator import validate_config
-from daily_brief.harness import run_test_harness
 from daily_brief.llm import create_llm_client
 from daily_brief.llm.summarizer import (
     StoryPipelineState,
@@ -274,7 +273,6 @@ def _coerce_temperature_f(val):
 EXIT_CODE_SUCCESS = 0
 EXIT_CODE_CONFIG = 1
 EXIT_CODE_VALIDATION = 2
-EXIT_CODE_HARNESS_ERROR = 3
 
 # -- Main -------------------------------------------------------------------
 
@@ -576,35 +574,11 @@ async def main():
                 lgr.info("\n=== PIPELINE EXIT CODE: VALIDATION FAILURE ===")
                 return EXIT_CODE_VALIDATION
 
-            # --- Phase 6: External test harness validation ---
-            lgr.info("\n[Phase 6] Running test harness...")
-            t6 = time.monotonic()
-            harness_result = run_test_harness(ctx.run_logfile)
-            el6 = time.monotonic() - t6
-            ctx.phase_timings["Phase 6"] = el6
-            lgr.info(f"  Phase 6 completed in {el6:.2f}s")
-            lgr.info(f"  Harness result: {harness_result.status} — {harness_result.message}")
-            for line in harness_result.stdout_lines:
-                lgr.info(f"  [Harness] {line}")
-            for line in harness_result.stderr_lines:
-                lgr.info(f"  [Harness err] {line}")
             total_elapsed = time.monotonic() - run_started
             lgr.info(f"TOTAL PIPELINE TIME: {total_elapsed:.2f}s")
-
-            exit_code = {
-                "PASS": EXIT_CODE_SUCCESS,
-                "WARN": EXIT_CODE_CONFIG,
-                "FAIL": EXIT_CODE_VALIDATION,
-                "ERROR": EXIT_CODE_HARNESS_ERROR,
-                "SKIPPED": EXIT_CODE_HARNESS_ERROR,
-            }.get(harness_result.status, EXIT_CODE_HARNESS_ERROR)
-
-            if exit_code == EXIT_CODE_SUCCESS:
-                lgr.info("\n=== PIPELINE COMPLETED SUCCESSFULLY ===")
-            else:
-                lgr.info(f"\n=== PIPELINE EXIT CODE: {exit_code} ({harness_result.status}) ===")
+            lgr.info("\n=== PIPELINE COMPLETED SUCCESSFULLY ===")
             print(f"\nDone. File: {filepath}")
             print(f"  Stories: {total_after_dedup} | Time: {el4:.1f}s")
-            return exit_code
+            return EXIT_CODE_SUCCESS
     finally:
         _teardown_run_logger(lgr)

@@ -48,7 +48,6 @@ def _restore_pipeline_mocks():
         "cleanup_old_files",
         "build_markdown",
         "validate_report",
-        "run_test_harness",
         "create_llm_client",
     ):
         if hasattr(daily_brief.pipeline, attr):

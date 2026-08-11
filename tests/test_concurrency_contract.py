@@ -125,7 +125,6 @@ def _pipeline_patch_group(
         patch("daily_brief.pipeline.cleanup_old_files"),
         patch("daily_brief.pipeline.build_markdown", return_value=["#md"]),
         patch("daily_brief.pipeline.validate_report", return_value=(True, [])),
-        patch("daily_brief.pipeline.run_test_harness"),
         patch("daily_brief.pipeline.PREFLIGHT_CHECKS_ENABLED", False),
     ]
     if llm_side_effect is not None:

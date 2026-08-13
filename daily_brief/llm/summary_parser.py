@@ -4,6 +4,8 @@ Daily Brief — Batch summary parsing.
 Extracts summaries from flexible LLM batch outputs (STORY_N, numbered headings, etc.).
 """
 
+from __future__ import annotations
+
 import asyncio
 import difflib
 import logging

@@ -2,7 +2,7 @@
 
 ## Canonical Version
 
-**Current release: `v1.0.145`**
+**Current release: `v1.0.146`**
 
 ## Required Release Process
 
@@ -24,7 +24,9 @@ not be rewritten during later version bumps.
 | `config.yaml` | `version` key | `X.Y.Z` |
 | `daily_brief/__init__.py` | Package docstring and `__version__` | `vX.Y.Z` and `X.Y.Z` |
 | `daily_brief/config.py` | `DEFAULTS["version"]` | `X.Y.Z` |
+| `dashboard_pipeline.py` | Docstring | `vX.Y.Z` |
 | `daily_brief/__main__.py` | Module docstring | `vX.Y.Z` |
+| `daily_brief/http_client.py` | Module docstring | `vX.Y.Z` |
 | `daily_brief/models.py` | Module docstring | `vX.Y.Z` |
 | `daily_brief/utils.py` | Module docstring | `vX.Y.Z` |
 | `daily_brief/validation.py` | Module docstring | `vX.Y.Z` |
@@ -37,6 +39,20 @@ not be rewritten during later version bumps.
 | `daily_brief/sources/wunderground.py` | Module docstring | `vX.Y.Z` |
 | `daily_brief/lifecycle.py` | Module docstring | `vX.Y.Z` |
 | `daily_brief/pipeline.py` | Module docstring | `vX.Y.Z` |
+| `daily_brief/pipelines/rss_dedup.py` | Module docstring | `vX.Y.Z` |
+| `daily_brief/config.py` | `DEFAULTS["version"]` | `X.Y.Z` |
+| `tests/concurrency_support.py` | Module docstring | `vX.Y.Z` |
+| `tests/test_rendering_story_safety.py` | Module docstring | `vX.Y.Z` |
+| `tests/test_rendering_weather_safety.py` | Module docstring | `vX.Y.Z` |
+| `tests/test_summarizer_quality.py` | Module docstring | `vX.Y.Z` |
+| `tests/test_summarizer_batch.py` | Module docstring | `vX.Y.Z` |
+| `tests/test_climate_contract.py` | Module docstring | `vX.Y.Z` |
+| `tests/test_weather_labels_contract.py` | Module docstring | `vX.Y.Z` |
+| `tests/test_sources/test_weather_helpers.py` | Module docstring | `vX.Y.Z` |
+| `tests/test_sources/test_weather_fetch.py` | Module docstring | `vX.Y.Z` |
+| `tests/test_concurrency_run_context.py` | Module docstring | `vX.Y.Z` |
+| `tests/test_concurrency_atomic.py` | Module docstring | `vX.Y.Z` |
+| `tests/test_concurrency_scheduling.py` | Module docstring | `vX.Y.Z` |
 | `PLAN.md` | Title and status | `vX.Y.Z` |
 | `SUMMARY.md` | Latest changelog entry and title | `vX.Y.Z` |
 | `versions_locations.md` | Canonical Version | `vX.Y.Z` |

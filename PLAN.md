@@ -1,4 +1,4 @@
-# PLAN: v1.0.145 — Priority 2 Hardening (Benchmark Driver)
+# PLAN: v1.0.146 — Priority 2 Hardening (Benchmark Driver)
 
 ## Status: COMPLETE — benchmark driver with phase mode toggle, extraction metrics, JSON output, and configuration provenance. 635/635 passing (50 new).
 

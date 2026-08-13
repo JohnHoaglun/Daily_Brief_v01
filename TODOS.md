@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 — v1.0.145
+# TODO: Daily Brief v01 — v1.0.146
 
 ## Code Review Findings (2026-08-12)
 
@@ -12,18 +12,16 @@ Full review performed: structural issues, files exceeding 500/300 lines, perform
 
 **Current state:** 2 files split under 500-line cap (P0 summarizer + config_validator). Remaining large files to audit.
 
-- [ ] **Audit high-overhead test modules** — 9 test files exceed 400 lines:
-  - `test_rendering_safety_contract.py` (884 lines)
-  - `test_concurrency_contract.py` (744 lines)
-  - `test_summarizer.py` (741 lines)
-  - `test_weather_climate_contract.py` (711 lines)
-  - `test_sources/test_weather.py` (600 lines)
-  - `test_tagging.py` (469 lines)
-  - `test_connectivity_extended.py` (467 lines)
-  - `test_report.py` (455 lines)
-  - `test_http_client.py` (454 lines)
-- [ ] **Identify tests that validate what the production validator already does** — `validation.py` checks for "Dynamic"/"Unavailable"/summary quality. Test classes likely mirror these same checks. Reduce test duplication: test the validator's inputs/outputs once; don't test the validator's implementation details in every test module.
-- [ ] **Consolidate test fixtures** (`tests/fixtures/parser_golden_fixtures.py`, 322 lines) — These are loaded by tests for golden-match parsing. Verify they don't also test behavior (fixtures should be data + minimal helpers, not assertions).
+- [x] **Audit high-overhead test modules** — 9 test files audited. 5 modules split under 500-line cap (completed below). 4 modules remain below cap and do not require splitting:
+  - `test_tagging.py` (469 lines), `test_connectivity_extended.py` (467 lines), `test_report.py` (455 lines), `test_http_client.py` (454 lines).
+- [x] **Identify tests that validate what the production validator already does** — Audit complete. No duplicate tests found for `validate_report()`. `TestIsValidSummary`, rendering safety tests, report tests, pipeline exit-code tests, and batch topic-mismatch tests are all needed coverage. Validator contract unification deferred to P2 `validation.py`.
+- [x] **Consolidate test fixtures** — `tests/fixtures/parser_golden_fixtures.py` is data-only (no assertions, functions, or imports). 322 lines, 15 fixture dicts, one consumer. No consolidation needed. Two non-executed fixtures retained as documented coverage gaps.
+- [x] **Split high-overhead test modules under 500-line cap** — 9 test modules audited; 5 split into 11 new modules, all under 500 lines:
+  - `test_rendering_safety_contract.py` (884 → `test_rendering_story_safety.py` (499) + `test_rendering_weather_safety.py` (320) + re-export (22))
+  - `test_summarizer.py` (741 → `test_summarizer_quality.py` (405) + `test_summarizer_batch.py` (333) + re-export (30))
+  - `test_weather_climate_contract.py` (711 → `test_climate_contract.py` (437) + `test_weather_labels_contract.py` (289) + re-export (29))
+  - `tests/test_sources/test_weather.py` (600 → `test_weather_helpers.py` (76) + `test_weather_fetch.py` (499) + re-export (12))
+  - `test_concurrency_contract.py` (744 → `tests/concurrency_support.py` (124) + `test_concurrency_run_context.py` (198) + `test_concurrency_atomic.py` (168) + `test_concurrency_scheduling.py` (152) + re-export (22))
 
 ### P0 — Files > 500 lines (High complexity, high reward)
 
@@ -65,7 +63,7 @@ Full review performed: structural issues, files exceeding 500/300 lines, perform
 ### P2 — Cross-cutting structural issues (from review section 3)
 
 - [ ] **Deduplicate regex patterns across the codebase** — `re.findall(r"\b[a-z]{3,}\b"` and `r"\b[a-z]{4,}\b"` appear in:
-  - `summary_parser.py` — Already handled via `_keyword_set()` and `_best_headline_keyword_match()` (v1.0.145). Remaining uses in `config_validator.py` and `validation.py` still need dedup.
+  - `summary_parser.py` — Already handled via `_keyword_set()` and `_best_headline_keyword_match()` (v1.0.146). Remaining uses in `config_validator.py` and `validation.py` still need dedup.
   - `validation.py` (1 location in topic overlap check)
   - `tagging.py` (implicitly via stop-word logic)
   - Create `utils.py` helper: `extract_significant_words(text, min_len=4)`.

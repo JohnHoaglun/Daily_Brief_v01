@@ -60,3 +60,13 @@ Daily Brief aggregates RSS stories from configured categories, enriches them wit
 
 ## Current Priorities
 All Phases A–C and P0–P1 items complete. RSS candidate-pool work is complete. The active P2 item is HTTP body-size safety: stream response bodies with source-specific byte limits and reject excessive `Content-Length` before parsing.
+
+## Pre-Commit Verification (mandatory)
+Before every commit or push, run this exact sequence. No shortcuts — this is a non-negotiable gate:
+
+1. **Full test suite:** `python3 -m pytest --tb=no -q` (must match or improve baseline)
+2. **Config validation:** `python3 -m daily_brief config validate`
+3. **Production module imports:** `python3 -c "import daily_brief.llm.summary_parser; import daily_brief.pipeline; print('OK')"` (all files edited in the change)
+4. **End-to-end production run:** `python3 dashboard_pipeline.py` (must complete successfully — Phase 1 through Phase 5, report written)
+
+Only after all four pass: commit, then `git push`.

@@ -27,7 +27,7 @@ import re
 
 import yaml
 
-from daily_brief.llm.summarizer import _count_sentences
+from daily_brief.utils import _count_sentences
 
 logger = logging.getLogger(__name__)
 

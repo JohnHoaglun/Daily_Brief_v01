@@ -1,8 +1,13 @@
 """
-Daily Brief v1.0.146 — Pipeline Orchestration
-The main() orchestrator — 5 phases: weather, RSS, LLM, render, validate.
+Daily Brief — Pipeline stage orchestration.
+
+Contains the main() function and all per-phase logic. Re-imports from
+daily_brief.context for shared state, from other internal modules for
+production dependencies.
 """
 
+
+import aiohttp
 import asyncio
 import logging
 import os
@@ -13,7 +18,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
-import aiohttp
 
 from daily_brief.categorization import ordered_categories_for_render
 from daily_brief.config import (
@@ -42,63 +46,6 @@ from daily_brief.sources.article import stage_extract_article
 from daily_brief.sources.rss import format_pub_date
 from daily_brief.sources.weather import fetch_weather
 
-
-def _normalize_weather_for_rendering(weather_data) -> Optional[Dict]:
-    """Normalize weather data for safe rendering. Handles None, scalars, missing keys."""
-    if weather_data is None:
-        return {
-            "forecast": [
-                {
-                    "date": "N/A",
-                    "day": "N/A",
-                    "night": "N/A",
-                    "high": "N/A",
-                    "low": "N/A",
-                    "precip": "N/A",
-                    "wind": "N/A",
-                }
-            ]
-            * 3,
-            "station": {},
-            "lakes": {},
-        }
-    if not isinstance(weather_data, dict):
-        return {
-            "forecast": [
-                {
-                    "date": "N/A",
-                    "day": "N/A",
-                    "night": "N/A",
-                    "high": "N/A",
-                    "low": "N/A",
-                    "precip": "N/A",
-                    "wind": "N/A",
-                }
-            ]
-            * 3,
-            "station": {},
-            "lakes": {},
-        }
-    result = dict(weather_data)
-    if "forecast" not in result or not isinstance(result.get("forecast"), list):
-        result["forecast"] = [
-            {
-                "date": "N/A",
-                "day": "N/A",
-                "night": "N/A",
-                "high": "N/A",
-                "low": "N/A",
-                "precip": "N/A",
-                "wind": "N/A",
-            }
-        ] * 3
-    if "station" not in result or not isinstance(result.get("station"), dict):
-        result["station"] = {}
-    if "lakes" not in result or not isinstance(result.get("lakes"), dict):
-        result["lakes"] = {}
-    return result
-
-
 from daily_brief.config_validator import validate_config
 from daily_brief.llm import create_llm_client
 from daily_brief.llm.summarizer import (
@@ -119,165 +66,96 @@ from daily_brief.rendering.report import (
 from daily_brief.tagging import precompile_tagging
 from daily_brief.validation import validate_report
 
-
-class _EventLoopLagMonitor:
-    """Lightweight event-loop lag monitor.
-
-    Records actual scheduling delays while running. Measures the difference
-    between a scheduled deadline and the actual wake-up time at each tick.
-    """
-
-    def __init__(self, interval_s: float):
-        self._interval = interval_s
-        self._samples: list[float] = []
-        self._task: Optional[asyncio.Task] = None
-        self._stop_event: Optional[asyncio.Event] = None
-
-    def start(self):
-        if self._task is not None and not self._task.done():
-            return
-        self._stop_event = asyncio.Event()
-        self._samples = []
-        self._task = asyncio.create_task(self._run())
-
-    def stop(self) -> list[float]:
-        """Signal stop (synchronous — caller should schedule task cleanup)."""
-        if self._stop_event is not None:
-            self._stop_event.set()
-        if self._task is not None and not self._task.done():
-            self._task.cancel()
-        return list(self._samples)
-
-    async def stop_async(self) -> list[float]:
-        """Signal stop and await task completion."""
-        self.stop()
-        if self._task is not None and not self._task.done():
-            try:
-                await self._task
-            except (asyncio.CancelledError, Exception):
-                pass
-        return list(self._samples)
-
-    async def _run(self):
-        while not self._stop_event.is_set():
-            deadline = time.monotonic() + self._interval
-            try:
-                await asyncio.wait_for(self._stop_event.wait(), timeout=self._interval)
-                return
-            except asyncio.TimeoutError:
-                pass
-            elapsed = time.monotonic() - deadline
-            self._samples.append(max(0, elapsed))
-
-
-def _percentile(sorted_values: list[float], pct: float) -> float:
-    """Calculate the given percentile from sorted values."""
-    if not sorted_values:
-        return 0.0
-    sorted_v = sorted(sorted_values)
-    idx = (pct / 100) * (len(sorted_v) - 1)
-    lower = int(idx)
-    upper = min(lower + 1, len(sorted_v) - 1)
-    frac = idx - lower
-    return sorted_v[lower] + (sorted_v[upper] - sorted_v[lower]) * frac
-
-
-def _count_extracted(stories: list[Any]) -> int:
-    """Count stories that have populated context from extraction."""
-    return sum(1 for s in stories if getattr(s, "context", None))
-
-
-@dataclass
-class RunContext:
-    """Per-run state — isolates mutable pipeline globals for concurrent safety."""
-
-    phase_timings: Dict[str, float] = field(default_factory=dict)
-    run_logfile: Optional[str] = None
-    output_dir: Optional[str] = None
-    input_log_dir: Optional[str] = None
-    input_news_dir: Optional[str] = None
-    article_max_concurrency: int = ARTICLE_MAX_CONCURRENCY
-    llm_client: Any = None
-    reservation: Optional[RunReservation] = None
-
-
-class _RunTimestampFormatter(logging.Formatter):
-    """Emits [YYYY-MM-DD HH:MM:SS] msg — same format as legacy _log_ctx."""
-
-    def formatTime(self, record, datefmt=None):
-        return datetime.utcfromtimestamp(record.created).strftime("%Y-%m-%d %H:%M:%S")
-
-    def format(self, record):
-        return f"[{self.formatTime(record)}] {record.getMessage()}"
-
-
-def _setup_run_logger(logfile: str, name: str = "daily_brief") -> logging.Logger:
-    """Create a dedicated logger with file + stderr handlers for one run.
-
-    Handlers must be removed with `_teardown_run_logger` to prevent
-    cross-run contamination during concurrent invocations.
-    """
-    logger = logging.getLogger(f"{name}_{id(logfile)}")
-    logger.setLevel(logging.INFO)
-    logger.handlers.clear()
-    logger.propagate = False
-    formatter = _RunTimestampFormatter()
-    os.makedirs(os.path.dirname(logfile), exist_ok=True)
-    fh = logging.FileHandler(logfile, encoding="utf-8")
-    fh.setFormatter(formatter)
-    logger.addHandler(fh)
-    sh = logging.StreamHandler(sys.stderr)
-    sh.setFormatter(formatter)
-    logger.addHandler(sh)
-    return logger
-
-
-def _teardown_run_logger(logger: logging.Logger) -> None:
-    """Close and remove all handlers from a run-scoped logger."""
-    for h in list(logger.handlers):
-        try:
-            h.close()
-        except Exception:
-            pass
-    logger.handlers.clear()
-
+from daily_brief.pipeline.context import (
+    ACTIVE_TIMEZONE,
+    DEFAULT_CONTENT_AGE_WINDOW_HOURS,
+    RunContext,
+    _EventLoopLagMonitor,
+    _count_extracted,
+    _normalize_weather_for_rendering,
+    _percentile,
+    _setup_run_logger,
+    _teardown_run_logger,
+)
+from daily_brief.pipeline import context as _run_ctx  # noqa: F401
 
 # Module-level globals — backwards compatibility shim for test fixtures
+# These are re-exported from context.py. We set them here because `main()`
+# uses ``global RUN_LOGFILE`` etc. which modifies this module's names.
 RUN_LOGFILE = None
 PHASE_TIMINGS: Dict[str, float] = {}
 OUTPUT_DIR = None
 _llm_client = None
-
-try:
-    ACTIVE_TIMEZONE = ZoneInfo(TIMEZONE)
-except Exception:
-    ACTIVE_TIMEZONE = timezone.utc
-    TIMEZONE = "UTC"
-
-DEFAULT_CONTENT_AGE_WINDOW_HOURS = 48
-
-
-def _coerce_temperature_f(val):
-    """Safely convert temperature string/none to float and sanity check."""
-    from daily_brief.utils import _coerce_temperature_f as _ct
-
-    result = _ct(val)
-    if result is not None and (result < -50 or result > 140):
-        sys.stderr.write(f"  WARNING: Extreme temperature detected and discarded: {result}°F\n")
-        sys.stderr.flush()
-        return None
-    return result
-
 
 # Exit codes
 EXIT_CODE_SUCCESS = 0
 EXIT_CODE_CONFIG = 1
 EXIT_CODE_VALIDATION = 2
 
+__all__ = [
+    # Stages: main and stage logic
+    "main",
+    "_EventLoopLagMonitor",
+    "_percentile",
+    "_count_extracted",
+    "_normalize_weather_for_rendering",
+    # Context: shared state
+    "ACTIVE_TIMEZONE",
+    "DEFAULT_CONTENT_AGE_WINDOW_HOURS",
+    "RunContext",
+    "_setup_run_logger",
+    "_teardown_run_logger",
+    # Moved to context.py (still re-exported here for compat)
+    "_EventLoopLagMonitor",
+    "_percentile",
+    "_count_extracted",
+    # Globals shim (for backwards compat — tests may use these)
+    "RUN_LOGFILE",
+    "PHASE_TIMINGS",
+    "OUTPUT_DIR",
+    "_llm_client",
+]
+
+# --- Test-patch resolution (late import to avoid circular imports) ---
+# _EventLoopLagMonitor, _percentile, _count_extracted moved to context.py
+# Because ``stages`` is loaded by ``__init__`` while the package is still
+# being assembled, these helpers pull names from the package at runtime
+# so that ``patch("daily_brief.pipeline.X", ...)`` takes effect.
+
+def _pip(name: str):
+    """Resolve *name* from ``daily_brief.pipeline`` at call time."""
+    import daily_brief.pipeline as _p  # noqa: F811, local import
+
+    return getattr(_p, name)
+
+
 # -- Main -------------------------------------------------------------------
 
 
 async def main():
+    # ------------------------------------------------------------------
+    # Resolve patchable names late so that ``patch("daily_brief.pipeline.*")``
+    # applied by tests actually takes effect inside this function.
+    # ------------------------------------------------------------------
+    validate_config = _pip("validate_config")
+    validate_report = _pip("validate_report")
+    create_llm_client = _pip("create_llm_client")
+    llm_batch_summarize_all = _pip("llm_batch_summarize_all")
+    fetch_weather = _pip("fetch_weather")
+    fetch_and_dedup = _pip("fetch_and_dedup")
+    stage_extract_article = _pip("stage_extract_article")
+    ordered_categories_for_render = _pip("ordered_categories_for_render")
+    build_sections_from_stories = _pip("build_sections_from_stories")
+    build_markdown = _pip("build_markdown")
+    compute_output_path = _pip("compute_output_path")
+    write_report = _pip("write_report")
+    cleanup_old_files = _pip("cleanup_old_files")
+    aiohttp = _pip("aiohttp")  # tests patch daily_brief.pipeline.aiohttp.ClientSession
+    # Config dir/values that tests patch on the pipeline module
+    LOG_DIR = _pip("LOG_DIR")
+    NEWS_DIR = _pip("NEWS_DIR")
+    PREFLIGHT_CHECKS_ENABLED = _pip("PREFLIGHT_CHECKS_ENABLED")
+
     # --- Config validation gate ---
     config_ok, config_issues = validate_config(CONFIG_YAML)
     if not config_ok:
@@ -321,9 +199,6 @@ async def main():
     ctx.input_log_dir = LOG_DIR
     ctx.input_news_dir = NEWS_DIR
 
-    os.makedirs(LOG_DIR, exist_ok=True)
-    os.makedirs(NEWS_DIR, exist_ok=True)
-
     # --- Atomic run reservation ---
     now_ts = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     allocator = RunAllocator(LOG_DIR, NEWS_DIR, now_ts)
@@ -334,6 +209,20 @@ async def main():
     RUN_LOGFILE = reservation.log_path
     OUTPUT_DIR = reservation.report_dir
     ctx.output_dir = reservation.report_dir
+
+    os.makedirs(LOG_DIR, exist_ok=True)
+    os.makedirs(NEWS_DIR, exist_ok=True)
+
+    # Propagate updates into __init__ so that ``pmod.RUN_LOGFILE`` etc.
+    # are visible to test assertions.
+    import sys as _sys
+
+    _pmod = _sys.modules.get("daily_brief.pipeline")
+    if _pmod is not None:
+        _pmod.RUN_LOGFILE = RUN_LOGFILE
+        _pmod.PHASE_TIMINGS = PHASE_TIMINGS
+        _pmod.OUTPUT_DIR = OUTPUT_DIR
+        _pmod._llm_client = _llm_client
 
     # --- Run-scoped logger (file + stderr, attached only for this run) ---
     lgr: Optional[logging.Logger] = _setup_run_logger(reservation.log_path)
@@ -526,11 +415,7 @@ async def main():
 
             ordered_cats = ordered_categories_for_render([c[0] for c in CATEGORIES if c[1]])
             sections_map = {cn: sections.get(cn, []) for cn in ordered_cats}
-            rendered_cat_count = sum(
-                1
-                for cn in ordered_cats
-                if cn != WEATHER_SECTION_TITLE and cn != "Weather Forecast 77316"
-            )
+            rendered_cat_count = sum(1 for cn in ordered_cats if cn != "Weather" and cn != "Weather Forecast 77316") if ordered_cats else 0
 
             safe_weather = _normalize_weather_for_rendering(weather)
             md = build_markdown(
@@ -581,4 +466,11 @@ async def main():
             print(f"  Stories: {total_after_dedup} | Time: {el4:.1f}s")
             return EXIT_CODE_SUCCESS
     finally:
+        # Flush handlers before teardown so data reaches disk
+        for h in lgr.handlers:
+            try:
+                h.flush()
+            except Exception:
+                pass
         _teardown_run_logger(lgr)
+

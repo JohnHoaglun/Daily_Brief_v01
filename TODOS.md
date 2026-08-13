@@ -65,7 +65,7 @@ Full review performed: structural issues, files exceeding 500/300 lines, perform
 ### P2 — Cross-cutting structural issues (from review section 3)
 
 - [ ] **Deduplicate regex patterns across the codebase** — `re.findall(r"\b[a-z]{3,}\b"` and `r"\b[a-z]{4,}\b"` appear in:
-  - `summarizer.py` (8+ locations in parsing/validation)
+  - `summary_parser.py` — Already handled via `_keyword_set()` and `_best_headline_keyword_match()` (v1.0.145). Remaining uses in `config_validator.py` and `validation.py` still need dedup.
   - `validation.py` (1 location in topic overlap check)
   - `tagging.py` (implicitly via stop-word logic)
   - Create `utils.py` helper: `extract_significant_words(text, min_len=4)`.
@@ -74,18 +74,18 @@ Full review performed: structural issues, files exceeding 500/300 lines, perform
 
 ### P2 — Performance optimizations (from review section 4)
 
-- [ ] **Optimize all-pairs mismatch detection O(n²×m)** — `summarizer.py:486-522`: for each result, loop through all headlines to find best keyword match. Pre-compute significant-word sets for all headlines once, cache them, do set intersections instead of repeated regex + allocations.
-- [ ] **Optimize fuzzy matching O(n×m) per STORY_N line** — `summarizer.py:153-162`: every `STORY_N` line with `story_headlines` triggers a difflib `SequenceMatcher` against ALL headlines. With batch_size=4 and 76+ stories, that's 300+ difflib ratio calculations per response. Cache normalized headlines, consider `fuzzymatch`/`thefuzz` if batches grow.
+- [ ] **Optimize all-pairs mismatch detection O(n²×m)** — `summary_parser.py:422-434`: for each result, loop through all headlines to find best keyword match. Pre-compute significant-word sets for all headlines once, cache them, do set intersections instead of repeated regex + allocations.
+- [ ] **Optimize fuzzy matching O(n×m) per STORY_N line** — `summary_parser.py:153-162`: every `STORY_N` line with `story_headlines` triggers a difflib `SequenceMatcher` against ALL headlines. With batch_size=4 and 76+ stories, that's 300+ difflib ratio calculations per response. Cache normalized headlines, consider `fuzzymatch`/`thefuzz` if batches grow.
 - [ ] **Pre-compute keyword word counts in `tagging.py:131`** — `len([w for w in keyword.split() if w not in _STOP_WORDS])` creates a list allocation for every keyword match (~200 per report). Pre-compute during `precompile_tagging()`.
 - [ ] **Pre-cache headline word sets in summarizer mismatch detection** — Lines 490–511 re-extract words per story × per headline. Compute once during `batch_summarize_all()` setup.
 - [ ] **Add caching to `config.py` for test scenarios** — Module is re-imported by tests, triggering YAML parse + config build each time. Consider `@lru_cache` guard or module-level `_config_loaded` flag.
 
 ### P2 — Minor code quality
 
-- [ ] **Remove unused `batch_size` parameter** — `summarizer.py:727` `_summarize_sub_batch` accepts `batch_size` but comment says "unused parameter kept for API compatibility".
+- [ ] **Remove unused `batch_size` parameter** — `summary_service.py:115` `_summarize_sub_batch` accepts `batch_size` but docstring says "Unused parameter kept for API compatibility".
 - [ ] **Move `_EventLoopLagMonitor` out of `pipeline.py`** — 50 lines of profiling instrumentation mixed into core production code (~18% of pipeline file). Suggested: `pipeline/lag_monitor.py`.
 - [ ] **Move `merge_weather_data` to separate `weather_model.py`** — `weather.py:279-365` is 87 lines of formatting logic. Orchestration (`fetch_weather`) and data modeling (`merge_weather_data`) should be separate.
 
 ### P3 — Investigate / deferred
 
-- [ ] **Verify `build_context` import** — `summarizer.py:23` imports `build_context` from `utils.py`. Confirm it exists in the final version (review showed it moved there in v1.0.100).
+- [ ] **Verify `build_context` import** — `summary_coordinator.py` (was `summarizer.py:23` before P0 split at v1.0.144) imports `build_context` from `utils.py`. Confirm it exists in the final version (review showed it moved there in v1.0.100).

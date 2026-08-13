@@ -1,5 +1,5 @@
 """
-Daily Brief v1.0.146 — Data Sources
+Daily Brief v1.0.147 — Data Sources
 ===================================
 Pluggable data source modules for weather, RSS, lakes, climate, and wunderground.
 """

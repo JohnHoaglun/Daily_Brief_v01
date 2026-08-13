@@ -2,7 +2,7 @@
 
 ## Canonical Version
 
-**Current release: `v1.0.146`**
+**Current release: `v1.0.147`**
 
 ## Required Release Process
 
@@ -38,7 +38,9 @@ not be rewritten during later version bumps.
 | `daily_brief/sources/weather.py` | Module docstring | `vX.Y.Z` |
 | `daily_brief/sources/wunderground.py` | Module docstring | `vX.Y.Z` |
 | `daily_brief/lifecycle.py` | Module docstring | `vX.Y.Z` |
-| `daily_brief/pipeline.py` | Module docstring | `vX.Y.Z` |
+| `daily_brief/pipeline/__init__.py` | Package docstring | `vX.Y.Z` |
+| `daily_brief/pipeline/context.py` | Module docstring | `vX.Y.Z` |
+| `daily_brief/pipeline/stages.py` | Module docstring | `vX.Y.Z` |
 | `daily_brief/pipelines/rss_dedup.py` | Module docstring | `vX.Y.Z` |
 | `daily_brief/config.py` | `DEFAULTS["version"]` | `X.Y.Z` |
 | `tests/concurrency_support.py` | Module docstring | `vX.Y.Z` |

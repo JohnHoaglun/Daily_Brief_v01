@@ -1,5 +1,5 @@
 """
-Daily Brief v1.0.146 — HTTP Client
+Daily Brief v1.0.147 — HTTP Client
 ==================================
 Async HTTP fetch functions with session management.
 

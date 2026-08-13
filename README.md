@@ -1,11 +1,11 @@
-# Daily Brief v1.0.146
+# Daily Brief v1.0.147
 Automated daily news brief generator that fetches stories from 17 configured categories via Google News RSS, enriches them with weather and lake-level data, summarizes them with AI, and produces a structured Markdown report.
 
 ## Architecture
 
 Modular codebase in `daily_brief/`:
 
-- **`pipeline.py`** — asynchronous orchestrator (6 phases: weather, RSS, LLM, render, validate, test harness)
+- **`pipeline/`** — pipeline package: `stages.py` (orchestrator, 5 phases), `context.py` (shared state), `__init__.py` (re-exports)
 - **`sources/`** — NWS forecast, Wunderground station metrics, Open-Meteo/ERA5 climate normals, Texas reservoir levels, RSS feeds, and article extraction
 - **`llm/`** — OpenAI-compatible client (AsyncOpenAI), configurable batch-of-N summarization with semaphore-concurrency (default: `batch_size=4`, `max_concurrency=2`), boilerplate/refusal detection, auto fallback, structured metrics
 - **`pipelines/rss_dedup.py`** — RSS filtering, deduplication, and widening
@@ -40,7 +40,7 @@ All runtime settings in `config.yaml`. Key groups:
 
 | Key | Description | Configured Value |
 |---|---|---|
-| `version` | Pipeline version | `1.0.146` |
+| `version` | Pipeline version | `1.0.147` |
 | `llm.model` | Model for summarization | `gemma4-e2b` |
 | `llm.host` | vLLM API endpoint | `http://192.168.4.52:8007` |
 | `directories.log_dir` | Log output directory | `.../Shared_AI/vault/OpenCode/Daily_Brief_v01/Dev/logs` |
@@ -70,7 +70,7 @@ Each report contains YAML frontmatter with tags, a weather section (forecast, cl
 ```
 config.yaml                 # All runtime configuration
 daily_brief/                # All source code (root package)
-  pipeline.py               # Async orchestrator
+  pipeline/                 # Pipeline package: stages.py, context.py, __init__.py
   sources/                  # Weather, RSS, lakes, article extraction
   llm/                      # LLM client, batch summarization
   pipelines/                # RSS deduplication and widening

@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 — v1.0.146
+# TODO: Daily Brief v01 — v1.0.147
 
 ## Code Review Findings (2026-08-12)
 
@@ -63,7 +63,7 @@ Full review performed: structural issues, files exceeding 500/300 lines, perform
 ### P2 — Cross-cutting structural issues (from review section 3)
 
 - [ ] **Deduplicate regex patterns across the codebase** — `re.findall(r"\b[a-z]{3,}\b"` and `r"\b[a-z]{4,}\b"` appear in:
-  - `summary_parser.py` — Already handled via `_keyword_set()` and `_best_headline_keyword_match()` (v1.0.146). Remaining uses in `config_validator.py` and `validation.py` still need dedup.
+  - `summary_parser.py` — Already handled via `_keyword_set()` and `_best_headline_keyword_match()` (v1.0.147). Remaining uses in `config_validator.py` and `validation.py` still need dedup.
   - `validation.py` (1 location in topic overlap check)
   - `tagging.py` (implicitly via stop-word logic)
   - Create `utils.py` helper: `extract_significant_words(text, min_len=4)`.

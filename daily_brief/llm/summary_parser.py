@@ -13,6 +13,43 @@ from daily_brief.utils import _safe_sentence_summary
 
 logger = logging.getLogger(__name__)
 
+
+def _keyword_set(text: str, *, min_length: int) -> set[str]:
+    """Return lowercase alphabetic tokens of at least min_length characters."""
+    return set(re.findall(rf"\b[a-z]{{{min_length},}}\b", text.lower()))
+
+
+def _best_headline_keyword_match(
+    query_words: set[str],
+    story_headlines: list[str],
+    *,
+    min_length: int,
+    denominator: str,
+) -> tuple[int | None, float]:
+    """Return first best headline match using the configured overlap denominator.
+
+    denominator="headline": overlap / len(headline_words)
+    denominator="query":    overlap / len(query_words)
+
+    Preserves strict > comparison (earliest headline wins ties).
+    """
+    best_idx = None
+    best_score = 0.0
+    for si, sh in enumerate(story_headlines):
+        sh_words = _keyword_set(sh, min_length=min_length)
+        if not sh_words:
+            continue
+        if denominator == "headline":
+            score = len(sh_words & query_words) / len(sh_words)
+        else:
+            # denominator == "query"
+            score = len(sh_words & query_words) / len(query_words)
+        if score > best_score:
+            best_score = score
+            best_idx = si
+    return best_idx, best_score
+
+
 def parse_batch_summary_response(response, count, story_headlines=None):
     """
     Parse summaries from flexible batch output formats:
@@ -123,17 +160,11 @@ def parse_batch_summary_response(response, count, story_headlines=None):
             best_score = 0.0
 
             # Extract significant words from summary (first 20 words only)
-            summary_words = set(re.findall(r"\b[a-z]{4,}\b", summary_text[:150].lower()))
+            summary_words = _keyword_set(summary_text[:150].lower(), min_length=4)
 
-            for si, sh in enumerate(story_headlines):
-                sh_words = set(re.findall(r"\b[a-z]{4,}\b", sh.lower()))
-                if not sh_words or not summary_words:
-                    continue
-                # Overlap: how many headline words appear in the summary
-                overlap = len(sh_words & summary_words) / len(sh_words)
-                if overlap > best_score:
-                    best_score = overlap
-                    best_idx = si
+            best_idx, best_score = _best_headline_keyword_match(
+                summary_words, story_headlines, min_length=4, denominator="headline"
+            )
 
             # If >= 30% of headline words appear in summary, it's a match
             if best_idx is not None and best_score >= 0.3 and best_idx < count:
@@ -166,21 +197,14 @@ def parse_batch_summary_response(response, count, story_headlines=None):
                 # Try first 4-10 words as headline excerpt
                 for excerpt_len in range(4, min(11, len(parts))):
                     headline_excerpt = " ".join(parts[:excerpt_len]).lower()
-                    excerpt_words = set(re.findall(r"\b[a-z]{4,}\b", headline_excerpt))
+                    excerpt_words = _keyword_set(headline_excerpt, min_length=4)
 
                     if not excerpt_words:
                         continue
 
-                    best_idx2 = None
-                    best_score2 = 0.0
-                    for si, sh in enumerate(story_headlines):
-                        sh_words = set(re.findall(r"\b[a-z]{4,}\b", sh.lower()))
-                        if not sh_words:
-                            continue
-                        overlap = len(sh_words & excerpt_words) / len(excerpt_words)
-                        if overlap > best_score2:
-                            best_score2 = overlap
-                            best_idx2 = si
+                    best_idx2, best_score2 = _best_headline_keyword_match(
+                        excerpt_words, story_headlines, min_length=4, denominator="query"
+                    )
 
                     if best_idx2 is not None and best_score2 >= 0.3 and best_idx2 < count:
                         summary_part = " ".join(parts[excerpt_len:])
@@ -313,16 +337,11 @@ def parse_batch_summary_response(response, count, story_headlines=None):
         fuzzy_score = 0.0
         if story_headlines:
             _norm = lambda t: re.sub(r"\s+", " ", str(t).strip().lower())
-            _sig = lambda t: set(re.findall(r"\b[a-z]{4,}\b", _norm(t)))
             raw_clean = _norm(re.sub(r"^(#{2,3}\s*)?\*{0,2}\d+[\)\.]\s*", "", raw))
-            best_si = None
-            best_s = 0.0
-            for si, sh in enumerate(story_headlines):
-                s = _sig(raw_clean) & _sig(sh)
-                ratio = len(s) / max(len(_sig(sh)), 1)
-                if ratio > best_s:
-                    best_s = ratio
-                    best_si = si
+            raw_words = _keyword_set(_norm(raw_clean), min_length=4)
+            best_si, best_s = _best_headline_keyword_match(
+                raw_words, story_headlines, min_length=4, denominator="headline"
+            )
             # Also try difflib ratio on full text
             if best_s < 0.7:
                 rn = _norm(raw_clean)
@@ -393,16 +412,16 @@ def parse_batch_summary_response(response, count, story_headlines=None):
             sj = results[j].lower()
             if not si or not sj or not hi or not hj:
                 continue
-            hi_words = set(re.findall(r"\b[a-z]{3,}\b", hi.lower()))
-            hj_words = set(re.findall(r"\b[a-z]{3,}\b", hj.lower()))
+            hi_words = _keyword_set(hi.lower(), min_length=3)
+            hj_words = _keyword_set(hj.lower(), min_length=3)
             if not hi_words or not hj_words:
                 continue
-            overlap_i_to_j = len(hj_words & set(re.findall(r"\b[a-z]{3,}\b", si))) / len(hj_words)
-            overlap_j_to_i = len(hi_words & set(re.findall(r"\b[a-z]{3,}\b", sj))) / len(hi_words)
-            overlap_i_normal = len(hi_words & set(re.findall(r"\b[a-z]{3,}\b", si))) / len(
+            overlap_i_to_j = len(hj_words & _keyword_set(si, min_length=3)) / len(hj_words)
+            overlap_j_to_i = len(hi_words & _keyword_set(sj, min_length=3)) / len(hi_words)
+            overlap_i_normal = len(hi_words & _keyword_set(si, min_length=3)) / len(
                 hi_words
             )
-            overlap_j_normal = len(hj_words & set(re.findall(r"\b[a-z]{3,}\b", sj))) / len(
+            overlap_j_normal = len(hj_words & _keyword_set(sj, min_length=3)) / len(
                 hj_words
             )
             if overlap_i_to_j > overlap_i_normal and overlap_j_to_i > overlap_j_normal:
@@ -419,8 +438,8 @@ def parse_batch_summary_response(response, count, story_headlines=None):
             summary = results[i]
             if not headline or not summary:
                 continue
-            hl_words = set(re.findall(r"\b[a-z]{3,}\b", headline.lower()))
-            sum_words = set(re.findall(r"\b[a-z]{3,}\b", summary.lower()))
+            hl_words = _keyword_set(headline.lower(), min_length=3)
+            sum_words = _keyword_set(summary.lower(), min_length=3)
             if not hl_words:
                 continue
             overlap_pct = len(hl_words & sum_words) / len(hl_words)
@@ -431,7 +450,7 @@ def parse_batch_summary_response(response, count, story_headlines=None):
                 for m in range(len(story_headlines)):
                     if m == i:
                         continue
-                    mh_words = set(re.findall(r"\b[a-z]{3,}\b", story_headlines[m].lower()))
+                    mh_words = _keyword_set(story_headlines[m].lower(), min_length=3)
                     if not mh_words:
                         continue
                     m_score = len(mh_words & sum_words) / len(mh_words)

@@ -4,6 +4,11 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
+### v1.0.145 — Parser Keyword Deduplication (P0)
+- **Deduplicate keyword extraction** (`daily_brief/llm/summary_parser.py`): Extracted `_keyword_set(min_length=)` and `_best_headline_keyword_match(query_words, ..., denominator=)` private helpers. Replaced repeated `re.findall(r"\b[a-z]{4,}\b"`/`r"\b[a-z]{3,}\b"` tokenization in summary-to-headline matching, prefix/excerpt matching, positional fallback keyword matching, adjacent swap detection, and all-pairs mismatch validation. Strategies retain distinct `min_length` (4 vs 3) and `denominator` ("headline" vs "query") semantics. 452 lines → 471 lines.
+- **Strengthened first-wins assertion** (`tests/test_parser_assignment_contract.py`): `TestNoOverwrite.test_both_match_headline_zero_second_does_not_overwrite` now asserts `"Firefighters contained"` (STORY_0's distinctive text) and rejects `"evacuated"` (STORY_2's distinctive text), preventing silent last-wins overwrite that the old `"downtown"` check cannot detect.
+- **521/521 tests passing**, 1 pre-existing failure (unchanged), config validate PASS.
+
 ### v1.0.144 — Packaging, CI, and Repository Hygiene (Priority 3)
 - **Canonical version source** (`daily_brief/_version.py`): single `__version__` string; package `__init__.py` and runtime config default derive from it. Eliminates scattered literal version numbers.
 - **PEP 621 packaging** (`pyproject.toml`): setuptools build system with flat-layout discovery, dynamic version, `requires-python >= 3.9`, runtime/test dependency declarations, `daily-brief` console script entry point.

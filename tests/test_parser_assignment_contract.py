@@ -65,11 +65,17 @@ class TestNoOverwrite(unittest.TestCase):
         # Both STORY_0 and STORY_2 high fuzzy-match to headline 0.
         # Contract: first match wins; second does NOT overwrite.
         self.assertTrue(result[0].strip(), "slot 0 has fire summary from STORY_0")
-        # STORY_2 paraphrase of headline 0 should NOT overwrite slot 0
+        # First-wins: result[0] must be STORY_0's normalized fire summary,
+        # NOT a later duplicate. Use distinctive text to prove first payload survived.
         self.assertIn(
-            "downtown",
-            result[0].lower() or "",
-            "slot 0 should still contain the original downtown fire summary",
+            "Firefighters contained",
+            result[0],
+            "slot 0 must be STORY_0's fire summary, not overwritten by STORY_2's duplicate",
+        )
+        self.assertNotIn(
+            "evacuated",
+            result[0],
+            "slot 0 must not contain STORY_2's distinctive wording (evacuated)",
         )
 
 

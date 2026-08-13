@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 — v1.0.144
+# TODO: Daily Brief v01 — v1.0.145
 
 ## Code Review Findings (2026-08-12)
 

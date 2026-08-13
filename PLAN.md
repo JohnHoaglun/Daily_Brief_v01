@@ -1,4 +1,4 @@
-# PLAN: v1.0.144 — Priority 2 Hardening (Benchmark Driver)
+# PLAN: v1.0.145 — Priority 2 Hardening (Benchmark Driver)
 
 ## Status: COMPLETE — benchmark driver with phase mode toggle, extraction metrics, JSON output, and configuration provenance. 635/635 passing (50 new).
 
@@ -47,7 +47,7 @@ Priority 2 hardening: connectivity checks, pipeline logging consolidation, and p
 - `python3 -m pytest` (full suite)
 - `python3 -m daily_brief config validate`
 
-## 3. Benchmark Driver — COMPLETE v1.0.144
+## 3. Benchmark Driver — COMPLETE v1.0.145
 ### Changes
 - `daily_brief/benchmark_pipeline_concurrency.py` (new module)
   - Dedicated, non-default benchmark driver

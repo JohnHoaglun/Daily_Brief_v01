@@ -34,7 +34,7 @@ Full review performed: structural issues, files exceeding 500/300 lines, perform
   - [x] `llm/summary_coordinator.py` (226) — `batch_summarize_all()` orchestration.
   - [x] `llm/summarizer.py` (67) — Thin compatibility facade re-exporting all public/test-facing APIs.
   - [x] **Test fix:** Added missing imports to coordinator (`_summarize`, `_is_valid_summary`, `_generate_auto_fallback`, `build_context`); fixed empty-backoff `IndexError` in retry path.
-- [ ] **Deduplicate parser logic** — Strategies 1 and 2 both do keyword overlap with near-identical `re.findall(r"\b[a-z]{4,}\b", ...)` extraction. All-pairs mismatch detection (lines 486–522) repeats the same work. Pre-compute significant-word sets, cache normalized headlines, use a shared `extract_significant_words()` helper.
+- [x] **Deduplicate parser logic** — Extracted `_keyword_set()` and `_best_headline_keyword_match()` helpers in `summary_parser.py`. Replaced all repeated `re.findall(r"\b[a-z]{3,}\b"`/`r"\b[a-z]{4,}\b"` tokenization (7 contexts, ~17 occurrences). Strategies retain distinct `min_length` and `denominator` semantics.
 
 ### P0 — `config_validator.py` (614 → split into 2 files)
 

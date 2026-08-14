@@ -15,7 +15,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
 
@@ -95,6 +95,12 @@ EXIT_CODE_VALIDATION = 2
 __all__ = [
     # Stages: main and stage logic
     "main",
+    "stage_weather",
+    "stage_rss",
+    "stage_extract",
+    "stage_summarize",
+    "stage_render",
+    "stage_validate",
     "_EventLoopLagMonitor",
     "_percentile",
     "_count_extracted",
@@ -129,6 +135,341 @@ def _pip(name: str):
     return getattr(_p, name)
 
 
+# --- Weather stage ----------------------------------------------------------
+
+
+async def stage_weather(
+    ctx: RunContext,
+    session: aiohttp.ClientSession,
+    log_fn: Callable[[str], None],
+) -> Dict[str, Any]:
+    """Fetch NWS weather data (Phase 1).
+
+    Returns ``{"data": ..., "timing": ..., "error": ...}``.
+    On success ``data`` is the weather dict; on failure ``error`` holds
+    the exception message.  Timing is recorded into ``ctx.phase_timings``.
+    """
+    t1 = time.monotonic()
+    log_fn("\n[Phase 1] Fetching NWS weather...")
+
+    try:
+        weather = await fetch_weather(session, WEATHER_LAT, WEATHER_LON)
+        if weather:
+            station = weather.get("station", {})
+            station_keys = (
+                "avg_temp_today",
+                "avg_monthly_rainfall",
+                "current_monthly_rainfall",
+            )
+            station_partial = any(
+                not station.get(k)
+                or station[k] == "Unavailable"
+                or "(fallback)" in str(station.get(k, ""))
+                for k in station_keys
+            )
+            station_label = (
+                "station (partial — fallback applied)"
+                if station_partial
+                else "station"
+            )
+            weather_errors = weather.get("errors", [])
+            status = "PARTIAL" if (station_partial or weather_errors) else "OK"
+            log_fn(
+                f"  Weather {status} -- "
+                f"{len(weather.get('forecast', []))} forecast periods | "
+                f"1 {station_label} record | "
+                f"{len(weather.get('lakes', {}))} lake sources"
+            )
+            if weather_errors:
+                log_fn(
+                    f"  Weather errors ({len(weather_errors)}): "
+                    + "; ".join(weather_errors[:3])
+                )
+        else:
+            log_fn("  Weather returned empty")
+        elapsed = time.monotonic() - t1
+        ctx.phase_timings["Phase 1"] = elapsed
+        log_fn(f"  Phase 1 completed in {elapsed:.2f}s")
+        return {"data": weather, "timing": elapsed, "error": None}
+    except Exception as exc:
+        elapsed = time.monotonic() - t1
+        ctx.phase_timings["Phase 1"] = elapsed
+        log_fn(f"  Weather error: {exc}")
+        log_fn(f"  Phase 1 completed in {elapsed:.2f}s")
+        return {"data": None, "timing": elapsed, "error": str(exc)}
+
+
+# -- RSS dedup stage --------------------------------------------------------
+
+
+async def stage_rss(
+    ctx: RunContext,
+    session: aiohttp.ClientSession,
+    log_fn: Callable[[str], None],
+) -> Tuple[List, Dict[str, Any]]:
+    """Fetch and deduplicate RSS stories (Phase 2).
+
+    Returns ``(deduped, stats)`` on success and ``([], {"error": ..., "total_after": 0})``
+    on failure.  Timing is recorded into ``ctx.phase_timings["Phase 2"]``.
+    """
+    t2 = time.monotonic()
+
+    # Late-bind to preserve test-patch resolution
+    fetch_and_dedup = _pip("fetch_and_dedup")
+    CATEGORIES = _pip("CATEGORIES")
+
+    try:
+        deduped, dedup_stats = await fetch_and_dedup(session, CATEGORIES, log_fn)
+        elapsed = time.monotonic() - t2
+        ctx.phase_timings["Phase 2"] = elapsed
+        log_fn(f"  Phase 2 completed in {elapsed:.2f}s")
+        return deduped, dedup_stats
+    except Exception as exc:
+        elapsed = time.monotonic() - t2
+        ctx.phase_timings["Phase 2"] = elapsed
+        log_fn(f"  RSS error: {exc}")
+        log_fn(f"  Phase 2 completed in {elapsed:.2f}s")
+        return [], {"error": str(exc), "total_after": 0}
+
+
+# -- Article extraction stage ------------------------------------------------
+
+
+async def stage_extract(
+    stories: List[StoryPipelineState],
+    ctx: RunContext,
+    session: aiohttp.ClientSession,
+    log_fn: Callable[[str], None],
+) -> List[StoryPipelineState]:
+    """Bounded article extraction (Phase 3A).
+
+    Constructs story objects from deduped tuples, applies bounded concurrent
+    extraction via semaphore, runs loop-lag monitoring, and records metrics.
+    """
+    # Late-bind
+    stage_extract_article = _pip("stage_extract_article")
+    _EventLoopLagMonitor = _pip("_EventLoopLagMonitor")
+    _percentile = _pip("_percentile")
+    _count_extracted = _pip("_count_extracted")
+
+    total = len(stories)
+
+    if not stories:
+        ctx.phase_timings["Phase 3A"] = 0.0
+        log_fn("  Extraction: 0 stories")
+        return stories
+
+    log_fn("  [3A] Fetching full articles from external sources...")
+    sem_article = asyncio.Semaphore(ctx.article_max_concurrency)
+
+    async def _bounded_extract(s: StoryPipelineState) -> StoryPipelineState:
+        async with sem_article:
+            return await stage_extract_article(s, session)
+
+    t3a = time.monotonic()
+    looplag = _EventLoopLagMonitor(interval_s=0.02)
+    looplag.start()
+    extract_results = await asyncio.gather(
+        *[_bounded_extract(s) for s in stories],
+        return_exceptions=True,
+    )
+    lag_samples = await looplag.stop_async()
+    el3a = time.monotonic() - t3a
+    ctx.phase_timings["Phase 3A"] = el3a
+    extracted_count = _count_extracted(stories)
+    throughput = total / el3a if el3a > 0 else 0
+    log_fn(
+        f"  Extraction: {total} in {el3a:.2f}s ({throughput:.1f} stories/s, {extracted_count} contexts)"
+    )
+    if lag_samples:
+        p50 = _percentile(lag_samples, 50)
+        p95 = _percentile(lag_samples, 95)
+        p99 = _percentile(lag_samples, 99)
+        log_fn(
+            f"  Loop lag during extraction: p50={p50 * 1000:.1f}ms p95={p95 * 1000:.1f}ms p99={p99 * 1000:.1f}ms max={max(lag_samples) * 1000:.1f}ms ({len(lag_samples)} samples)"
+        )
+
+    extract_errs = [r for r in extract_results if isinstance(r, Exception)]
+    if extract_errs:
+        log_fn(
+            f"  Article extraction errors ({len(extract_errs)}): "
+            + "; ".join(str(e) for e in extract_errs[:5])
+        )
+
+    return stories
+
+
+# -- Batch summarization stage -----------------------------------------------
+
+
+async def stage_summarize(
+    stories: List[StoryPipelineState],
+    ctx: RunContext,
+    log_fn: Callable[[str], None],
+) -> List[StoryPipelineState]:
+    """Batch LLM summarization (Phase 3B/3C).
+
+    Calls ``batch_summarize_all`` with configured batch size and concurrency,
+    logs summary metrics, and records Phase 3 timing.
+    """
+    # Late-bind
+    llm_batch_summarize_all = _pip("llm_batch_summarize_all")
+    SummaryMetrics = _pip("SummaryMetrics")
+    LLM_MODEL = _pip("LLM_MODEL")
+    LLM_SUMMARY_BATCH_SIZE = _pip("LLM_SUMMARY_BATCH_SIZE")
+    LLM_SUMMARY_MAX_CONCURRENCY = _pip("LLM_SUMMARY_MAX_CONCURRENCY")
+
+    t3 = time.monotonic()
+
+    total = len(stories)
+    log_fn(f"  [3BC] Running BATCH summaries via {LLM_MODEL}...")
+
+    summary_metrics = await llm_batch_summarize_all(
+        ctx.llm_client,
+        stories,
+        batch_size=LLM_SUMMARY_BATCH_SIZE,
+        max_concurrency=LLM_SUMMARY_MAX_CONCURRENCY,
+    )
+    if summary_metrics and isinstance(summary_metrics, SummaryMetrics):
+        log_fn(
+            f"  Summaries: {summary_metrics.final_valid} valid / {summary_metrics.auto_fallbacks} [Auto] / {summary_metrics.unavailable_summaries} unavailable"
+        )
+        if summary_metrics.batch_retries:
+            log_fn(
+                f"  Batch retries: {summary_metrics.batch_retries} sub-batches retried"
+            )
+        if summary_metrics.individual_recovery_attempts:
+            log_fn(
+                f"  Recovery: {summary_metrics.individual_recovered}/{summary_metrics.individual_recovery_attempts} stories recovered individually"
+            )
+        log_fn(
+            f"  Batch calls: {summary_metrics.batch_calls} sub-batches in {summary_metrics.elapsed_s:.1f}s"
+        )
+    else:
+        sum_ok = sum(1 for s in stories if s.summary and s.summary.strip())
+        log_fn(f"  Summaries: {sum_ok}/{total} with summaries")
+
+    el3 = time.monotonic() - t3
+    ctx.phase_timings["Phase 3"] = el3
+    log_fn(f"  Phase 3 completed in {el3:.2f}s")
+    log_fn(
+        f"  Phase 3 LLM scheduler: batch_size={LLM_SUMMARY_BATCH_SIZE}, max_concurrency={LLM_SUMMARY_MAX_CONCURRENCY}"
+    )
+
+    return stories
+
+
+# -- Report rendering stage ------------------------------------------------
+
+
+async def stage_render(
+    stories: List[StoryPipelineState],
+    weather: Dict[str, Any],
+    dedup_stats: Dict[str, Any],
+    ctx: RunContext,
+    log_ver: int,
+    log_fn: Callable[[str], None],
+) -> str:
+    """Render Markdown report and write to disk (Phase 4).
+
+    Returns the absolute path of the written report file.
+    """
+    # Late-bind
+    build_sections_from_stories = _pip("build_sections_from_stories")
+    build_markdown = _pip("build_markdown")
+    compute_output_path = _pip("compute_output_path")
+    write_report = _pip("write_report")
+    cleanup_old_files = _pip("cleanup_old_files")
+    ordered_categories_for_render = _pip("ordered_categories_for_render")
+    _normalize_weather_for_rendering = _pip("_normalize_weather_for_rendering")
+    CATEGORIES = _pip("CATEGORIES")
+    CATEGORY_PRIORITY = _pip("CATEGORY_PRIORITY")
+    FRONTMATTER_TAG_SEEDS = _pip("FRONTMATTER_TAG_SEEDS")
+    DEFAULT_CONTENT_AGE_WINDOW_HOURS = _pip("DEFAULT_CONTENT_AGE_WINDOW_HOURS")
+    WEATHER_SECTION_TITLE = _pip("WEATHER_SECTION_TITLE")
+    MAX_LOG_VERSIONS = _pip("MAX_LOG_VERSIONS")
+    format_pub_date = _pip("format_pub_date")
+
+    t4 = time.monotonic()
+
+    cleanup_old_files(ctx.output_dir, MAX_LOG_VERSIONS, "md")
+
+    sections = build_sections_from_stories(stories, format_pub_date)
+    filepath, file_ver = compute_output_path(ctx.output_dir, file_ver=log_ver)
+
+    ordered_cats = ordered_categories_for_render([c[0] for c in CATEGORIES if c[1]])
+    sections_map = {cn: sections.get(cn, []) for cn in ordered_cats}
+    rendered_cat_count = sum(1 for cn in ordered_cats if cn != "Weather" and cn != "Weather Forecast 77316") if ordered_cats else 0
+
+    safe_weather = weather if weather is None else _normalize_weather_for_rendering(weather)
+    md = build_markdown(
+        stories,
+        safe_weather,
+        sections_map,
+        ordered_cats,
+        {
+            "total_after_dedup": dedup_stats.get("total_after", 0),
+            "rendered_cat_count": rendered_cat_count,
+            "DEFAULT_CONTENT_AGE_WINDOW_HOURS": DEFAULT_CONTENT_AGE_WINDOW_HOURS,
+            "FRONTMATTER_TAG_SEEDS": FRONTMATTER_TAG_SEEDS,
+            "WEATHER_SECTION_TITLE": WEATHER_SECTION_TITLE,
+        },
+    )
+    write_report(filepath, md)
+    cleanup_old_files(ctx.output_dir, ctx.input_log_dir, MAX_LOG_VERSIONS)
+
+    el4 = time.monotonic() - t4
+    log_fn(f"\nFile written to {filepath}")
+    log_fn(f"  Stories: {dedup_stats.get('total_after', 0)} | Time: {el4:.1f}s")
+    ctx.phase_timings["Phase 4"] = el4
+    log_fn(f"  Phase 4 completed in {el4:.2f}s")
+
+    return filepath
+
+
+# -- Report validation stage -------------------------------------------------
+
+
+async def stage_validate(
+    report_path: str,
+    ctx: RunContext,
+    log_fn: Callable[[str], None],
+    run_start: float,
+) -> int:
+    """Validate the written report (Phase 5).
+
+    Returns ``EXIT_CODE_VALIDATION`` (2) if validation fails,
+    otherwise ``EXIT_CODE_SUCCESS`` (0).
+    """
+    # Late-bind
+    validate_report = _pip("validate_report")
+
+    log_fn("\n[Phase 5] Validating report...")
+    t5 = time.monotonic()
+    validation_passed, validation_issues = validate_report(report_path)
+    el5 = time.monotonic() - t5
+    ctx.phase_timings["Phase 5"] = el5
+    log_fn(f"  Phase 5 completed in {el5:.2f}s")
+
+    if not validation_passed:
+        total_elapsed = time.monotonic() - run_start
+        log_fn(f"TOTAL PIPELINE TIME: {total_elapsed:.2f}s")
+        log_fn("\n*** RUN VALIDATION FAILED — Report has broken summaries ***")
+        log_fn(f"STATUS: FAILED ({len(validation_issues)} issues found)")
+        print(f"\n*** RUN FAILED — {len(validation_issues)} validation issues found ***")
+        print(f"File: {report_path}")
+        print(f"Log: {ctx.run_logfile}")
+        log_fn("\n=== PIPELINE EXIT CODE: VALIDATION FAILURE ===")
+        return EXIT_CODE_VALIDATION
+
+    total_elapsed = time.monotonic() - run_start
+    log_fn(f"TOTAL PIPELINE TIME: {total_elapsed:.2f}s")
+    log_fn("\n=== PIPELINE COMPLETED SUCCESSFULLY ===")
+    print(f"\nDone. File: {report_path}")
+    log_fn(f"  Time: {time.monotonic() - run_start:.1f}s")
+    return EXIT_CODE_SUCCESS
+
+
 # -- Main -------------------------------------------------------------------
 
 
@@ -151,6 +492,10 @@ async def main():
     write_report = _pip("write_report")
     cleanup_old_files = _pip("cleanup_old_files")
     aiohttp = _pip("aiohttp")  # tests patch daily_brief.pipeline.aiohttp.ClientSession
+    _normalize_weather_for_rendering = _pip("_normalize_weather_for_rendering")
+    CATEGORIES = _pip("CATEGORIES")
+    CATEGORY_PRIORITY = _pip("CATEGORY_PRIORITY")
+    format_pub_date = _pip("format_pub_date")
     # Config dir/values that tests patch on the pipeline module
     LOG_DIR = _pip("LOG_DIR")
     NEWS_DIR = _pip("NEWS_DIR")
@@ -235,67 +580,24 @@ async def main():
 
         run_started = time.monotonic()
 
-        now_ct = datetime.now(ACTIVE_TIMEZONE)
-        cutoff = now_ct - timedelta(hours=DEFAULT_AGE_LIMIT_HOURS)
-
         async with aiohttp.ClientSession(
             connector=aiohttp.TCPConnector(limit=100, limit_per_host=30, ttl_dns_cache=300),
             headers={"User-Agent": USER_AGENT},
             timeout=aiohttp.ClientTimeout(total=30),
         ) as session:
-            # ---------- Phase 1 + Phase 2: Concurrent weather + RSS ----------
+            # Phase 1 + Phase 2: Concurrent weather + RSS
             weather_result: Dict[str, Any] = {"data": None, "timing": 0.0, "error": None}
             rss_result: Dict[str, Any] = {"deduped": [], "stats": {}, "timing": 0.0, "error": None}
 
             async def _phase1_weather():
-                t1 = time.monotonic()
-                lgr.info("\n[Phase 1] Fetching NWS weather...")
-                try:
-                    weather = await fetch_weather(session, WEATHER_LAT, WEATHER_LON)
-                    weather_result["data"] = weather
-                    if weather:
-                        station = weather.get("station", {})
-                        station_keys = (
-                            "avg_temp_today",
-                            "avg_monthly_rainfall",
-                            "current_monthly_rainfall",
-                        )
-                        station_partial = any(
-                            not station.get(k)
-                            or station[k] == "Unavailable"
-                            or "(fallback)" in str(station.get(k, ""))
-                            for k in station_keys
-                        )
-                        station_label = (
-                            "station (partial — fallback applied)"
-                            if station_partial
-                            else "station"
-                        )
-                        weather_errors = weather.get("errors", [])
-                        status = "PARTIAL" if (station_partial or weather_errors) else "OK"
-                        lgr.info(
-                            f"  Weather {status} -- "
-                            f"{len(weather.get('forecast', []))} forecast periods | "
-                            f"1 {station_label} record | "
-                            f"{len(weather.get('lakes', {}))} lake sources"
-                        )
-                        if weather_errors:
-                            lgr.info(
-                                f"  Weather errors ({len(weather_errors)}): "
-                                + "; ".join(weather_errors[:3])
-                            )
-                    else:
-                        lgr.info("  Weather returned empty")
-                except Exception as exc:
-                    weather_result["error"] = str(exc)
-                    lgr.info(f"  Weather error: {exc}")
-                elapsed = time.monotonic() - t1
-                weather_result["timing"] = elapsed
-                ctx.phase_timings["Phase 1"] = elapsed
-                lgr.info(f"  Phase 1 completed in {elapsed:.2f}s")
+                result = await stage_weather(ctx, session, lgr.info)
+                weather_result["data"] = result["data"]
+                weather_result["timing"] = result["timing"]
+                weather_result["error"] = result["error"]
 
             async def _phase2_rss():
-                t2 = time.monotonic()
+                fetch_and_dedup = _pip("fetch_and_dedup")
+                CATEGORIES = _pip("CATEGORIES")
                 try:
                     deduped, dedup_stats = await fetch_and_dedup(session, CATEGORIES, lgr.info)
                     rss_result["deduped"] = deduped
@@ -305,10 +607,6 @@ async def main():
                     lgr.info(f"  RSS error: {exc}")
                     rss_result["deduped"] = []
                     rss_result["stats"] = {"total_after": 0}
-                elapsed = time.monotonic() - t2
-                rss_result["timing"] = elapsed
-                ctx.phase_timings["Phase 2"] = elapsed
-                lgr.info(f"  Phase 2 completed in {elapsed:.2f}s")
 
             await asyncio.gather(_phase1_weather(), _phase2_rss())
 
@@ -317,154 +615,34 @@ async def main():
             dedup_stats = rss_result["stats"]
             total_after_dedup = dedup_stats.get("total_after", 0)
 
-            # ---------- Phase 3: Summarization (single batch call) ----------
-            lgr.info("\n[Phase 3] Enriching + summarizing...")
-            t3 = time.monotonic()
-
+            # Phase 3A: Story construction + bounded article extraction
+            lgr.info("  [3A] Constructing stories and fetching articles...")
             stories: List[StoryPipelineState] = []
             for title, link, snippet, pub_dt, cat in deduped:
-                s = StoryPipelineState(
+                stories.append(StoryPipelineState(
                     title=title, link=link, snippet=snippet, pub_dt=pub_dt, category=cat
-                )
-                stories.append(s)
+                ))
+            stories = await stage_extract(stories, ctx, session, lgr.info)
 
-            total = len(stories)
-
-            # ---------- Phase 3A: Bounded article fetching ----------
-            lgr.info("  [3A] Fetching full articles from external sources...")
-            sem_article = asyncio.Semaphore(ctx.article_max_concurrency)
-
-            async def _bounded_extract(s: StoryPipelineState):
-                async with sem_article:
-                    return await stage_extract_article(s, session)
-
-            t3a = time.monotonic()
-            looplag = _EventLoopLagMonitor(interval_s=0.02)
-            looplag.start()
-            extract_results = await asyncio.gather(
-                *[_bounded_extract(s) for s in stories],
-                return_exceptions=True,
-            )
-            lag_samples = await looplag.stop_async()
-            el3a = time.monotonic() - t3a
-            ctx.phase_timings["Phase 3A"] = el3a
-            extracted_count = _count_extracted(stories)
-            throughput = total / el3a if el3a > 0 else 0
-            lgr.info(
-                f"  Extraction: {total} in {el3a:.2f}s ({throughput:.1f} stories/s, {extracted_count} contexts)"
-            )
-            if lag_samples:
-                p50 = _percentile(lag_samples, 50)
-                p95 = _percentile(lag_samples, 95)
-                p99 = _percentile(lag_samples, 99)
-                lgr.info(
-                    f"  Loop lag during extraction: p50={p50 * 1000:.1f}ms p95={p95 * 1000:.1f}ms p99={p99 * 1000:.1f}ms max={max(lag_samples) * 1000:.1f}ms ({len(lag_samples)} samples)"
-                )
-
-            extract_errs = [r for r in extract_results if isinstance(r, Exception)]
-            if extract_errs:
-                lgr.info(
-                    f"  Article extraction errors ({len(extract_errs)}): "
-                    + "; ".join(str(e) for e in extract_errs[:5])
-                )
-
-            # ---------- Phase 3B/3C: Batch summary (recovery centralized in summarizer) ----------
-            lgr.info(f"  [3BC] Running BATCH summaries via {LLM_MODEL}...")
-            summary_metrics = await llm_batch_summarize_all(
-                ctx.llm_client,
-                stories,
-                batch_size=LLM_SUMMARY_BATCH_SIZE,
-                max_concurrency=LLM_SUMMARY_MAX_CONCURRENCY,
-            )
-            if summary_metrics and isinstance(summary_metrics, SummaryMetrics):
-                lgr.info(
-                    f"  Summaries: {summary_metrics.final_valid} valid / {summary_metrics.auto_fallbacks} [Auto] / {summary_metrics.unavailable_summaries} unavailable"
-                )
-                if summary_metrics.batch_retries:
-                    lgr.info(
-                        f"  Batch retries: {summary_metrics.batch_retries} sub-batches retried"
-                    )
-                if summary_metrics.individual_recovery_attempts:
-                    lgr.info(
-                        f"  Recovery: {summary_metrics.individual_recovered}/{summary_metrics.individual_recovery_attempts} stories recovered individually"
-                    )
-                lgr.info(
-                    f"  Batch calls: {summary_metrics.batch_calls} sub-batches in {summary_metrics.elapsed_s:.1f}s"
-                )
-            else:
-                sum_ok = sum(1 for s in stories if s.summary and s.summary.strip())
-                lgr.info(f"  Summaries: {sum_ok}/{total} with summaries")
-
-            el3 = time.monotonic() - t3
-            lgr.info(f"  Phase 3 completed in {el3:.2f}s")
-            ctx.phase_timings["Phase 3"] = el3
-            lgr.info(
-                f"  Phase 3 LLM scheduler: batch_size={LLM_SUMMARY_BATCH_SIZE}, max_concurrency={LLM_SUMMARY_MAX_CONCURRENCY}"
-            )
+            # Phase 3B/3C: Batch summarization
+            lgr.info("\n[Phase 3] Summarizing articles...")
+            stories = await stage_summarize(stories, ctx, lgr.info)
 
             lgr.info(
-                f"\n  PROCESSING COMPLETE: {total} stories in {time.monotonic() - run_started:.2f}s (Phases 1-3)"
+                f"\n  PROCESSING COMPLETE: {len(stories)} stories in {time.monotonic() - run_started:.2f}s (Phases 1-3)"
             )
 
-            # ---------- Phase 4: Render report ----------
-            lgr.info("\n[Phase 4] Rendering report...")
-            t4 = time.monotonic()
-
-            sections = build_sections_from_stories(stories, format_pub_date)
-            filepath, file_ver = compute_output_path(ctx.output_dir, file_ver=log_ver)
-
-            ordered_cats = ordered_categories_for_render([c[0] for c in CATEGORIES if c[1]])
-            sections_map = {cn: sections.get(cn, []) for cn in ordered_cats}
-            rendered_cat_count = sum(1 for cn in ordered_cats if cn != "Weather" and cn != "Weather Forecast 77316") if ordered_cats else 0
-
-            safe_weather = _normalize_weather_for_rendering(weather)
-            md = build_markdown(
-                stories,
-                safe_weather,
-                sections_map,
-                ordered_cats,
-                {
-                    "total_after_dedup": total_after_dedup,
-                    "rendered_cat_count": rendered_cat_count,
-                    "DEFAULT_CONTENT_AGE_WINDOW_HOURS": DEFAULT_CONTENT_AGE_WINDOW_HOURS,
-                    "FRONTMATTER_TAG_SEEDS": FRONTMATTER_TAG_SEEDS,
-                    "WEATHER_SECTION_TITLE": WEATHER_SECTION_TITLE,
-                },
+            # Phase 4: Report rendering
+            report_path = await stage_render(
+                stories, weather, dedup_stats, ctx, log_ver, lgr.info
             )
-            write_report(filepath, md)
-            cleanup_old_files(ctx.output_dir, ctx.input_log_dir, MAX_LOG_VERSIONS)
 
-            el4 = time.monotonic() - t4
-            lgr.info(f"\nFile written to {filepath}")
-            lgr.info(f"  Stories: {total_after_dedup} | Time: {el4:.1f}s")
-            ctx.phase_timings["Phase 4"] = el4
-            lgr.info(f"  Phase 4 completed in {el4:.2f}s")
+            # Phase 5: Validation
+            exit_code = await stage_validate(report_path, ctx, lgr.info, run_started)
+            return exit_code
 
-            # --- Phase 5: Internal report validation ---
-            lgr.info("\n[Phase 5] Validating report...")
-            t5 = time.monotonic()
-            validation_passed, validation_issues = validate_report(filepath)
-            el5 = time.monotonic() - t5
-            ctx.phase_timings["Phase 5"] = el5
-            lgr.info(f"  Phase 5 completed in {el5:.2f}s")
-
-            if not validation_passed:
-                total_elapsed = time.monotonic() - run_started
-                lgr.info(f"TOTAL PIPELINE TIME: {total_elapsed:.2f}s")
-                lgr.info("\n*** RUN VALIDATION FAILED — Report has broken summaries ***")
-                lgr.info(f"STATUS: FAILED ({len(validation_issues)} issues found)")
-                print(f"\n*** RUN FAILED — {len(validation_issues)} validation issues found ***")
-                print(f"File: {filepath}")
-                print(f"Log: {ctx.run_logfile}")
-                lgr.info("\n=== PIPELINE EXIT CODE: VALIDATION FAILURE ===")
-                return EXIT_CODE_VALIDATION
-
-            total_elapsed = time.monotonic() - run_started
-            lgr.info(f"TOTAL PIPELINE TIME: {total_elapsed:.2f}s")
-            lgr.info("\n=== PIPELINE COMPLETED SUCCESSFULLY ===")
-            print(f"\nDone. File: {filepath}")
-            print(f"  Stories: {total_after_dedup} | Time: {el4:.1f}s")
-            return EXIT_CODE_SUCCESS
+        print(f"\nNo stories to process — nothing to render.")
+        return EXIT_CODE_SUCCESS
     finally:
         # Flush handlers before teardown so data reaches disk
         for h in lgr.handlers:

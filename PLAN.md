@@ -1,9 +1,28 @@
-# PLAN: v1.0.147 — Priority 2 Hardening (Benchmark Driver)
+# PLAN: v1.0.149 — P1 Pipeline Stage Extraction & build_context Verification
 
-## Status: COMPLETE — benchmark driver with phase mode toggle, extraction metrics, JSON output, and configuration provenance. 635/635 passing (50 new).
+## Status: COMPLETE — All 5 phases extracted to standalone async functions. main() reduced from ~500 to ~178 lines. 639 tests passing (0 new failures).
 
-## Objective
-Priority 2 hardening: connectivity checks, pipeline logging consolidation, and pipeline concurrency benchmark driver. Each slice increments the version by exactly `+0.0.1`.
+## P1 — Pipeline Stage Extraction
+### Changes
+- `daily_brief/pipeline/stages.py`: Six standalone stage functions extracted:
+  - `stage_weather(ctx, session, log_fn)` — Phase 1 weather fetch
+  - `stage_rss(ctx, session, log_fn)` — Phase 2 RSS dedup
+  - `stage_extract(stories, ctx, session, log_fn)` — Phase 3A article extraction
+  - `stage_summarize(stories, ctx, log_fn)` — Phase 3B/3C batch summarization
+  - `stage_render(stories, weather, dedup_stats, ctx, log_ver, log_fn)` — Phase 4 report rendering
+  - `stage_validate(report_path, ctx, log_fn, run_start)` — Phase 5 report validation
+- All stages use `_pip()` late-resolution for test-patch compatibility.
+- `main()` reduced to orchestration layer: config validation, preflight, context setup, reservation, logger lifecycle, sequential stage calls, teardown.
+
+### Tests
+- `tests/test_pipeline_stages.py`: 12 regression tests for stage extraction (existence, concurrent pair, short-circuit, package-level patching).
+- `tests/test_build_context_wiring.py`: 10 regression tests for build_context consistency.
+
+### Verification
+- `python3 -m pytest --tb=no -q` — 639 passed, 1 skipped
+- `python3 -m daily_brief config validate` — PASS
+- `python3 -c "import daily_brief.llm.summary_parser; import daily_brief.pipeline; print('OK')"` — OK
+
 
 ## Scope and Order
 1. **Connectivity Hardening** — TLS verification, User-Agent forwarding, safe URL parsing. `daily_brief/connectivity.py`

@@ -1,4 +1,4 @@
-# TODO: Daily Brief v01 — v1.0.147
+# TODO: Daily Brief v01 — v1.0.149
 
 ## Code Review Findings (2026-08-12)
 
@@ -40,15 +40,16 @@ Full review performed: structural issues, files exceeding 500/300 lines, perform
   - [x] Kept `validate_config()` dispatcher + helpers + required/types/ranges in `config_validator.py` (454 lines).
   - [x] New `config_validation_rules.py` (187) — Domain checks: `check_categories`, `check_lake_urls`, `check_prompts`, `check_batch_scheduler`, `check_timezone_and_paths`.
 
-### P1 — `pipeline.py` (584 lines)
+### P1 — `pipeline.py` (584 lines → reduced to ~178 in main())
 
-- [ ] **Extract phases into standalone async functions** — `main()` is ~280 lines of sequential orchestration with nested closures.
-  - [ ] `pipeline/stage.py` — `async def stage_weather(...)`, `stage_rss(...)`, `stage_extract(...)`, `stage_summarize(...)`, `stage_render(...)`, `stage_validate(...)`.
-  - [ ] `pipeline.py` — Keep orchestration layer only (~100 lines): calls stages in order, collects timings, handles errors/logging.
+- [x] **Extract phases into standalone async functions** — `main()` reduced from ~500 to ~178 lines.
+  - [x] `pipeline/stages.py` — `async def stage_weather(...)`, `stage_rss(...)`, `stage_extract(...)`, `stage_summarize(...)`, `stage_render(...)`, `stage_validate(...)`.
+  - [x] `pipeline.py` (`main()`) — Orchestration layer only: config validation, preflight, context setup, reservation, logger lifecycle, sequential stage calls, teardown.
+  - [x] All stage functions use `_pip()` late-resolution for test-patch compatibility.
 
 ### P1 — Cross-cutting duplication
 
-- [ ] **Deduplicate `build_context` usage** — Already in `utils.py` but called from `summarizer.py` with explicit `preview_chars` param. Verify consistency across all call sites.
+- [x] **Deduplicate `build_context` usage** — Verified consistency: `utils.py` defines `build_context(story, preview_chars=600)`, all production callers pass `preview_chars=LLM_CONTEXT_PREVIEW_CHARS` (configured to 600). Added regression tests (`tests/test_build_context_wiring.py`) verifying batch recovery and individual recovery wiring. Truncation tested at non-default 25-char value.
 
 ### P2 — Files in 300–500 line range
 

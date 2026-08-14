@@ -1,5 +1,5 @@
 """
-Daily Brief v1.0.147 — Models
+Daily Brief v1.0.149 — Models
 =============================
 Canonical story model (promoted from StoryPipelineState). Weather, lake,
 forecast, and brief output dataclasses.

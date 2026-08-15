@@ -1,4 +1,4 @@
-"""Daily Brief v1.0.153 — Pipeline Orchestration (5 phases: weather, RSS, LLM, render, validate)."""
+"""Daily Brief — Pipeline Orchestration (5 phases: weather, RSS, LLM, render, validate)."""
 
 from __future__ import annotations
 

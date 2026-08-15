@@ -177,11 +177,9 @@ class TestValidatorScenarios(TestCase):
 
     def test_required_strings(self):
         cfg = self._bare()
-        cfg["version"] = ""
         cfg["llm"]["model"] = ""
         issues = check_types(cfg)
         texts = "\n".join(issues)
-        self.assertIn("version", texts)
         self.assertIn("llm.model", texts)
 
     def test_type_check_float(self):

@@ -22,7 +22,6 @@ CONFIG_HOME = Path.home() / ".config" / "daily_brief" / "config.yaml"
 # Defaults — single nested structure matching the canonical YAML shape
 # ---------------------------------------------------------------------------
 DEFAULTS = {
-    "version": PACKAGE_VERSION,
     "llm": {
         "model": "gemma4-e2b",
         "host": "http://localhost:11434/v1",
@@ -215,7 +214,7 @@ def build_runtime_config(raw_cfg):
         for delay in backoff_values
     ]
     return {
-        "VERSION": value("version", DEFAULTS["version"], str),
+        "VERSION": PACKAGE_VERSION,
         "LLM_MODEL": value("llm.model", DEFAULTS["llm"]["model"], str),
         "OLLAMA_HOST": value("llm.host", DEFAULTS["llm"]["host"], str),
         "LOG_DIR": value("directories.log_dir", None, str),

@@ -1,6 +1,6 @@
 """
-Daily Brief v1.0.153 — HTTP Client
-==================================
+Daily Brief — HTTP Client
+=================================
 Async HTTP fetch functions with session management.
 
 Bounded response handling:

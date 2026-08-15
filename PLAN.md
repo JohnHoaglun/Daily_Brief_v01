@@ -1,6 +1,6 @@
-# PLAN: v1.0.153 — P2.1 Finalize test-context wiring
+# PLAN — Single-source versioning direction
 
-## Status: COMPLETE — All pipelines and tests verified clean at v1.0.153. Fixed test-phase hang via _pip late-binding.
+## Status: COMPLETE — All pipelines and tests verified clean. Fixed test-phase hang via _pip late-binding.
 
 ## v1.0.153 — Concurrency scheduling fix
 - **Bug:** `test_phase_1_and_2_run_concurrent` hung indefinitely.  Root cause: `stage_weather()` called `fetch_weather` via module-level import (line 47 of `stages.py`), but test patched `daily_brief.pipeline.fetch_weather`. The mock never fired because the import resolved to `daily_brief.sources.weather.fetch_weather`.
@@ -88,13 +88,17 @@
 - `python3 -m pytest` (full suite)
 - `python3 -m daily_brief config validate`
 
-## Release Process (each slice)
-1. Increment version `+0.0.1` in `versions_locations.md` registry
-2. Update all registry targets
-3. Update `PROJECT.md`, `TODOS.md`, `SUMMARY.md`, `PLAN.md`
-4. `grep` for old version to catch missed references
-5. Run targeted tests, then full suite, then config validate
-6. Commit and push
+## Release Process (single canonical source)
+Every release touches **one** file: `daily_brief/_version.py`.
+
+1. Increment version in `daily_brief/_version.py`
+2. Update `SUMMARY.md` with a new immutable `<section header>` entry for this release
+3. Update `PLAN.md` and `TODOS.md` status lines as work evolves
+4. Run full test suite, then config validate
+5. Commit, then create and push a Git tag `vX.Y.Z`
+6. If needed, create a GitHub release from that tag
+
+**Never** bump versions in module docstrings, test files, or `config.yaml`.
 
 ## Non-Goals
 - Do not change RSS candidate-pool widening behavior

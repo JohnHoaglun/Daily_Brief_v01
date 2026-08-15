@@ -2,6 +2,16 @@
 
 ## Changelog
 
+### v1.0.154 — Single-source version: `_version.py` only
+
+- **Eliminated version duplication across 20+ files.** Version text is now **only** in `daily_brief/_version.py`.
+- Removed version from all module docstrings (sources, pipeline, utils, models, http_client, lifecycle, llm, validation).
+- Removed `version` key from `config.yaml` and `DEFAULTS["version"]` from `config.py`. `VERSION` now derives directly from `PACKAGE_VERSION`.
+- Removed `version` from `_REQUIRED_TOP` validator, `check_types()` version check, and semver check — config.yaml no longer carries version.
+- Deleted `versions_locations.md` registry; replaced with documented release process in `PLAN.md`.
+- Added `tests/test_version_single_source.py`: 4 tests verifying single-source of truth (canonical import, no version in config.yaml/docstrings/config file).
+- Updated `README.md` title, config table entry, `PROJECT.md`, `TODOS.md`, `PLAN.md`, `dashboard_pipeline.py`.
+
 ### v1.0.153 — P2.1 Finalize test-context wiring; concurrency scheduling fix
 - Add ``_update_test_context(ctx)`` call in ``stages.py`` ``main()`` body (end of try block, before return) for test-hub consistency.
 - Simplify ``_phase2_rss()`` closure in ``main()`` to call ``stage_rss()`` directly without inline try/except.

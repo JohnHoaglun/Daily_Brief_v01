@@ -1,5 +1,5 @@
 """
-Daily Brief v1.0.153 — Climate Sources
+Daily Brief — Climate Sources
 ======================================
 Climate data fetching and parsing functions extracted from the monolith.
 """

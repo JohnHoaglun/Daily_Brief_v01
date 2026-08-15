@@ -76,7 +76,6 @@ from daily_brief.config_validation_rules import (
 # ---------------------------------------------------------------------------
 
 _REQUIRED_TOP = [
-    "version",
     "llm",
     "directories",
     "weather",
@@ -147,11 +146,6 @@ def check_required_keys(config: dict):
 
 def check_types(config: dict):
     issues: list[str] = []
-
-    # version
-    v = config.get("version")
-    if not _is_non_empty_str(v):
-        issues.append("'version' must be a non-empty string")
 
     # llm
     llm = _get(config, "llm", {})
@@ -286,11 +280,6 @@ def check_ranges(config: dict):
             issues.append(f"'{path}' must be an integer")
             return False
         return value is not None
-
-    # version  — must match X.Y.Z
-    v = config.get("version", "")
-    if _is_str(v) and not re.fullmatch(r"\d+\.\d+\.\d+", v.strip()):
-        issues.append(f"'version' does not look like semver: '{v}' (expected X.Y.Z)")
 
     # llm.host
     host = _get(config, "llm.host")

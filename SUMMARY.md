@@ -2,10 +2,12 @@
 
 ## Changelog
 
-### v1.0.152 — P2.1 Finalize test-context wiring
+### v1.0.153 — P2.1 Finalize test-context wiring; concurrency scheduling fix
 - Add ``_update_test_context(ctx)`` call in ``stages.py`` ``main()`` body (end of try block, before return) for test-hub consistency.
 - Simplify ``_phase2_rss()`` closure in ``main()`` to call ``stage_rss()`` directly without inline try/except.
 - Update module docstring for ``daily_brief/pipeline/__init__.py``.
+- **Fix test-phase hang (`test_phase_1_and_2_run_concurrent`):** `stage_weather()` had module-level `from daily_brief.sources.weather import fetch_weather` which bypassed test patches. Replaced with `_fw = _pip("fetch_weather")` late-binding (matching `stage_rss`/`stage_extract` patterns). Updated `test_patch_fetch_weather_at_package_level` to patch `daily_brief.pipeline.fetch_weather`.
+- **Result:** 665/666 tests pass (1), 0 failures after fix.
 
 ## Overview
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).

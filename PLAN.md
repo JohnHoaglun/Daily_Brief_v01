@@ -1,6 +1,11 @@
-# PLAN: v1.0.152 — P2.1 Finalize test-context wiring
+# PLAN: v1.0.153 — P2.1 Finalize test-context wiring
 
-## Status: COMPLETE — Added _current_context test-hub shim, wired stage_rss in concurrent pair for Phase 2 timing.
+## Status: COMPLETE — All pipelines and tests verified clean at v1.0.153. Fixed test-phase hang via _pip late-binding.
+
+## v1.0.153 — Concurrency scheduling fix
+- **Bug:** `test_phase_1_and_2_run_concurrent` hung indefinitely.  Root cause: `stage_weather()` called `fetch_weather` via module-level import (line 47 of `stages.py`), but test patched `daily_brief.pipeline.fetch_weather`. The mock never fired because the import resolved to `daily_brief.sources.weather.fetch_weather`.
+- **Fix:** Added `_fw = _pip("fetch_weather")` late-binding inside `stage_weather()`, matching `stage_rss()` and `stage_extract()` patterns. Updated `test_patch_fetch_weather_at_package_level` to patch `daily_brief.pipeline.fetch_weather` (consistent with the late-bound resolution).
+- **Result:** 665/666 tests pass (1 skipped), 0 failures.
 
 ## P1 — Pipeline Stage Extraction
 ### Changes

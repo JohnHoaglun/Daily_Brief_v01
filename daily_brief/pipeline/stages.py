@@ -44,8 +44,6 @@ from daily_brief.config import (
 from daily_brief.lifecycle import RunAllocator, RunReservation
 from daily_brief.sources.article import stage_extract_article
 from daily_brief.sources.rss import format_pub_date
-from daily_brief.sources.weather import fetch_weather
-
 from daily_brief.config_validator import validate_config
 from daily_brief.llm import create_llm_client
 from daily_brief.llm.summarizer import (
@@ -57,6 +55,8 @@ from daily_brief.llm.summarizer import (
 from daily_brief.llm.summary_metrics import SummaryMetrics
 from daily_brief.pipelines.rss_dedup import fetch_and_dedup
 from daily_brief.rendering import cleanup_old_files
+
+from daily_brief.sources.weather import fetch_weather
 from daily_brief.rendering.report import (
     build_markdown,
     build_sections_from_stories,
@@ -152,8 +152,11 @@ async def stage_weather(
     t1 = time.monotonic()
     log_fn("\n[Phase 1] Fetching NWS weather...")
 
+    # Late-bind to preserve test-patch resolution
+    _fw = _pip("fetch_weather")
+
     try:
-        weather = await fetch_weather(session, WEATHER_LAT, WEATHER_LON)
+        weather = await _fw(session, WEATHER_LAT, WEATHER_LON)
         if weather:
             station = weather.get("station", {})
             station_keys = (

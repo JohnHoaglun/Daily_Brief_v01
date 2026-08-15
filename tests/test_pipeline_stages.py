@@ -244,7 +244,7 @@ class TestPackageLevelPatching(TestCase):
 
         for i, p in enumerate(cc.cms):
             if "fetch_weather" in getattr(p, "attribute", ""):
-                cc.cms[i] = patch("daily_brief.pipeline.stages.fetch_weather",
+                cc.cms[i] = patch("daily_brief.pipeline.fetch_weather",
                                   new_callable=AsyncMock, side_effect=tracking_fetch)
                 break
 

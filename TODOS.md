@@ -1,6 +1,7 @@
-# TODO: Daily Brief v01 — v1.0.152
+# TODO: Daily Brief v01 — v1.0.153
 
-## Completed (v1.0.152)
+## Completed (v1.0.153)
+- **Fix concurrency test hang:** `stage_weather()` used module-level `from daily_brief.sources.weather import fetch_weather` which bypassed test patches. Replaced with `_fw = _pip("fetch_weather")` late-binding. Updated test to patch `daily_brief.pipeline.fetch_weather`. Result: all 665/666 tests pass (1 skipped, 0 failures).
 - **Fix concurrency test bugs**: Added `_current_context` test-hub shim in `pipeline/__init__.py`; wired `stage_rss(ctx, session, log_fn)` in concurrent `_phase2_rss` closure so Phase 2 timing is recorded. Retired `RUN_LOGFILE` import from `__init__.py`. Tests read per-run state from `_current_context`.
 
 ## Code Review Findings (2026-08-12)

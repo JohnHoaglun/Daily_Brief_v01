@@ -1,5 +1,12 @@
 # Project Summary: Daily_Brief_v01
 
+## Changelog
+
+### v1.0.152 — P2.1 Finalize test-context wiring
+- Add ``_update_test_context(ctx)`` call in ``stages.py`` ``main()`` body (end of try block, before return) for test-hub consistency.
+- Simplify ``_phase2_rss()`` closure in ``main()`` to call ``stage_rss()`` directly without inline try/except.
+- Update module docstring for ``daily_brief/pipeline/__init__.py``.
+
 ## Overview
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 

@@ -1,5 +1,5 @@
 """
-Daily Brief v1.0.151 — LLM Subpackage
+Daily Brief v1.0.152 — LLM Subpackage
 =====================================
 Re-exports from the llm subpackage.
 """

@@ -474,6 +474,14 @@ async def stage_validate(
 
 
 async def main():
+    # Test-patch context update (late binding — _update_test_context lives in __init__)
+    import sys as _sys
+    _pmod = _sys.modules.get("daily_brief.pipeline")
+    if _pmod is not None:
+        _update_test_context = _pmod._update_test_context
+    else:
+        from daily_brief.pipeline import _update_test_context as _update_test_context
+
     # ------------------------------------------------------------------
     # Resolve patchable names late so that ``patch("daily_brief.pipeline.*")``
     # applied by tests actually takes effect inside this function.
@@ -597,15 +605,9 @@ async def main():
                 weather_result["error"] = result["error"]
 
             async def _phase2_rss():
-                try:
-                    deduped, dedup_stats = await stage_rss(ctx, session, lgr.info)
-                    rss_result["deduped"] = deduped
-                    rss_result["stats"] = dedup_stats
-                except Exception as exc:
-                    rss_result["error"] = str(exc)
-                    lgr.info(f"  RSS error: {exc}")
-                    rss_result["deduped"] = []
-                    rss_result["stats"] = {"total_after": 0}
+                deduped, dup_stats = await stage_rss(ctx, session, lgr.info)
+                rss_result["deduped"] = deduped
+                rss_result["stats"] = dup_stats
 
             await asyncio.gather(_phase1_weather(), _phase2_rss())
 
@@ -638,6 +640,10 @@ async def main():
 
             # Phase 5: Validation
             exit_code = await stage_validate(report_path, ctx, lgr.info, run_started)
+
+            # Late-bound: inform test hooks about the final context
+            _update_test_context(ctx)
+
             return exit_code
 
         print(f"\nNo stories to process — nothing to render.")

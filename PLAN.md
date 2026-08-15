@@ -1,4 +1,4 @@
-# PLAN: v1.0.151 — P2.1 Retire mutable module-global run state
+# PLAN: v1.0.152 — P2.1 Finalize test-context wiring
 
 ## Status: COMPLETE — Added _current_context test-hub shim, wired stage_rss in concurrent pair for Phase 2 timing.
 

@@ -1,6 +1,6 @@
-# TODO: Daily Brief v01 — v1.0.151
+# TODO: Daily Brief v01 — v1.0.152
 
-## Completed (v1.0.151)
+## Completed (v1.0.152)
 - **Fix concurrency test bugs**: Added `_current_context` test-hub shim in `pipeline/__init__.py`; wired `stage_rss(ctx, session, log_fn)` in concurrent `_phase2_rss` closure so Phase 2 timing is recorded. Retired `RUN_LOGFILE` import from `__init__.py`. Tests read per-run state from `_current_context`.
 
 ## Code Review Findings (2026-08-12)

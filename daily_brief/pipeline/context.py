@@ -93,16 +93,7 @@ def _teardown_run_logger(logger: logging.Logger) -> None:
     logger.handlers.clear()
 
 
-def _coerce_temperature_f(val):
-    """Safely convert temperature string/none to float and sanity check."""
-    from daily_brief.utils import _coerce_temperature_f as _ct
-
-    result = _ct(val)
-    if result is not None and (result < -50 or result > 140):
-        sys.stderr.write(f"  WARNING: Extreme temperature detected and discarded: {result}°F\n")
-        sys.stderr.flush()
-        return None
-    return result
+from daily_brief.utils import _coerce_temperature_f as _coerce_temperature_f  # noqa: F401
 
 
 def _normalize_weather_for_rendering(weather_data):

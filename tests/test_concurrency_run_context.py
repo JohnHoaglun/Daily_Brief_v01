@@ -13,6 +13,8 @@ import threading
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
+from daily_brief.pipeline import RunContext
+
 from tests.concurrency_support import (
     _restore_aiohttp_client_session as _restore_aiohttp_client_session,
     _pipeline_patch_group as _pipeline_patch_group,
@@ -75,8 +77,8 @@ class TestConcurrentModuleGlobalsIsolation(TestCase):
 
                 await pm()
                 import daily_brief.pipeline as pmod
-
-                captured[label] = dict(pmod.PHASE_TIMINGS)
+                ctx = pmod._current_context
+                captured[label] = dict(ctx.phase_timings) if ctx else {}
             finally:
                 for p in reversed(patches):
                     p.__exit__(None, None, None)
@@ -157,12 +159,13 @@ class TestRunContextNoGlobalLeak(TestCase):
 
                     exit_code = await pm()
                     import daily_brief.pipeline as pmod
+                    ctx = pmod._current_context
 
                     results.append(
                         {
-                            "logfile": getattr(pmod, "RUN_LOGFILE", None),
-                            "output_dir": getattr(pmod, "OUTPUT_DIR", None),
-                            "timings": dict(pmod.PHASE_TIMINGS),
+                            "logfile": ctx.run_logfile if ctx else None,
+                            "output_dir": ctx.output_dir if ctx else None,
+                            "timings": dict(ctx.phase_timings) if ctx else {},
                             "exit_code": exit_code,
                         }
                     )
@@ -220,6 +223,7 @@ class TestRunContextNoGlobalLeak(TestCase):
         assert len(versions) >= 2, f"Expected >=2 distinct versions, got {versions}"
         import daily_brief.pipeline as pmod
 
-        assert pmod.PHASE_TIMINGS, "Pipeline should have recorded phase timings"
-        assert "Phase 1" in pmod.PHASE_TIMINGS, "Phase 1 timing missing"
-        assert "Phase 2" in pmod.PHASE_TIMINGS, "Phase 2 timing missing"
+        ctx = pmod._current_context
+        assert ctx and ctx.phase_timings, "Pipeline should have recorded phase timings"
+        assert "Phase 1" in ctx.phase_timings, "Phase 1 timing missing"
+        assert "Phase 2" in ctx.phase_timings, "Phase 2 timing missing"

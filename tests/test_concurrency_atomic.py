@@ -85,7 +85,8 @@ class TestConcurrentVersionAllocation(TestCase):
             asyncio.get_event_loop().run_until_complete(pm())
             import daily_brief.pipeline as pmod
 
-            logfile = pmod.RUN_LOGFILE
+            ctx = pmod._current_context
+            logfile = ctx.run_logfile if ctx else None
             m = re.search(r"_v(\d+)\.md$", os.path.basename(logfile))
             log_ver = int(m.group(1)) if m else None
         finally:

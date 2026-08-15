@@ -44,11 +44,12 @@ class TestIndependentPhaseTimings(TestCase):
 
             asyncio.get_event_loop().run_until_complete(pm())
             import daily_brief.pipeline as pmod
+            ctx = pmod._current_context
 
-            assert "Phase 1" in pmod.PHASE_TIMINGS, "Phase 1 timing missing"
-            assert "Phase 2" in pmod.PHASE_TIMINGS, "Phase 2 timing missing"
+            assert ctx and "Phase 1" in ctx.phase_timings, "Phase 1 timing missing"
+            assert ctx and "Phase 2" in ctx.phase_timings, "Phase 2 timing missing"
             for k in ("Phase 1", "Phase 2"):
-                v = pmod.PHASE_TIMINGS[k]
+                v = ctx.phase_timings[k]
                 assert isinstance(v, (int, float)), f"{k} timing type {type(v)}"
         finally:
             for p in reversed(patches):

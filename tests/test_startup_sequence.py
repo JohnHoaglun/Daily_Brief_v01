@@ -40,10 +40,8 @@ class TestStartupSequence:
         # Force restore attributes that leaked patches from other tests may have modified
         pipeline_mod.LOG_DIR = CFG_LOG
         pipeline_mod.NEWS_DIR = CFG_NEWS
-        pipeline_mod.OUTPUT_DIR = None
-        pipeline_mod.RUN_LOGFILE = None
-        pipeline_mod.PHASE_TIMINGS = {}
-        pipeline_mod._llm_client = None
+        # Retired globals replaced by RunContext:
+        # pipeline_mod._current_context is set at end of each main() run
         pipeline_mod.CATEGORIES = CATEGORIES
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -55,7 +53,6 @@ class TestStartupSequence:
 
             pipeline_mod.LOG_DIR = tmp_log
             pipeline_mod.NEWS_DIR = tmp_news
-            pipeline_mod.OUTPUT_DIR = tmp_news
 
             with (
                 patch.object(pipeline_mod, "validate_config", return_value=(True, [])),
@@ -136,6 +133,7 @@ class TestStartupSequence:
             report_text = open(report_path, encoding="utf-8").read()
             assert "story_count_total: 1" in report_text
 
-            # PHASE_TIMINGS
-            phase_keys = list(pipeline_mod.PHASE_TIMINGS.keys())
+            # PHASE_TIMINGS via RunContext
+            ctx = pipeline_mod._current_context
+            phase_keys = list(ctx.phase_timings.keys()) if ctx else []
             assert "Phase 1" in phase_keys

@@ -68,7 +68,7 @@ async def batch_summarize_all(
     if max_concurrency > 1:
         sem = asyncio.Semaphore(max_concurrency)
         tasks = [
-            _summarize_sub_batch(client, cat_name, sb, semaphore=sem, batch_size=batch_size)
+            _summarize_sub_batch(client, cat_name, sb, semaphore=sem)
             for cat_name, sb in all_sub_batches
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -81,7 +81,7 @@ async def batch_summarize_all(
                 batch_results.append(result)
     else:
         for cat_name, sb in all_sub_batches:
-            result = await _summarize_sub_batch(client, cat_name, sb, batch_size=batch_size)
+            result = await _summarize_sub_batch(client, cat_name, sb)
             batch_results.append(result)
 
     metrics.batch_calls = len(all_sub_batches)
@@ -102,7 +102,7 @@ async def batch_summarize_all(
         if max_concurrency > 1:
             sem = asyncio.Semaphore(max_concurrency)
             retry_tasks = [
-                _summarize_sub_batch(client, cat_name, sb, semaphore=sem, batch_size=batch_size)
+                _summarize_sub_batch(client, cat_name, sb, semaphore=sem)
                 for cat_name, sb in retry_entries
             ]
             raw = await asyncio.gather(*retry_tasks, return_exceptions=True)
@@ -115,7 +115,7 @@ async def batch_summarize_all(
                     retry_results.append(result)
         else:
             for cat_name, sb in retry_entries:
-                result = await _summarize_sub_batch(client, cat_name, sb, batch_size=batch_size)
+                result = await _summarize_sub_batch(client, cat_name, sb)
                 retry_results.append(result)
 
         metrics.batch_calls += len(failed_indices)

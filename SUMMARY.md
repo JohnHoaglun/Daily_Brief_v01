@@ -4,18 +4,11 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
-### v1.0.149 — P1: Pipeline stage extraction
+### v1.0.150 — P2.1: Remove unused batch_size from _summarize_sub_batch
 
-- **Extract `_phase1_weather()` closure**: replaced inline nested closure with standalone `async def stage_weather(ctx, session, log_fn)` — identical behavior with late-bound `_pip()` resolution for test-patch compatibility.
-- **Extract `_phase2_rss()` closure**: standalone `async def stage_rss(ctx, session, log_fn)` — calls `fetch_and_dedup()`, records Phase 2 timing, returns `(deduped, stats)` tuple.
-- **Extract Phase 3A article extraction**: standalone `async def stage_extract(stories, ctx, session, log_fn)` — constructs `StoryPipelineState` objects from deduped tuples, bounded extraction via semaphore, loop-lag monitoring (`_EventLoopLagMonitor`), extraction metrics, Phase 3A timing.
-- **Extract Phase 3B/3C summarization**: standalone `async def stage_summarize(stories, ctx, log_fn)` — calls `batch_summarize_all()`, logs `SummaryMetrics`, records Phase 3 timing.
-- **Extract Phase 4 rendering**: standalone `async def stage_render(stories, weather, dedup_stats, ctx, log_ver, log_fn)` — cleanup → story sections → `build_markdown()` → `write_report()` → log cleanup → records Phase 4 timing → returns report path.
-- **Extract Phase 5 validation**: standalone `async def stage_validate(report_path, ctx, log_fn, run_start)` — calls `validate_report()`, returns `EXIT_CODE_VALIDATION` or `EXIT_CODE_SUCCESS`.
-- **Reduce `main()` from ~500 to ~178 lines**: orchestration layer now only contains config validation, preflight, context setup, reservation, logger lifecycle, logger session management, sequential stage calls, and teardown.
-- **Add `SummaryMetrics`, `CATEGORY_PRIORITY`, `CATEGORIES`, `format_pub_date`, `_normalize_weather_for_rendering` to pipeline module `__all__`** for late-bound `_pip()` resolution.
-- **build_context verification**: `tests/test_build_context_wiring.py` (10 tests) — verifies `build_context` is called with `preview_chars=LLM_CONTEXT_PREVIEW_CHARS` in both batch summarization and individual recovery paths; tests truncation at non-default `preview_chars=25`.
-- **Stage extraction regression tests**: `tests/test_pipeline_stages.py` (12 tests) — verifies stage functions exist, concurrent pair, short-circuit before stages, package-level patching. All 639 tests passing, config validate PASS.
+- **Removed `batch_size` parameter**: `summary_service._summarize_sub_batch()` no longer accepts `batch_size` — it was a leftover parameter with no functional usage (docstring noted "Unused parameter kept for API compatibility").
+- **Updated all four callers** in `summary_coordinator.py` (batch dispatch serial, batch dispatch concurrent, retry serial, retry concurrent) to stop passing `batch_size=batch_size`.
+- **No behavioral change**: `batch_size` remains a parameter of the outer `batch_summarize_all()` function and is still used for story-to-subbatch chunking — only the internal call to `_summarize_sub_batch` is cleaned up.
 ### v1.0.147 — P1 Structural Refactor: Pipeline Package (cont.)
 - **Drop _EventLoopLagMonitor/_percentile/_count_extracted into context.py**: extracts ~63 lines from stages.py (536→476, under 500 hard cap). Re-imported by stages.py and re-exported via __init__.py for backwards compat with test patches.
 - **versions_locations.md**: updated canonical version to `v1.0.147`; replaced `daily_brief/pipeline.py` entry with three new package files.

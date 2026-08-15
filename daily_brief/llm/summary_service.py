@@ -112,7 +112,7 @@ async def _summarize(
     # Fallback: deterministic auto-summary from title
     return _generate_auto_fallback(title)
 
-async def _summarize_sub_batch(client, cat_name, sub_batch, *, semaphore=None, batch_size=3):
+async def _summarize_sub_batch(client, cat_name, sub_batch, *, semaphore=None):
     """Process one sub-batch of stories through a single LLM batch call.
 
     Args:
@@ -120,7 +120,6 @@ async def _summarize_sub_batch(client, cat_name, sub_batch, *, semaphore=None, b
         cat_name: Category name for logging
         sub_batch: List of StoryPipelineState objects
         semaphore: Optional asyncio.Semaphore for bounded concurrency
-        batch_size: Unused parameter kept for API compatibility
     """
     # Build contexts for this sub-batch
     valid_count = 0

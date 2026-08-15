@@ -1,6 +1,6 @@
-# PLAN: v1.0.150 — P2.1 Remove unused batch_size from _summarize_sub_batch
+# PLAN: v1.0.151 — P2.1 Retire mutable module-global run state
 
-## Status: COMPLETE — All 5 phases extracted to standalone async functions. main() reduced from ~500 to ~178 lines. 639 tests passing (0 new failures).
+## Status: COMPLETE — Retired RUN_LOGFILE, PHASE_TIMINGS, OUTPUT_DIR, _llm_client globals. main() calls stage_rss() directly. _current_context shim added for tests.
 
 ## P1 — Pipeline Stage Extraction
 ### Changes

@@ -1,4 +1,4 @@
-"""Daily Brief v1.0.149 — Pipeline Orchestration (5 phases: weather, RSS, LLM, render, validate)."""
+"""Daily Brief v1.0.151 — Pipeline Orchestration (5 phases: weather, RSS, LLM, render, validate)."""
 
 from __future__ import annotations
 
@@ -32,7 +32,6 @@ from daily_brief.validation import validate_report
 from daily_brief.pipeline.stages import (
     main, stage_weather,
     EXIT_CODE_SUCCESS, EXIT_CODE_CONFIG, EXIT_CODE_VALIDATION,
-    RUN_LOGFILE, PHASE_TIMINGS, OUTPUT_DIR, _llm_client,
 )
 from daily_brief.pipeline.context import (
     DEFAULT_CONTENT_AGE_WINDOW_HOURS, RunContext,
@@ -40,6 +39,17 @@ from daily_brief.pipeline.context import (
     _normalize_weather_for_rendering, _percentile,
     _setup_run_logger, _teardown_run_logger, ACTIVE_TIMEZONE,
 )
+
+# --- Test-hub shim: retired per-run module globals replaced by RunContext ---
+from typing import Optional
+_current_context: Optional[RunContext] = None
+
+
+def _update_test_context(ctx: RunContext) -> None:
+    """Called at the end of main() — sets _current_context for test consumption."""
+    global _current_context
+    _current_context = ctx
+
 
 __all__ = [
     "aiohttp", "asyncio", "os", "sys", "time",
@@ -55,7 +65,7 @@ __all__ = [
     "EXIT_CODE_SUCCESS", "EXIT_CODE_CONFIG", "EXIT_CODE_VALIDATION",
     "DEFAULT_CONTENT_AGE_WINDOW_HOURS", "RunContext",
     "_setup_run_logger", "_teardown_run_logger", "ACTIVE_TIMEZONE",
-    "RUN_LOGFILE", "PHASE_TIMINGS", "OUTPUT_DIR", "_llm_client",
+    "_current_context", "_update_test_context",
     "validate_config", "validate_report", "create_llm_client", "llm_batch_summarize_all",
     "fetch_weather", "fetch_and_dedup", "stage_extract_article",
     "ordered_categories_for_render", "build_sections_from_stories", "build_markdown",

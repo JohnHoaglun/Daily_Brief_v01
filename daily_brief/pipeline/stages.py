@@ -568,6 +568,7 @@ async def main():
         _pmod.PHASE_TIMINGS = PHASE_TIMINGS
         _pmod.OUTPUT_DIR = OUTPUT_DIR
         _pmod._llm_client = _llm_client
+        _pmod._current_context = ctx
 
     # --- Run-scoped logger (file + stderr, attached only for this run) ---
     lgr: Optional[logging.Logger] = _setup_run_logger(reservation.log_path)
@@ -596,10 +597,8 @@ async def main():
                 weather_result["error"] = result["error"]
 
             async def _phase2_rss():
-                fetch_and_dedup = _pip("fetch_and_dedup")
-                CATEGORIES = _pip("CATEGORIES")
                 try:
-                    deduped, dedup_stats = await fetch_and_dedup(session, CATEGORIES, lgr.info)
+                    deduped, dedup_stats = await stage_rss(ctx, session, lgr.info)
                     rss_result["deduped"] = deduped
                     rss_result["stats"] = dedup_stats
                 except Exception as exc:

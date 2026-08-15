@@ -1,4 +1,4 @@
-"""Daily Brief v1.0.150 package."""
+"""Daily Brief v1.0.151 package."""
 
 from . import _version
 

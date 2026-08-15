@@ -1,4 +1,7 @@
-# TODO: Daily Brief v01 — v1.0.150
+# TODO: Daily Brief v01 — v1.0.151
+
+## Completed (v1.0.151)
+- **P2.1 Retire mutable module-global run state**: `RUN_LOGFILE`, `PHASE_TIMINGS`, `OUTPUT_DIR`, `_llm_client` globals retired. `RunContext` is single source of truth. `stage_rss()` called directly in concurrent gather. Test-hub `_current_context` shim added.
 
 ## Code Review Findings (2026-08-12)
 

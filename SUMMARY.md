@@ -4,13 +4,13 @@
 Automated daily news brief generator that fetches news from 17 content categories and produces Markdown reports with AI summaries via vLLM (OpenAI-compatible client).
 
 ## Change Log
-### v1.0.151 — P2.1: Retire mutable module-global run state
+### v1.0.151 — P2.1: Wire RunContext through pipeline and fix concurrency tests
 
-- **Retire module globals** (`RUN_LOGFILE`, `PHASE_TIMINGS`, `OUTPUT_DIR`, `_llm_client`): Removed global state shim from `stages.py` and `__init__.py`. `RunContext` is now the single source of truth for per-run state.
-- **Replace inline `_phase2_rss()` closure** with `stage_rss()` call: The concurrent `asyncio.gather()` now calls `stage_rss(ctx, session, log_fn)` directly, ensuring `ctx.phase_timings["Phase 2"]` is written. Previously the inline closure bypassed `stage_rss()`, skipping Phase 2 timing.
-- **Test-hub shim**: Added `_current_context: Optional[RunContext]` and `_update_test_context(ctx)` to `pipeline/__init__.py`. Tests access per-run state via `pmod._current_context` instead of module globals.
-- **Updated concurrency tests**: `test_concurrency_run_context.py`, `test_concurrency_scheduling.py`, `test_concurrency_atomic.py` now read `ctx.phase_timings`, `ctx.run_logfile`, `ctx.output_dir` from `_current_context`. `test_startup_sequence.py` removed obsolete global resets.
-- **Version bump**: v1.0.149 → v1.0.151 across 30+ registry locations.
+- **Add `_current_context` test-hub shim** to `pipeline/__init__.py`: Single global `Optional[RunContext]`; `main()` propagates the per-run context via `_pmod._current_context = ctx`.
+- **Fix Phase 2 timing in concurrent pair**: The `_phase2_rss()` closure in `main()` now calls `stage_rss(ctx, session, log_fn)` instead of the raw `fetch_and_dedup()`, so `ctx.phase_timings["Phase 2"]` is properly recorded.
+- **Backwards-compatible globals**: Retired the import of retired globals from `stages.py` in `__init__.py`. Module-level `RUN_LOGFILE`, `PHASE_TIMINGS`, `OUTPUT_DIR`, `_llm_client` remain in `stages.py` for existing test fixtures but are updated at the start of `main()`.
+- **Updated concurrency tests**: `test_concurrency_run_context.py`, `test_concurrency_scheduling.py`, `test_concurrency_atomic.py` now read `ctx.phase_timings`, `ctx.run_logfile`, `ctx.output_dir` from `_current_context`.
+- **Version bump**: v1.0.149 → v1.0.151 across all 27+ registry locations.
 ### v1.0.149 — P1: Pipeline stage extraction
 
 - **Extract `_phase1_weather()` closure**: replaced inline nested closure with standalone `async def stage_weather(ctx, session, log_fn)` — identical behavior with late-bound `_pip()` resolution for test-patch compatibility.

@@ -1,7 +1,7 @@
 # TODO: Daily Brief v01 — v1.0.151
 
 ## Completed (v1.0.151)
-- **P2.1 Retire mutable module-global run state**: `RUN_LOGFILE`, `PHASE_TIMINGS`, `OUTPUT_DIR`, `_llm_client` globals retired. `RunContext` is single source of truth. `stage_rss()` called directly in concurrent gather. Test-hub `_current_context` shim added.
+- **Fix concurrency test bugs**: Added `_current_context` test-hub shim in `pipeline/__init__.py`; wired `stage_rss(ctx, session, log_fn)` in concurrent `_phase2_rss` closure so Phase 2 timing is recorded. Retired `RUN_LOGFILE` import from `__init__.py`. Tests read per-run state from `_current_context`.
 
 ## Code Review Findings (2026-08-12)
 

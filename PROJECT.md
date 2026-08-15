@@ -6,7 +6,7 @@ Daily Brief aggregates RSS stories from configured categories, enriches them wit
 ## Current Status
 - Modular refactoring P0-P6 is complete.
 - **P1 Pipeline Stage Extraction (v1.0.149)**: All 5 phases extracted to standalone async functions. `main()` reduced from ~500 to ~178 lines of pure orchestration.
-- **P2.1 Retire mutable module-global run state (v1.0.151)**: Retired `RUN_LOGFILE`, `PHASE_TIMINGS`, `OUTPUT_DIR`, `_llm_client` globals from `stages.py` and `__init__.py`. `main()` now calls `stage_rss(ctx, session, log_fn)` directly ensuring Phase 2 timing is captured. Test-hub shim `_current_context` provides RunContext access for tests. Test baseline: TBD (verifying below); config validate PASS.
+- **P2.1 Add _current_context test-hub shim and fix Phase 2 timing (v1.0.151)**: Added `_current_context` global and `_update_test_context()` helper in `pipeline/__init__.py` — `main()` propagates per-run context to it. Rewired concurrent `_phase2_rss()` closure to call `stage_rss(ctx, session, log_fn)` directly, capturing Phase 2 timing into `ctx.phase_timings`. Retired `RUN_LOGFILE` import from `__init__.py`. Module-level globals in `stages.py` remain for backwards-compat. Test baseline: 9/9 concurrency tests passing; config validate PASS.
 - Current release/version locations are tracked in `versions_locations.md` and must be checked before every commit.
 - Performance baseline (v1.0.67): 105–114s internal, 137–147s wall-clock. Phase 3 (LLM) dominates at ~96–100s.
 - Phase A complete (v1.0.67). Phase B complete (v1.0.88). Phase C complete (v1.0.97).

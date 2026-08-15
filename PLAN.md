@@ -1,6 +1,6 @@
 # PLAN: v1.0.151 — P2.1 Retire mutable module-global run state
 
-## Status: COMPLETE — Retired RUN_LOGFILE, PHASE_TIMINGS, OUTPUT_DIR, _llm_client globals. main() calls stage_rss() directly. _current_context shim added for tests.
+## Status: COMPLETE — Added _current_context test-hub shim, wired stage_rss in concurrent pair for Phase 2 timing.
 
 ## P1 — Pipeline Stage Extraction
 ### Changes

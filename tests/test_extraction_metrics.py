@@ -19,6 +19,13 @@ class MockContent:
     async def iter_any(self):
         yield self._data
 
+    async def iter_chunked(self, size: int):
+        start = 0
+        while start < len(self._data):
+            end = min(start + size, len(self._data))
+            yield self._data[start:end]
+            start = end
+
 
 class MockResp:
     def __init__(self, status=200, text="ok", content_length=None):

@@ -75,6 +75,7 @@ Full review performed: structural issues, files exceeding 500/300 lines, perform
   - Summary-parser and summary-quality kept separate (different semantics — separate task).
 - [x] **Consolidate `_safe_text()` / `_coerce_temperature_f()` double-dispatching** — Already canonical in `utils.py` after P1 split. The `daily_brief.pipeline` module only re-exports `_coerce_temperature_f` as a compatibility alias. No functional duplication remains; shim retained for import-level compatibility.
 - [x] **Investigate module-level globals shim (`pipeline.py:246-255`)** — `RUN_LOGFILE`, `PHASE_TIMINGS`, `OUTPUT_DIR`, `_llm_client` are dead in production. Removed from `context.py` (legacy globals deleted) and `stages.py` (assignments and exports removed). Added `ContextVar`-based `_current_context_var` + `get_current_run_context()` in `__init__.py` for task-local test observation. Backward-compat `get_current_run_context()` falls back to module-level `_current_context` for sequential `run_until_complete()` tests. All 4 tests using old pattern updated.
+- [x] **HTTP body-size safety** — Replaced `resp.content.iter_any()` with `iter_chunked(8192)` in http_client.py. Applied per-source limits: article 2 MiB, RSS 1 MiB, NWS JSON 1 MiB, ERA5 512 KiB, lake 1 MiB, Wunderground 2 MiB. Updated all test mocks. 681 tests pass.
 
 ### P2 — Performance optimizations (from review section 4)
 

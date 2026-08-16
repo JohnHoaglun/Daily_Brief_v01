@@ -96,7 +96,8 @@ async def _fetch_station_monthly_rainfall(
 
     climate_url = "https://www.weather.gov/hgx/climate_iah_normals_summary"
     station_html, climate_html = await asyncio.gather(
-        _fetch_text(session, station_range_url), _fetch_text(session, climate_url)
+        _fetch_text(session, station_range_url, max_bytes=2 * 1024 * 1024),
+        _fetch_text(session, climate_url, max_bytes=2 * 1024 * 1024),
     )
     if not station_html:
         logger.debug(

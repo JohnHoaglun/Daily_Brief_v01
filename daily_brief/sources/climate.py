@@ -49,6 +49,7 @@ async def _fetch_climate_normal_high(
         climate = await _fetch_json(
             session,
             archive_url,
+            max_bytes=512 * 1024,
             **{"params": params, "timeout": 10},
         )
         if not climate:

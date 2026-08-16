@@ -24,6 +24,13 @@ class _TestContent:
     async def iter_any(self):
         yield self._data
 
+    async def iter_chunked(self, size: int):
+        start = 0
+        while start < len(self._data):
+            end = min(start + size, len(self._data))
+            yield self._data[start:end]
+            start = end
+
 
 # ---------------------------------------------------------------------------
 # 1. Climate normal is historical, not today's ERA5
@@ -275,6 +282,13 @@ class TestFetchJsonNonDictPayloads(unittest.TestCase):
 
             async def iter_any(self):
                 yield self._data
+
+            async def iter_chunked(self, size: int):
+                start = 0
+                while start < len(self._data):
+                    end = min(start + size, len(self._data))
+                    yield self._data[start:end]
+                    start = end
 
         class MockResp:
             status = 200

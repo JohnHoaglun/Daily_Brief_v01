@@ -144,6 +144,7 @@ async def fetch_feed(
             user_agent=USER_AGENT,
             timeout=10,
             status_predicate=lambda s: 200 <= s < 300,
+            max_bytes=1 * 1024 * 1024,
         )
         if text is None:
             logger.warning(

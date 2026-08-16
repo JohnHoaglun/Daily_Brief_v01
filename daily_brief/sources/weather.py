@@ -95,7 +95,7 @@ async def fetch_nws_forecast(
     weather_point_url = WEATHER_POINT_URL.format(lat=lat, lon=lon)
     logger.debug(f"[fetch_nws_forecast] Point URL: {weather_point_url}")
     try:
-        point = await _fetch_json(session, weather_point_url, user_agent=USER_AGENT)
+        point = await _fetch_json(session, weather_point_url, user_agent=USER_AGENT, max_bytes=1 * 1024 * 1024)
         if not isinstance(point, dict) or "properties" not in point:
             logger.warning("[fetch_nws_forecast] Point response invalid or missing properties")
             return []
@@ -107,7 +107,7 @@ async def fetch_nws_forecast(
             # Use NWS-provided URL as-is — don't alter it
             pass
         logger.debug(f"[fetch_nws_forecast] Forecast URL: {fc_url}")
-        forecast_payload = await _fetch_json(session, fc_url, user_agent=USER_AGENT)
+        forecast_payload = await _fetch_json(session, fc_url, user_agent=USER_AGENT, max_bytes=1 * 1024 * 1024)
         if isinstance(forecast_payload, dict):
             periods = forecast_payload.get("properties", {}).get("periods", []) or []
             logger.debug(f"Weather forecast periods fetched: {len(periods)}")

@@ -2,6 +2,12 @@
 
 ## Status: COMPLETE — All 676 tests pass. P1/P2 cleanup done.
 
+## v1.0.157 — P2.3 HTTP body-size safety
+
+- **Bounded streamed chunks**: replaced `iter_any()` with `iter_chunked(8192)` in `_read_body_bounded()`.
+- **Per-source limits**: article HTML 2 MiB, RSS XML 1 MiB, NWS JSON 1 MiB, ERA5 512 KiB, lake HTML 1 MiB, Wunderground/weather.gov HTML 2 MiB.
+- 681 tests pass, 0 regressions.
+
 ## v1.0.155 — P2.2 Cross-cutting structural cleanup
 - **Tokenization dedup:** Extracted `extract_significant_words()` utility in `utils.py`. Migrated `validation.py` topic-overlap check and `tagging.py._keyword_has_stop()` to use the helper. Removed unused `re` import from `config_validator.py`.
 - **Dead globals elimination:** Removed `RUN_LOGFILE`/`PHASE_TIMINGS`/`OUTPUT_DIR`/`_llm_client` from `context.py` and `stages.py`. Replaced `_current_context` with `ContextVar`-backed accessor (`get_current_run_context()`) in `__init__.py` for task-local test observation.
@@ -105,7 +111,6 @@ Every release touches **one** file: `daily_brief/_version.py`.
 **Never** bump versions in module docstrings, test files, or `config.yaml`.
 
 ## Non-Goals
-- Do not change RSS candidate-pool widening behavior
-- Do not alter extraction concurrency limits or HTTP bounds
-- Do not expand connectivity checks into broader endpoint redesign beyond hardening
+- RSS widening optimization deferred (bounded 50–100 candidates × ≤6 passes; behavioral risk outweighs benefit).
+- Do not change connectivity checks into broader endpoint redesign beyond hardening.
 - Do not change exit code policy for WARN/SKIPPED.

@@ -4,6 +4,20 @@
 
 ### v1.0.154 — Single-source version: `_version.py` only
 
+### v1.0.156 — P2.3 Dynamic config exports
+
+- **Replaced 52 explicit runtime config assignments** with module-level `__getattr__` backed by `_RUNTIME_CONFIG`.
+- Added `__all__` covering all 52 runtime keys, loader helpers, static constants, and the `DEFAULT_AGE_LIMIT_HOURS` legacy alias.
+- 5 new tests in `test_config.py` for dynamic-export behavior (getattr per key, alias, from-import, `__all__` completeness, AttributeError on unknown).
+- 681 tests pass (was 676 after v1.0.155), 0 regressions. 363 → 296 lines.
+
+### v1.0.157 — P2.3 HTTP body-size safety
+
+- **Replaced `resp.content.iter_any()` with `iter_chunked(8192)`** in `_read_body_bounded()` — makes the existing 5 MiB cumulative bound meaningful by forcing chunk-bounded iteration instead of single-chunk delivery.
+- **Applied explicit per-source limits**: article HTML 2 MiB, RSS XML 1 MiB, NWS JSON 1 MiB, ERA5 JSON 512 KiB, lake HTML 1 MiB, Wunderground/weather.gov HTML 2 MiB.
+- Updated all `iter_any()`-only mock classes in tests to also implement `iter_chunked()` for compatibility.
+- 681 tests pass, 0 regressions.
+
 ### v1.0.155 — P2.2 Cross-cutting structural cleanup
 
 - **Extracted `extract_significant_words()` in `utils.py`** — dedplicates the regex tokenization previously scattered across `validation.py` and `tagging.py`. `config_validator.py` unused `re` import removed. `llm/summary_parser.py` and `llm/summary_quality.py` intentionally kept separate (different tokenization semantics).

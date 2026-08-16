@@ -35,7 +35,7 @@ async def _extract_lake_value(
         ("thirty_days_ago", today - timedelta(days=30)),
     ]
 
-    html = await _fetch_text(session, url)
+    html = await _fetch_text(session, url, max_bytes=1 * 1024 * 1024)
     if not html:
         logger.warning("Lake data unavailable (%s): no html.", key)
         return result

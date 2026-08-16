@@ -9,11 +9,16 @@ import aiohttp
 
 
 class MockContent:
-    """Mock aiohttp.response.content supporting iter_any()."""
+    """Mock aiohttp.response.content supporting iter_chunked()."""
 
-    def __init__(self, data: str):
+    def __init__(self, data: str, chunk_size: int = 8192):
         self._data = data.encode("utf-8")
         self._position = 0
+        self._chunk_size = chunk_size
+
+    async def iter_chunked(self, size: int):
+        yield self._data[self._position:self._position + size]
+        self._position += size
 
     async def iter_any(self):
         chunk_size = 4

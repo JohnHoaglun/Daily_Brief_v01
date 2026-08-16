@@ -47,6 +47,13 @@ class _DedupContent:
     async def iter_any(self):
         yield self._data
 
+    async def iter_chunked(self, size: int):
+        start = 0
+        while start < len(self._data):
+            end = min(start + size, len(self._data))
+            yield self._data[start:end]
+            start = end
+
 
 class FakeResp:
     status = 200

@@ -75,8 +75,7 @@ async def _read_body_bounded(resp: aiohttp.ClientResponse, limit: int) -> str:
     """
     parts: list[bytes] = []
     total = 0
-    chunk_size = 8192
-    async for chunk in resp.content.iter_any():
+    async for chunk in resp.content.iter_chunked(8192):
         total += len(chunk)
         if total > limit:
             raise aiohttp.http_exceptions.ContentLengthError(

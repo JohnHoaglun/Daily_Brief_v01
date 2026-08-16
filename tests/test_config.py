@@ -421,3 +421,60 @@ class TestCandidatePoolConfig(TestCase):
         cfg = {"rss": {"candidate_pool_limit": "high"}}
         issues = check_types(cfg)
         self.assertTrue(any("candidate_pool_limit" in i for i in issues))
+
+
+class TestDynamicExports(TestCase):
+    def test_all_runtime_keys_accessible_via_getattr(self):
+        import importlib
+
+        mod = importlib.import_module("daily_brief.config")
+        for key in mod._RUNTIME_CONFIG:
+            val = getattr(mod, key)
+            self.assertEqual(
+                val,
+                mod._RUNTIME_CONFIG[key],
+                f"getattr(mod, {key!r}) did not match _RUNTIME_CONFIG[{key!r}]",
+            )
+
+    def test_legacy_age_limit_alias(self):
+        mod = __import__("daily_brief.config", fromlist=["DEFAULT_AGE_LIMIT_HOURS"])
+        self.assertEqual(
+            mod.DEFAULT_AGE_LIMIT_HOURS,
+            mod.DEFAULT_AGE_WINDOW_HOURS,
+        )
+        self.assertEqual(
+            getattr(mod, "DEFAULT_AGE_LIMIT_HOURS"),
+            mod._RUNTIME_CONFIG["DEFAULT_AGE_WINDOW_HOURS"],
+        )
+
+    def test_from_import_works(self):
+        from daily_brief.config import VERSION, LLM_MODEL, WEATHER_LAT, CATEGORIES
+
+        self.assertIsInstance(VERSION, str)
+        self.assertIsInstance(LLM_MODEL, str)
+        self.assertIsInstance(WEATHER_LAT, (int, float))
+        self.assertIsInstance(CATEGORIES, (dict, list, type(None)))
+
+    def test_all_contains_all_exports(self):
+        mod = __import__("daily_brief.config", fromlist=["__all__"])
+        all_keys = set(mod._RUNTIME_CONFIG.keys())
+        all_keys.update(
+            [
+                "DEFAULT_AGE_LIMIT_HOURS",
+                "load_raw_config",
+                "load_config_yaml",
+                "build_runtime_config",
+                "DEFAULTS",
+                "BASE_DIR",
+                "CONFIG_HOME",
+                "CONFIG_YAML",
+            ]
+        )
+        self.assertTrue(all_keys.issubset(set(mod.__all__)))
+
+    def test_unknown_attribute_raises(self):
+        mod = __import__("daily_brief.config", fromlist=["__all__"])
+        with self.assertRaises(AttributeError) as ctx:
+            mod.NONEXISTENT_MODULE_KEY
+        self.assertIn("config", str(ctx.exception))
+        self.assertIn("NONEXISTENT_MODULE_KEY", str(ctx.exception))

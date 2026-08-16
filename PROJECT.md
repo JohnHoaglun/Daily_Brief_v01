@@ -6,8 +6,9 @@ Daily Brief aggregates RSS stories from configured categories, enriches them wit
 ## Current Status
 - Modular refactoring P0-P6 is complete.
 - **P1 Pipeline Stage Extraction (v1.0.149)**: All 5 phases extracted to standalone async functions. `main()` reduced from ~500 to ~178 lines of pure orchestration.
-- **P2.1 Add _current_context test-hub shim and fix Phase 2 timing (v1.0.151)**: Added `_current_context` global and `_update_test_context()` helper in `pipeline/__init__.py` — `main()` propagates per-run context to it. Rewired concurrent `_phase2_rss()` closure to call `stage_rss(ctx, session, log_fn)` directly, capturing Phase 2 timing into `ctx.phase_timings`. Retired `RUN_LOGFILE` import from `__init__.py`. Module-level globals in `stages.py` remain for backwards-compat. Test baseline: 9/9 concurrency tests passing; config validate PASS.
-- Current release/version locations are tracked in `versions_locations.md` and must be checked before every commit.
+- **P2.1 Add _current_context test-hub shim and fix Phase 2 timing (v1.0.151)**: Added `_current_context` global and `_update_test_context()` helper in `pipeline/__init__.py` — `main()` propagates per-run context to it. Rewired concurrent `_phase2_rss()` closure to call `stage_rss(ctx, session, log_fn)` directly, capturing Phase 2 timing into `ctx.phase_timings`. Retired `RUN_LOGFILE` import from `__init__.py`. Test baseline: 9/9 concurrency tests passing; config validate PASS.
+- **P2.2 Cross-cutting structural cleanup (v1.0.155)**: Extracted `extract_significant_words()` in `utils.py`; migrated `validation.py` and `tagging.py` callers; removed unused `re` from `config_validator.py`. Eliminated dead `RUN_LOGFILE`/`PHASE_TIMINGS`/`OUTPUT_DIR`/`_llm_client` globals from `context.py` and `stages.py`; added `ContextVar`-backed test-hub in `__init__.py` for task-local context observation. All 676 tests pass.
+- Version lives in a single canonical source: `daily_brief/_version.py`. All docstring, config, and registry references were removed (v1.0.154).
 - Performance baseline (v1.0.67): 105–114s internal, 137–147s wall-clock. Phase 3 (LLM) dominates at ~96–100s.
 - Phase A complete (v1.0.67). Phase B complete (v1.0.88). Phase C complete (v1.0.97).
 - Preflight probes are now opt-in via `runtime.preflight_checks_enabled`. Default: `false` (disabled).

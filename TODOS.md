@@ -67,13 +67,14 @@ Full review performed: structural issues, files exceeding 500/300 lines, perform
 
 ### P2 — Cross-cutting structural issues (from review section 3)
 
-- [ ] **Deduplicate regex patterns across the codebase** — `re.findall(r"\b[a-z]{3,}\b"` and `r"\b[a-z]{4,}\b"` appear in:
-  - `summary_parser.py` — Already handled via `_keyword_set()` and `_best_headline_keyword_match()` (v1.0.147). Remaining uses in `config_validator.py` and `validation.py` still need dedup.
-  - `validation.py` (1 location in topic overlap check)
-  - `tagging.py` (implicitly via stop-word logic)
-  - Create `utils.py` helper: `extract_significant_words(text, min_len=4)`.
-- [ ] **Consolidate `_safe_text()` / `_coerce_temperature_f()` double-dispatching** — Both exist in `utils.py` and are re-wrapped elsewhere (`pipeline.py:260-269` delegates to `utils._coerce_temperature_f()`). Remove pipeline-level shim.
-- [ ] **Investigate module-level globals shim (`pipeline.py:246-255`)** — `RUN_LOGFILE`, `PHASE_TIMINGS`, `OUTPUT_DIR`, `_llm_client` are set to `None` as module-level defaults, then reassigned in `main()`. Tests depend on reading these, but they contradict the `RunContext` concurrency isolation. Consider whether they're still needed once all paths use `RunContext`.
+- [x] **Deduplicate regex patterns across the codebase** — `re.findall(r"\b[a-z]{3,}\b"` and `r"\b[a-z]{4,}\b"` appear in:
+  - Extracted `extract_significant_words(text, min_len=4)` in `utils.py`.
+  - Migrated `validation.py` topic-overlap check to use helper.
+  - Migrated `tagging.py._keyword_has_stop()` to use helper.
+  - Removed unused `re` import from `config_validator.py`.
+  - Summary-parser and summary-quality kept separate (different semantics — separate task).
+- [x] **Consolidate `_safe_text()` / `_coerce_temperature_f()` double-dispatching** — Already canonical in `utils.py` after P1 split. The `daily_brief.pipeline` module only re-exports `_coerce_temperature_f` as a compatibility alias. No functional duplication remains; shim retained for import-level compatibility.
+- [x] **Investigate module-level globals shim (`pipeline.py:246-255`)** — `RUN_LOGFILE`, `PHASE_TIMINGS`, `OUTPUT_DIR`, `_llm_client` are dead in production. Removed from `context.py` (legacy globals deleted) and `stages.py` (assignments and exports removed). Added `ContextVar`-based `_current_context_var` + `get_current_run_context()` in `__init__.py` for task-local test observation. Backward-compat `get_current_run_context()` falls back to module-level `_current_context` for sequential `run_until_complete()` tests. All 4 tests using old pattern updated.
 
 ### P2 — Performance optimizations (from review section 4)
 

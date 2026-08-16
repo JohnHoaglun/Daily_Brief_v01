@@ -74,10 +74,10 @@ class TestConcurrentModuleGlobalsIsolation(TestCase):
                 p.__enter__()
             try:
                 from daily_brief.pipeline import main as pm
+                from daily_brief.pipeline import get_current_run_context
 
                 await pm()
-                import daily_brief.pipeline as pmod
-                ctx = pmod._current_context
+                ctx = get_current_run_context()
                 captured[label] = dict(ctx.phase_timings) if ctx else {}
             finally:
                 for p in reversed(patches):
@@ -156,10 +156,10 @@ class TestRunContextNoGlobalLeak(TestCase):
                     p.__enter__()
                 try:
                     from daily_brief.pipeline import main as pm
+                    from daily_brief.pipeline import get_current_run_context
 
                     exit_code = await pm()
-                    import daily_brief.pipeline as pmod
-                    ctx = pmod._current_context
+                    ctx = get_current_run_context()
 
                     results.append(
                         {
@@ -221,9 +221,9 @@ class TestRunContextNoGlobalLeak(TestCase):
             if m:
                 versions.add(int(m.group(1)))
         assert len(versions) >= 2, f"Expected >=2 distinct versions, got {versions}"
-        import daily_brief.pipeline as pmod
+        from daily_brief.pipeline import get_current_run_context
 
-        ctx = pmod._current_context
+        ctx = get_current_run_context()
         assert ctx and ctx.phase_timings, "Pipeline should have recorded phase timings"
         assert "Phase 1" in ctx.phase_timings, "Phase 1 timing missing"
         assert "Phase 2" in ctx.phase_timings, "Phase 2 timing missing"

@@ -41,10 +41,10 @@ class TestIndependentPhaseTimings(TestCase):
             p.__enter__()
         try:
             from daily_brief.pipeline import main as pm
+            from daily_brief.pipeline import get_current_run_context
 
             asyncio.get_event_loop().run_until_complete(pm())
-            import daily_brief.pipeline as pmod
-            ctx = pmod._current_context
+            ctx = get_current_run_context()
 
             assert ctx and "Phase 1" in ctx.phase_timings, "Phase 1 timing missing"
             assert ctx and "Phase 2" in ctx.phase_timings, "Phase 2 timing missing"

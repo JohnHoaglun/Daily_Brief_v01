@@ -4,6 +4,12 @@
 
 ### v1.0.154 — Single-source version: `_version.py` only
 
+### v1.0.155 — P2.2 Cross-cutting structural cleanup
+
+- **Extracted `extract_significant_words()` in `utils.py`** — dedplicates the regex tokenization previously scattered across `validation.py` and `tagging.py`. `config_validator.py` unused `re` import removed. `llm/summary_parser.py` and `llm/summary_quality.py` intentionally kept separate (different tokenization semantics).
+- **Eliminated `RUN_LOGFILE`/`PHASE_TIMINGS`/`OUTPUT_DIR`/`_llm_client` globals** — removed from `context.py` and `stages.py`. `stages.py` no longer propagates module-level attributes into the `daily_brief.pipeline` package.
+- **Added `ContextVar`-backed test-hub** — `get_current_run_context()` in `__init__.py` provides task-local context observation. Falls back to module-level `_current_context` for backward compat with `run_until_complete()` tests. All 676 tests pass (was 669).
+
 - **Eliminated version duplication across 20+ files.** Version text is now **only** in `daily_brief/_version.py`.
 - Removed version from all module docstrings (sources, pipeline, utils, models, http_client, lifecycle, llm, validation).
 - Removed `version` key from `config.yaml` and `DEFAULTS["version"]` from `config.py`. `VERSION` now derives directly from `PACKAGE_VERSION`.

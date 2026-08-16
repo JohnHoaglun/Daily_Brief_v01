@@ -79,14 +79,6 @@ from daily_brief.pipeline.context import (
 )
 from daily_brief.pipeline import context as _run_ctx  # noqa: F401
 
-# Module-level globals — backwards compatibility shim for test fixtures
-# These are re-exported from context.py. We set them here because `main()`
-# uses ``global RUN_LOGFILE`` etc. which modifies this module's names.
-RUN_LOGFILE = None
-PHASE_TIMINGS: Dict[str, float] = {}
-OUTPUT_DIR = None
-_llm_client = None
-
 # Exit codes
 EXIT_CODE_SUCCESS = 0
 EXIT_CODE_CONFIG = 1
@@ -111,15 +103,9 @@ __all__ = [
     "RunContext",
     "_setup_run_logger",
     "_teardown_run_logger",
-    # Moved to context.py (still re-exported here for compat)
     "_EventLoopLagMonitor",
     "_percentile",
     "_count_extracted",
-    # Globals shim (for backwards compat — tests may use these)
-    "RUN_LOGFILE",
-    "PHASE_TIMINGS",
-    "OUTPUT_DIR",
-    "_llm_client",
 ]
 
 # --- Test-patch resolution (late import to avoid circular imports) ---
@@ -477,13 +463,13 @@ async def stage_validate(
 
 
 async def main():
-    # Test-patch context update (late binding — _update_test_context lives in __init__)
+    # Test-patch context update (late binding — _set_current_run_context lives in __init__)
     import sys as _sys
     _pmod = _sys.modules.get("daily_brief.pipeline")
     if _pmod is not None:
-        _update_test_context = _pmod._update_test_context
+        _set_current_run_context = _pmod._set_current_run_context
     else:
-        from daily_brief.pipeline import _update_test_context as _update_test_context
+        from daily_brief.pipeline import _set_current_run_context as _set_current_run_context
 
     # ------------------------------------------------------------------
     # Resolve patchable names late so that ``patch("daily_brief.pipeline.*")``
@@ -542,15 +528,12 @@ async def main():
     # --- Per-run context (isolates mutable state) ---
     ctx = RunContext(article_max_concurrency=ARTICLE_MAX_CONCURRENCY)
 
-    # Backwards-compat shim for test fixtures that inspect module globals
-    global RUN_LOGFILE, PHASE_TIMINGS, OUTPUT_DIR, _llm_client
-    RUN_LOGFILE = None
-    PHASE_TIMINGS = ctx.phase_timings
-    OUTPUT_DIR = NEWS_DIR
-    _llm_client = create_llm_client(
+    # Set context into task-local storage for test observation.
+    _set_current_run_context = _pip("_set_current_run_context")
+    _set_current_run_context(ctx)
+    ctx.llm_client = _pip("create_llm_client")(
         LLM_MODEL, OLLAMA_HOST + "/v1" if "/v1" not in OLLAMA_HOST else OLLAMA_HOST, timeout=180
     )
-    ctx.llm_client = _llm_client
     ctx.output_dir = ctx.output_dir or NEWS_DIR
     ctx.input_log_dir = LOG_DIR
     ctx.input_news_dir = NEWS_DIR
@@ -562,24 +545,10 @@ async def main():
     ctx.reservation = reservation
     ctx.run_logfile = reservation.log_path
     log_ver = reservation.log_ver
-    RUN_LOGFILE = reservation.log_path
-    OUTPUT_DIR = reservation.report_dir
     ctx.output_dir = reservation.report_dir
 
     os.makedirs(LOG_DIR, exist_ok=True)
     os.makedirs(NEWS_DIR, exist_ok=True)
-
-    # Propagate updates into __init__ so that ``pmod.RUN_LOGFILE`` etc.
-    # are visible to test assertions.
-    import sys as _sys
-
-    _pmod = _sys.modules.get("daily_brief.pipeline")
-    if _pmod is not None:
-        _pmod.RUN_LOGFILE = RUN_LOGFILE
-        _pmod.PHASE_TIMINGS = PHASE_TIMINGS
-        _pmod.OUTPUT_DIR = OUTPUT_DIR
-        _pmod._llm_client = _llm_client
-        _pmod._current_context = ctx
 
     # --- Run-scoped logger (file + stderr, attached only for this run) ---
     lgr: Optional[logging.Logger] = _setup_run_logger(reservation.log_path)
@@ -645,7 +614,7 @@ async def main():
             exit_code = await stage_validate(report_path, ctx, lgr.info, run_started)
 
             # Late-bound: inform test hooks about the final context
-            _update_test_context(ctx)
+            _set_current_run_context(ctx)
 
             return exit_code
 

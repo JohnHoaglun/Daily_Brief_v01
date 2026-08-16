@@ -40,13 +40,35 @@ from daily_brief.pipeline.context import (
     _setup_run_logger, _teardown_run_logger, ACTIVE_TIMEZONE,
 )
 
-# --- Test-hub shim: retired per-run module globals replaced by RunContext ---
-from typing import Optional
+# --- Test-hub: task-local context accessor (replaces dead _current_context) ---
+import contextvars
+
+_current_context_var: contextvars.ContextVar[Optional[RunContext]] = contextvars.ContextVar(
+    "_current_context_var", default=None,
+)
+# Legacy module-level holder — persists after run_until_complete() returns,
+# providing backward compat for tests that do not use asyncio.gather().
 _current_context: Optional[RunContext] = None
 
 
-def _update_test_context(ctx: RunContext) -> None:
-    """Called at the end of main() — sets _current_context for test consumption."""
+def get_current_run_context() -> Optional[RunContext]:
+    """Return the RunContext for the *currently executing task*.
+
+    Falls back to the module-level ``_current_context`` when the value is not
+    set (e.g. after ``run_until_complete`` returns), providing backward
+    compatibility.  For truly concurrent tests (``asyncio.gather``), use
+    ``_current_context`` directly inside each coroutine _before_ that
+    coroutine yields back to the gather parent.
+    """
+    ctx = _current_context_var.get()
+    if ctx is not None:
+        return ctx
+    return _current_context
+
+
+def _set_current_run_context(ctx: RunContext) -> None:
+    """Called by main() — sets both task-local and module-level context."""
+    _current_context_var.set(ctx)
     global _current_context
     _current_context = ctx
 
@@ -65,7 +87,7 @@ __all__ = [
     "EXIT_CODE_SUCCESS", "EXIT_CODE_CONFIG", "EXIT_CODE_VALIDATION",
     "DEFAULT_CONTENT_AGE_WINDOW_HOURS", "RunContext",
     "_setup_run_logger", "_teardown_run_logger", "ACTIVE_TIMEZONE",
-    "_current_context", "_update_test_context",
+    "get_current_run_context", "_current_context",
     "validate_config", "validate_report", "create_llm_client", "llm_batch_summarize_all",
     "fetch_weather", "fetch_and_dedup", "stage_extract_article",
     "ordered_categories_for_render", "build_sections_from_stories", "build_markdown",

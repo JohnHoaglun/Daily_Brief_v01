@@ -23,6 +23,31 @@ def _safe_text(value, fallback="N/A") -> str:
         return fallback
 
 
+def extract_significant_words(
+    text: str,
+    *,
+    min_len: int = 4,
+    allow_apostrophes: bool = False,
+) -> list[str]:
+    """Return lowercase alphabetic tokens found in *text*, respecting *min_len*.
+
+    Returns a list (preserving duplicates) so callers that need a set
+    can call ``set(...)`` explicitly.  This preserves the existing
+    overlap-scoring semantics that depend on duplicate tokens.
+
+    When *allow_apostrophes* is True the pattern retains contractions
+    and possessives as a single token (e.g. *it's* stays *it's*).
+    """
+    if not text:
+        return []
+    if allow_apostrophes:
+        tokens = re.findall(r"(?:[a-z]+(?:'[a-z]+)?|[a-z]*')", text.lower())
+        # summary_quality also calls len(w) > 3; callers apply min_len filter below
+    else:
+        tokens = re.findall(r"\b[a-z]+\b", text.lower())
+    return [w for w in tokens if len(w) >= min_len]
+
+
 def strip_html(html_text: str) -> str:
     """Remove HTML tags from text."""
     if not html_text:

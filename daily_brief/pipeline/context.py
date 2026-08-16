@@ -25,13 +25,6 @@ from daily_brief.config import (
 from daily_brief.llm import create_llm_client
 
 
-# Module-level globals — backwards compatibility shim for test fixtures
-RUN_LOGFILE = None
-PHASE_TIMINGS: Dict[str, float] = {}
-OUTPUT_DIR = None
-_llm_client = None
-
-
 try:
     ACTIVE_TIMEZONE = ZoneInfo(TIMEZONE)
 except Exception:

@@ -27,7 +27,7 @@ import re
 
 import yaml
 
-from daily_brief.utils import _count_sentences
+from daily_brief.utils import _count_sentences, extract_significant_words
 
 logger = logging.getLogger(__name__)
 
@@ -271,7 +271,7 @@ def validate_report(filepath):
             continue
 
         # Check 5: Topic overlap — extract key words from headline, check presence in summary
-        headline_words = re.findall(r"\b[a-z]{4,}\b", title_lower)
+        headline_words = extract_significant_words(title, min_len=4)
         # Remove common words
         stop_words = {
             "news",

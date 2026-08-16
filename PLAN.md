@@ -1,6 +1,10 @@
-# PLAN — Single-source versioning direction
+# PLAN — Cross-cutting structural improvements
 
-## Status: COMPLETE — All pipelines and tests verified clean. Fixed test-phase hang via _pip late-binding.
+## Status: COMPLETE — All 676 tests pass. P1/P2 cleanup done.
+
+## v1.0.155 — P2.2 Cross-cutting structural cleanup
+- **Tokenization dedup:** Extracted `extract_significant_words()` utility in `utils.py`. Migrated `validation.py` topic-overlap check and `tagging.py._keyword_has_stop()` to use the helper. Removed unused `re` import from `config_validator.py`.
+- **Dead globals elimination:** Removed `RUN_LOGFILE`/`PHASE_TIMINGS`/`OUTPUT_DIR`/`_llm_client` from `context.py` and `stages.py`. Replaced `_current_context` with `ContextVar`-backed accessor (`get_current_run_context()`) in `__init__.py` for task-local test observation.
 
 ## v1.0.153 — Concurrency scheduling fix
 - **Bug:** `test_phase_1_and_2_run_concurrent` hung indefinitely.  Root cause: `stage_weather()` called `fetch_weather` via module-level import (line 47 of `stages.py`), but test patched `daily_brief.pipeline.fetch_weather`. The mock never fired because the import resolved to `daily_brief.sources.weather.fetch_weather`.

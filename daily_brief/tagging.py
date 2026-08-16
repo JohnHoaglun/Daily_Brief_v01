@@ -8,6 +8,7 @@ from daily_brief.config import (
     TAGGING_CONFIG,
     TAGGING_MAPPINGS,
 )
+from daily_brief.utils import extract_significant_words
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +92,7 @@ def _word_boundary_match(text, keyword):
 
 def _keyword_has_stop(keyword):
     """Quick check: does the keyword consist entirely of stop words?"""
-    words = re.findall(r"\b[a-z]+\b", keyword.lower())
+    words = extract_significant_words(keyword, min_len=1)
     return all(w in _STOP_WORDS for w in words)
 
 

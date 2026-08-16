@@ -40,8 +40,8 @@ class TestStartupSequence:
         # Force restore attributes that leaked patches from other tests may have modified
         pipeline_mod.LOG_DIR = CFG_LOG
         pipeline_mod.NEWS_DIR = CFG_NEWS
-        # Retired globals replaced by RunContext:
-        # pipeline_mod._current_context is set at end of each main() run
+        # Retired globals replaced by a task-local ContextVar accessor:
+        # get_current_run_context() returns each task's own context.
         pipeline_mod.CATEGORIES = CATEGORIES
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -134,6 +134,8 @@ class TestStartupSequence:
             assert "story_count_total: 1" in report_text
 
             # PHASE_TIMINGS via RunContext
-            ctx = pipeline_mod._current_context
+            from daily_brief.pipeline import get_current_run_context
+
+            ctx = get_current_run_context()
             phase_keys = list(ctx.phase_timings.keys()) if ctx else []
             assert "Phase 1" in phase_keys

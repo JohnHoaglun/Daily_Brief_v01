@@ -7,7 +7,6 @@ lake_urls, prompts, tagging.  Runs at pipeline startup before Phase 1.
 
 from __future__ import annotations
 
-import re
 from typing import Any
 from zoneinfo import ZoneInfo
 

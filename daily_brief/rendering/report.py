@@ -71,7 +71,7 @@ def compute_output_path(output_dir, file_ver=None):
     return filepath, file_ver
 
 
-def build_markdown(stories, weather, sections_map, ordered_cats, config_kwargs):
+def build_markdown(stories, weather, sections_map, ordered_cats, config_kwargs, git_provenance=None):
     """Render the full markdown report as a list of strings.
 
     Args:
@@ -86,6 +86,8 @@ def build_markdown(stories, weather, sections_map, ordered_cats, config_kwargs):
             - DEFAULT_CONTENT_AGE_WINDOW_HOURS
             - FRONTMATTER_TAG_SEEDS
             - WEATHER_SECTION_TITLE
+        git_provenance: optional dict with git_commit, git_committed_at,
+            git_author_name, git_committer_name.  Names only — no email.
 
     Returns:
         list of md strings
@@ -107,6 +109,18 @@ def build_markdown(stories, weather, sections_map, ordered_cats, config_kwargs):
     md.append(f"content_age_window: {DEFAULT_CONTENT_AGE_WINDOW_HOURS}")
     md.append(f"story_count_total: {total_after_dedup}")
     md.append(f"categories: {rendered_cat_count}")
+
+    # Optional Git provenance frontmatter (names only, no email)
+    if git_provenance:
+        for key in ("git_commit", "git_committed_at", "git_author_name", "git_committer_name"):
+            val = git_provenance.get(key)
+            if val:
+                needs_quoting = any(c in val for c in (":", '"', "'", "\n", "\r", "\t"))
+                if needs_quoting:
+                    escaped = val.replace('"', '\\"')
+                    md.append(f"{key}: \"{escaped}\"")
+                else:
+                    md.append(f"{key}: {val}")
 
     # Precompute tags for all stories — computed once, reused for frontmatter + body
     _tag_cache = {}

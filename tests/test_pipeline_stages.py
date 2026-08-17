@@ -135,22 +135,25 @@ class TestConcurrentPair(TestCase):
     def test_only_two_phases_concurrent(self):
         """asyncio.gather in main() must only be used for weather + RSS (2 concurrent tasks)."""
         import daily_brief.pipeline.stages as stages_mod
+        import daily_brief.pipeline.stages_core as core_mod
 
-        source = inspect.getsource(stages_mod)
-        self.assertIn("asyncio.gather(_phase1_weather(), _phase2_rss())", source)
-
-        self.assertIn("sem_article = asyncio.Semaphore", source)
-        self.assertIn("_bounded_extract", source)
+        source_main = inspect.getsource(stages_mod)
+        self.assertIn("asyncio.gather(_phase1_weather(), _phase2_rss())", source_main)
+        source_core = inspect.getsource(core_mod)
+        self.assertIn("sem_article = asyncio.Semaphore", source_core)
+        self.assertIn("_bounded_extract", source_core)
 
     def test_phases_not_all_gathered(self):
         """Phase 3/4/5 are NOT gathered concurrently with weather/RSS."""
         import daily_brief.pipeline.stages as stages_mod
+        import daily_brief.pipeline.stages_core as core_mod
 
-        source = inspect.getsource(stages_mod)
-        gather_count = source.count("asyncio.gather(")
-
-        self.assertGreaterEqual(gather_count, 2,
-                                f"Expected >=2 gather calls; found {gather_count}")
+        source_main = inspect.getsource(stages_mod)
+        source_core = inspect.getsource(core_mod)
+        combined = source_main + source_core
+        gather_count = combined.count("asyncio.gather(")
+        # 1 in stages.py (weather+RSS), 1 in stages_core.py (article extraction)
+        self.assertGreaterEqual(gather_count, 2)
 
 
 # ---------------------------------------------------------------------------

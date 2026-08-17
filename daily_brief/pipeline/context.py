@@ -47,6 +47,7 @@ class RunContext:
     article_max_concurrency: int = 3  # default: from config
     llm_client: Any = None
     reservation: Optional[Any] = None
+    provenance: Dict[str, str] = field(default_factory=dict)
 
 
 class _RunTimestampFormatter(logging.Formatter):

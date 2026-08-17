@@ -1,10 +1,4 @@
-"""
-Shared helper functions for concurrency contract tests.
-
-Extracted from test_concurrency_contract.py to support split test modules.
-These helpers patch shared daily_brief.pipeline attributes and are used
-by the autouse pytest reset fixture.
-"""
+"""Shared helpers for concurrency tests."""
 
 import asyncio
 import tempfile

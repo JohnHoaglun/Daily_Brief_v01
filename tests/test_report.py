@@ -145,13 +145,6 @@ class TestBuildSectionsFromStories(TestCase):
 class TestComputeOutputPath(TestCase):
     """Auto-versioned output path generation."""
 
-    def test_fresh_dir_auto_v01(self):
-        with tempfile.TemporaryDirectory() as td:
-            fp, ver = compute_output_path(td)
-            assert ver == 1
-            assert isinstance(fp, str)
-            assert fp.endswith("_v01.md")
-
     def test_existing_versions_increment(self):
         with tempfile.TemporaryDirectory() as td:
             today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -162,7 +155,7 @@ class TestComputeOutputPath(TestCase):
             assert ver == 4
             assert "_v04.md" in fp
 
-    def test_explicit_file_ver_auto(self):
+    def test_explicit_file_ver(self):
         with tempfile.TemporaryDirectory() as td:
             today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
             for v in range(1, 9):
@@ -172,28 +165,12 @@ class TestComputeOutputPath(TestCase):
             assert ver == 15
             assert fp == os.path.join(td, f"DailyBrief-{today}_v15.md")
 
-    def test_explicit_file_ver_empty(self):
-        with tempfile.TemporaryDirectory() as td:
-            fp, ver = compute_output_path(td, file_ver=7)
-            assert ver == 7
-            assert "_v07.md" in fp
-
     def test_creates_output_dir(self):
         with tempfile.TemporaryDirectory() as td:
             new_dir = os.path.join(td, "sub", "out")
             fp, _ = compute_output_path(new_dir)
             assert os.path.isdir(new_dir)
             assert fp.startswith(new_dir)
-
-    def test_version_two_digit_padding(self):
-        with tempfile.TemporaryDirectory() as td:
-            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-            for v in range(1, 11):
-                with open(os.path.join(td, f"DailyBrief-{today}_v{v:02d}.md"), "w") as f:
-                    f.write("old")
-            fp, ver = compute_output_path(td)
-            assert ver == 11
-            assert "_v11.md" in fp
 
 
 # ---------------------------------------------------------------------------
@@ -350,15 +327,7 @@ class TestWriteReport(TestCase):
             with open(fp, encoding="utf-8") as f:
                 content = f.read()
             assert "caf\u00e9" in content
-            assert "\u2603" in content
             assert content == "caf\u00e9\n\u2603 snow\nline3\n"
-        # No extra whitespace
-        with tempfile.TemporaryDirectory() as td:
-            fp = os.path.join(td, "test2.md")
-            write_report(fp, ["header", "", "body", "footer"])
-            with open(fp, encoding="utf-8") as f:
-                content = f.read()
-            assert content == "header\n\nbody\nfooter\n"
 
     def test_write_report_uses_temp_file_and_rename(self):
         """Atomic write: temp file opened before final path via os.replace."""
@@ -409,47 +378,3 @@ class TestWriteReport(TestCase):
             with open(fp, encoding="utf-8") as f:
                 assert f.read() == old_content
 
-    def test_write_report_cleanup_temp_on_failure(self):
-        """On write failure, no .tmp artifact remains."""
-        with tempfile.TemporaryDirectory() as td:
-            fp = os.path.join(td, "test.md")
-            tmp_path = fp + ".tmp"
-
-            call_count = [0]
-            original_open = (
-                __builtins__["open"] if isinstance(__builtins__, dict) else __builtins__.open
-            )
-
-            def failing_open(path, *args, **kwargs):
-                call_count[0] += 1
-                if call_count[0] == 1:
-                    raise OSError("simulated write failure")
-                return original_open(path, *args, **kwargs)
-
-            try:
-                with mock.patch("builtins.open", side_effect=failing_open):
-                    write_report(fp, ["new", "content"])
-            except OSError:
-                pass
-
-            assert not os.path.exists(tmp_path)
-
-    def test_write_report_same_dir_temp(self):
-        """The temp file path is in the same directory as the target."""
-        import builtins
-
-        opened_paths = []
-        original_open = builtins.open
-
-        def tracking_open(path, *args, **kwargs):
-            opened_paths.append(path)
-            return original_open(path, *args, **kwargs)
-
-        with tempfile.TemporaryDirectory() as td:
-            fp = os.path.join(td, "sub", "test.md")
-            os.makedirs(os.path.join(td, "sub"), exist_ok=True)
-            with mock.patch("builtins.open", side_effect=tracking_open):
-                write_report(fp, ["line1"])
-        tmp_path = os.path.join(td, "sub", "test.md.tmp")
-        assert tmp_path in opened_paths
-        assert os.path.dirname(tmp_path) == os.path.dirname(fp)

@@ -20,6 +20,8 @@ import yaml
 
 from daily_brief.config import (
     CONFIG_YAML,
+    load_raw_config,
+    config_source,
 )
 from daily_brief.config_validator import validate_config
 
@@ -29,16 +31,25 @@ def build_parser() -> argparse.ArgumentParser:
         prog="daily_brief",
         description="Daily Brief — local news briefing pipeline",
     )
+    parser.add_argument(
+        "--config",
+        default=None,
+        help="Path to an alternate config.yaml for the pipeline run",
+    )
     subparsers = parser.add_subparsers(dest="command")
 
     # --- config subcommand ---
     config_parser = subparsers.add_parser("config", help="Inspect configuration")
+
     config_subs = config_parser.add_subparsers(dest="config_subcommand")
 
-    config_subs.add_parser("validate", help="Validate config.yaml")
-    config_subs.add_parser("show", help="Print full config as YAML")
-    config_subs.add_parser("list-categories", help="List categories with settings")
-    config_subs.add_parser("list-lakes", help="List lake monitor URLs")
+    for _sub in ("validate", "show", "list-categories", "list-lakes", "check-connectivity"):
+        _s = config_subs.add_parser(_sub, help=f"{_sub.replace('-', ' ').capitalize()} config")
+        _s.add_argument(
+            "--yaml",
+            default=None,
+            help="Path to an alternate config.yaml to inspect",
+        )
 
     sp_parser = config_subs.add_parser("show-prompt", help="Print a prompt by name")
     sp_parser.add_argument(
@@ -46,9 +57,10 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["summary", "summary_strict", "system_batch"],
         help="Prompt name to display",
     )
-    config_subs.add_parser(
-        "check-connectivity",
-        help="Run pre-flight connectivity checks (LLM, RSS, Weather)",
+    sp_parser.add_argument(
+        "--yaml",
+        default=None,
+        help="Path to an alternate config.yaml to inspect",
     )
 
     return parser
@@ -64,22 +76,25 @@ def run(argv: list[str] | None = None) -> int | None:
     args = parser.parse_args(argv)
 
     if args.command != "config":
+        from daily_brief.config import use_config_path
+        if args.config:
+            use_config_path(args.config)
         return None
 
-    if not args.config_subcommand:
+    if args.command == "config" and not args.config_subcommand:
         parser.parse_args(["config", "--help"])
         return 0
 
     if args.config_subcommand == "validate":
-        return cmd_validate()
+        return cmd_validate(args.yaml)
     if args.config_subcommand == "show":
-        return cmd_show()
+        return cmd_show(args.yaml)
     if args.config_subcommand == "list-categories":
-        return cmd_list_categories()
+        return cmd_list_categories(args.yaml)
     if args.config_subcommand == "list-lakes":
-        return cmd_list_lakes()
+        return cmd_list_lakes(args.yaml)
     if args.config_subcommand == "show-prompt":
-        return cmd_show_prompt(args.name)
+        return cmd_show_prompt(args.name, args.yaml)
     if args.config_subcommand == "check-connectivity":
         return cmd_check_connectivity()
 
@@ -91,8 +106,9 @@ def run(argv: list[str] | None = None) -> int | None:
 # ---------------------------------------------------------------------------
 
 
-def cmd_validate() -> int:
-    passed, issues = validate_config(CONFIG_YAML)
+def cmd_validate(yaml_path=None) -> int:
+    data = load_raw_config(yaml_path)
+    passed, issues = validate_config(data)
     if passed:
         print("Config validation: PASS — no issues found.")
         return 0
@@ -102,13 +118,18 @@ def cmd_validate() -> int:
     return 1
 
 
-def cmd_show() -> int:
-    print(yaml.dump(CONFIG_YAML, default_flow_style=False, sort_keys=False, width=120))
+def cmd_show(yaml_path=None) -> int:
+    data = load_raw_config(yaml_path) if yaml_path else CONFIG_YAML
+    src = yaml_path or config_source()
+    if src:
+        print(f"# Resolved from: {src}")
+    print(yaml.dump(data, default_flow_style=False, sort_keys=False, width=120))
     return 0
 
 
-def cmd_list_categories() -> int:
-    cats = CONFIG_YAML.get("categories", {}) if isinstance(CONFIG_YAML, dict) else {}
+def cmd_list_categories(yaml_path=None) -> int:
+    cfg = load_raw_config(yaml_path) if yaml_path else CONFIG_YAML
+    cats = cfg.get("categories", {}) if isinstance(cfg, dict) else {}
     if not cats:
         print("No categories defined.")
         return 0
@@ -121,8 +142,9 @@ def cmd_list_categories() -> int:
     return 0
 
 
-def cmd_list_lakes() -> int:
-    weather = CONFIG_YAML.get("weather", {}) if isinstance(CONFIG_YAML, dict) else {}
+def cmd_list_lakes(yaml_path=None) -> int:
+    cfg = load_raw_config(yaml_path) if yaml_path else CONFIG_YAML
+    weather = cfg.get("weather", {}) if isinstance(cfg, dict) else {}
     lakes = weather.get("lake_urls", {}) if isinstance(weather, dict) else {}
     if not lakes:
         print("No lake URLs defined.")
@@ -134,12 +156,15 @@ def cmd_list_lakes() -> int:
     return 0
 
 
-def cmd_show_prompt(name: str) -> int:
-    prompts = CONFIG_YAML.get("prompts", {}) if isinstance(CONFIG_YAML, dict) else {}
+def cmd_show_prompt(name: str, yaml_path=None) -> int:
+    cfg = load_raw_config(yaml_path) if yaml_path else CONFIG_YAML
+    prompts = cfg.get("prompts", {}) if isinstance(cfg, dict) else {}
     val = prompts.get(name) if isinstance(prompts, dict) else None
     if not val:
         print(f"Prompt '{name}' is not defined in config.", file=sys.stderr)
         return 1
+    if yaml_path:
+        print(f"# From: {yaml_path}\n")
     print(f"--- prompts.{name} ---")
     print(val)
     return 0

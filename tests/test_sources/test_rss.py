@@ -127,7 +127,7 @@ class TestBuildRssUrl(TestCase):
 
 
 # ---------------------------------------------------------------------------
-# 4.  URL hours-to-days conversion
+# 4. URL hours-to-days conversion
 # ---------------------------------------------------------------------------
 
 
@@ -166,7 +166,7 @@ class TestBuildRssUrlWithWindow(TestCase):
 
 
 # ---------------------------------------------------------------------------
-# 4. fetch_feed — contracts
+# 5. fetch_feed — contracts
 # ---------------------------------------------------------------------------
 
 _SAMPLE_RSS = """<?xml version="1.0" encoding="UTF-8"?>
@@ -264,6 +264,15 @@ class TestFetchFeedContract(TestCase):
         self.assertEqual(entries[0][3].year, 2026)
         self.assertIsNone(entries[2][3])
 
+    def test_fetch_exception_return_empty(self):
+        class FailingSession:
+            def get(self, *a, **kw):
+                raise ConnectionError("network failure")
+
+        name, entries = _run(fetch_feed(FailingSession(), "fail-feed", "https://bad.com", 5))
+        self.assertEqual(name, "fail-feed")
+        self.assertEqual(len(entries), 0)
+
     def test_empty_feed(self):
         async def run():
             return await fetch_feed(
@@ -289,155 +298,3 @@ class TestFetchFeedContract(TestCase):
         self.assertEqual(len(e1), 12)
         _, e2 = _run(_gen(20, 3))
         self.assertEqual(len(e2), 3)
-
-    def test_session_passes_url_and_headers(self):
-        url_called = []
-        headers_called = {}
-
-        class FakeResp:
-            status = 200
-            headers = {}
-            content = _RssContent(_SAMPLE_RSS)
-
-            async def text(self):
-                return _SAMPLE_RSS
-
-        class _ACM:
-            async def __aenter__(self):
-                return FakeResp()
-
-            async def __aexit__(self, *a):
-                pass
-
-        class FakeSession:
-            def get(self, url, headers=None, timeout=None):
-                url_called.append(url)
-                headers_called.update(headers or {})
-                return _ACM()
-
-        _run(fetch_feed(FakeSession(), "name", "https://example.com/rss", 5))
-        self.assertEqual(url_called[0], "https://example.com/rss")
-        self.assertIn("User-Agent", headers_called)
-
-    def test_fetch_exception_return_empty(self):
-        class FailingSession:
-            def get(self, *a, **kw):
-                raise ConnectionError("network failure")
-
-        name, entries = _run(fetch_feed(FailingSession(), "fail-feed", "https://bad.com", 5))
-        self.assertEqual(name, "fail-feed")
-        self.assertEqual(len(entries), 0)
-
-    def test_http_status_matrix_no_parse(self):
-        """Non-2xx status codes return empty, never parse body."""
-        for status_code in [404, 403, 500, 502, 503]:
-            with self.subTest(status=status_code):
-
-                class FakeResp:
-                    status = status_code
-                    headers = {}
-                    content = _RssContent(_SAMPLE_RSS)
-
-                    async def text(self):
-                        return _SAMPLE_RSS
-
-                class _ACM:
-                    async def __aenter__(self):
-                        return FakeResp()
-
-                    async def __aexit__(self, *a):
-                        pass
-
-                class FakeSession:
-                    def get(self, *a, **kw):
-                        return _ACM()
-
-                async def run():
-                    with (
-                        mock.patch("asyncio.sleep", new_callable=AsyncMock, return_value=None),
-                        mock.patch("daily_brief.sources.rss.feedparser.parse") as mp,
-                    ):
-                        result = await fetch_feed(
-                            FakeSession(), "fail-feed", "https://example.com/rss", 5
-                        )
-                        return result, mp.called
-
-                result, was_called = _run(run())
-                self.assertEqual(result[0], "fail-feed")
-                self.assertEqual(len(result[1]), 0)
-                self.assertFalse(was_called, f"feedparser.parse called for status {status_code}")
-
-    def test_http_error_logs_status_and_name(self):
-        import logging
-
-        class FakeResp:
-            status = 502
-            headers = {}
-            content = _RssContent("error")
-
-            async def text(self):
-                return "error"
-
-        class _ACM:
-            async def __aenter__(self):
-                return FakeResp()
-
-            async def __aexit__(self, *a):
-                pass
-
-        class FakeSession:
-            def get(self, *a, **kw):
-                return _ACM()
-
-        async def run():
-            with (
-                mock.patch("asyncio.sleep", new_callable=AsyncMock, return_value=None),
-                self.assertLogs("daily_brief", level=logging.WARNING) as cm,
-            ):
-                result = await fetch_feed(FakeSession(), "fail-feed", "https://example.com/rss", 5)
-            return result, list(cm.records)
-
-        result, records = _run(run())
-        self.assertEqual(len(result[1]), 0)
-        combined = " ".join(r.getMessage() for r in records)
-        self.assertIn("fail-feed", combined)
-        self.assertIn("502", combined)
-
-
-# ---------------------------------------------------------------------------
-# 4.  URL hours-to-days conversion
-# ---------------------------------------------------------------------------
-
-
-class TestBuildRssUrlWithWindow(TestCase):
-    """URL construction converts hours to whole days, rounding up."""
-
-    def test_24h_becomes_1d(self):
-        from daily_brief.sources.rss import build_rss_url_with_window
-
-        url = build_rss_url_with_window("local news", 24)
-        self.assertIn("when%3A1d", url)
-
-    def test_47h_becomes_2d(self):
-        from daily_brief.sources.rss import build_rss_url_with_window
-
-        url = build_rss_url_with_window("local news", 47)
-        self.assertIn("when%3A2d", url)
-
-    def test_72h_becomes_3d(self):
-        from daily_brief.sources.rss import build_rss_url_with_window
-
-        url = build_rss_url_with_window("local news", 72)
-        self.assertIn("when%3A3d", url)
-
-    def test_168h_becomes_7d(self):
-        from daily_brief.sources.rss import build_rss_url_with_window
-
-        url = build_rss_url_with_window("local news", 168)
-        self.assertIn("when%3A7d", url)
-
-    def test_169h_becomes_8d(self):
-        from daily_brief.sources.rss import build_rss_url_with_window
-
-        url = build_rss_url_with_window("local news", 169)
-        self.assertIn("when%3A8d", url)

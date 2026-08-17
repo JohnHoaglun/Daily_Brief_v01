@@ -28,10 +28,13 @@ from daily_brief.rendering import cleanup_old_files
 from daily_brief.rendering.report import (
     build_markdown, build_sections_from_stories, compute_output_path, write_report,
 )
-from daily_brief.validation import validate_report
+from daily_brief.validation import validate_report, validate_stories
+from daily_brief.config import use_config_path
 from daily_brief.pipeline.stages import (
     main, stage_weather,
     EXIT_CODE_SUCCESS, EXIT_CODE_CONFIG, EXIT_CODE_VALIDATION,
+    stage_extract, stage_summarize, stage_render,
+    stage_validate, stage_validate_stories,
 )
 from daily_brief.pipeline.context import (
     DEFAULT_CONTENT_AGE_WINDOW_HOURS, RunContext,
@@ -81,14 +84,14 @@ __all__ = [
     "MAX_LOG_VERSIONS", "NEWS_DIR", "OLLAMA_HOST", "PREFLIGHT_CHECKS_ENABLED",
     "TIMEZONE", "USER_AGENT", "VERSION", "WEATHER_LAT", "WEATHER_LON", "WEATHER_SECTION_TITLE",
     "CATEGORIES", "CATEGORY_PRIORITY", "format_pub_date",
-    "main", "stage_weather",
+    "main", "stage_weather", "stage_extract", "stage_summarize", "stage_render", "stage_validate", "stage_validate_stories",
     "_EventLoopLagMonitor", "_percentile", "_count_extracted",
     "_normalize_weather_for_rendering", "_coerce_temperature_f",
     "EXIT_CODE_SUCCESS", "EXIT_CODE_CONFIG", "EXIT_CODE_VALIDATION",
     "DEFAULT_CONTENT_AGE_WINDOW_HOURS", "RunContext",
     "_setup_run_logger", "_teardown_run_logger", "ACTIVE_TIMEZONE",
     "get_current_run_context", "_current_context",
-    "validate_config", "validate_report", "create_llm_client", "llm_batch_summarize_all",
+    "validate_config", "validate_report", "validate_stories", "create_llm_client", "llm_batch_summarize_all",
     "fetch_weather", "fetch_and_dedup", "stage_extract_article",
     "ordered_categories_for_render", "build_sections_from_stories", "build_markdown",
     "compute_output_path", "write_report", "cleanup_old_files", "StoryPipelineState",

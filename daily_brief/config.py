@@ -15,7 +15,7 @@ import yaml
 from daily_brief._version import __version__ as PACKAGE_VERSION
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-CONFIG_HOME = Path.home() / ".config" / "daily_brief" / "config.yaml"
+DEFAULT_CONFIG_FILE_PATH = Path.home() / ".config" / "daily_brief" / "config.yaml"
 
 
 # ---------------------------------------------------------------------------
@@ -69,17 +69,28 @@ DEFAULTS = {
 }
 
 
-def _find_config_path() -> Optional[Path]:
-    """Resolve config path with fallback chain: env override, project root, package default."""
+def _find_config_path(override: Optional[str] = None, fail_on_missing: bool = False) -> Optional[Path]:
+    """Resolve config path with fallback chain: env, override, project root, package default."""
+    if override is not None and fail_on_missing:
+        p = Path(override)
+        if not p.is_file():
+            raise FileNotFoundError(
+                f"Explicitly selected config file not found or not readable: {p}"
+            )
+        return p
+
     explicit = os.environ.get("DAILY_BRIEF_CONFIG")
     if explicit:
         return Path(explicit)
+
+    if override is not None:
+        return Path(override)
 
     project_config = BASE_DIR / "config.yaml"
     if project_config.is_file():
         return project_config
 
-    home_config = CONFIG_HOME
+    home_config = DEFAULT_CONFIG_FILE_PATH
     if home_config.is_file():
         return home_config
 
@@ -116,16 +127,16 @@ def _read_package_default() -> dict:
 def load_raw_config(yaml_path=None):
     """Return unvalidated YAML data, or an empty dict when it cannot be read.
 
-    Resolution order:
+    Resolution order (highest to lowest):
     1. Explicit ``yaml_path`` argument
     2. ``DAILY_BRIEF_CONFIG`` environment variable
-    3. ``config.yaml`` in project root (source install)
+    3. Project ``config.yaml`` (source install)
     4. ``~/.config/daily_brief/config.yaml`` (user config)
     5. Packaged ``daily_brief/config.yaml`` (wheel default)
     """
-    if yaml_path is not None:
-        return _read_config_path(Path(yaml_path))
-    return _read_config_path(_find_config_path())
+    resolved = _find_config_path(yaml_path)
+    _resolve_config_source(resolved, yaml_path)
+    return _read_config_path(resolved)
 
 
 def load_config_yaml(yaml_path=None):
@@ -134,6 +145,39 @@ def load_config_yaml(yaml_path=None):
 
 
 _SENTINEL = object()
+
+_DEFAULT_CONFIG_SOURCE = (
+    str(_find_config_path(None, fail_on_missing=False))
+    if _find_config_path(None, fail_on_missing=False) is not None
+    else None
+)
+_CONFIG_SOURCE_PATH: Optional[str] = _DEFAULT_CONFIG_SOURCE
+
+
+def use_config_path(path: str) -> None:
+    """Override the configuration file path before import-time resolution.
+
+    When ``path`` is set, it takes precedence over ``DAILY_BRIEF_CONFIG``
+    and all fallback locations.  Call this *before* importing
+    ``daily_brief.config`` to affect the import-time snapshot.
+    """
+    global CONFIG_YAML, _CONFIG_SOURCE_PATH
+    CONFIG_YAML = load_raw_config(path)
+    _CONFIG_SOURCE_PATH = str(Path(path))
+
+
+def _resolve_config_source(path: Optional[Path], yaml_path: Optional[str]) -> None:
+    """Set the selected source path for ``config show`` reporting."""
+    global _CONFIG_SOURCE_PATH
+    if yaml_path is not None:
+        _CONFIG_SOURCE_PATH = str(yaml_path)
+    elif path is not None:
+        _CONFIG_SOURCE_PATH = str(path)
+
+
+def config_source() -> Optional[str]:
+    """Return the config source path selected for the current resolution."""
+    return _CONFIG_SOURCE_PATH
 
 
 def _get_nested(d, path, default=_SENTINEL):
@@ -314,8 +358,11 @@ __all__ = (
     "build_runtime_config",
     "DEFAULTS",
     "BASE_DIR",
-    "CONFIG_HOME",
+    "DEFAULT_CONFIG_FILE_PATH",
     "CONFIG_YAML",
+    "_CONFIG_SOURCE_PATH",
+    "config_source",
+    "use_config_path",
     "DEFAULT_AGE_LIMIT_HOURS",
     *sorted(_RUNTIME_CONFIG.keys()),
 )

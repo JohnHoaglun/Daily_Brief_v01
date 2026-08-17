@@ -2,31 +2,30 @@
 Daily Brief — Report Validation
 =========================================
 
-Reads rendered markdown and checks summary quality.
+Semantic validation of Story objects (Phase 3D) and final-artifact format
+validation (Phase 5).
 
-Report-level checks (7):
-1. Frontmatter required fields
-2. Weather section with forecast rows
-3. No "Dynamic" fallback string
-4. No "Unavailable" fallback string
-5. Story count plausible range
-6. No duplicate URLs
-7. File size reasonable
+Phase 3D — validate_stories(stories):
+    Validates canonical Story objects immediately after summarization.
+    Checks: empty summary, [Auto] exemption, headline repetition,
+    sentence count, fallback markers, topic overlap.
 
-Per-story checks (5):
-- Non-empty summary
-- Minimum sentence count
-- Summary not headline repeat
-- No fallback markers
-- Topic overlap
+Phase 5 — validate_report(filepath):
+    Validates the rendered markdown file. Checks: frontmatter, weather section,
+    fallback values in body, plausible story count, duplicate URLs, file size.
+    Does NOT re-parse story blocks (those are validated in Phase 3D).
 """
+
+from __future__ import annotations
 
 import logging
 import os
 import re
+from typing import Any, List, Sequence, Tuple
 
 import yaml
 
+from daily_brief.models import Story
 from daily_brief.utils import _count_sentences, extract_significant_words
 
 logger = logging.getLogger(__name__)
@@ -56,8 +55,10 @@ def _count_forecast_rows(section_text):
         if not stripped.startswith("|"):
             continue
         cells = [c.strip() for c in stripped.split("|") if c.strip()]
-        if len(cells) >= 3 and not all(c == "-" for c in cells):
-            rows += 1
+        if len(cells) >= 3 and not all(c.strip("-") == "" for c in cells):
+            # Only count rows with actual forecast data (contain numeric temps)
+            if any(re.search(r"\d", c) for c in cells):
+                rows += 1
     return rows
 
 
@@ -75,27 +76,146 @@ def _extract_urls(body):
     """Extract all markdown link URLs from body text. Returns list of (title, url) tuples."""
     return re.findall(r"\[([^\]]+)\]\((https?://[^)]+)\)", body)
 
+# Stop word list for topic-overlap check.
+_STOP_WORDS = frozenset({
+    "news",
+    "says",
+    "live",
+    "update",
+    "updates",
+    "here",
+    "what",
+    "how",
+    "why",
+    "when",
+    "year",
+    "report",
+    "story",
+    "today",
+})
+
+
+def validate_stories(
+    stories: Sequence[Story],
+) -> Tuple[bool, List[str]]:
+    """Validate in-memory Story objects immediately after summarization.
+
+    Returns ``(passed, issues)``.   *passed* is ``True`` when no more than
+    10 % of stories are invalid, or when every story carries an ``[Auto]``
+    fallback.  An empty collection fails unconditionally.
+
+    Per-story validation rules (all blocking):
+    1. *Empty / whitespace-only* summary → invalid.
+    2. ``[Auto] …`` → exempt from all later checks.
+    3. Summary is an exact headline echo (with or without trailing ``.``) → invalid.
+    4. Fewer than two sentences → invalid.
+    5. Starts with ``[Headline]`` or contains ``[summary unavailable]`` → invalid.
+    6. Topic overlap — fewer significant headline words appear in the summary
+       than the 25 % threshold → invalid.
+    """
+    issues: List[str] = []
+
+    if not stories:
+        issues.append("Empty story collection")
+        return False, issues
+
+    total_stories = len(stories)
+    bad_stories = 0
+    auto_count = 0
+
+    for story in stories:
+        title = story.title or ""
+        summary = story.summary or ""
+        summary_lower = summary.lower()
+        title_lower = title.lower()
+
+        # Empty summary
+        if not summary or not summary.strip():
+            issues.append(f"Empty summary for: {title[:80]}")
+            bad_stories += 1
+            continue
+
+        # [Auto] exemption
+        if summary.startswith("[Auto]"):
+            auto_count += 1
+            continue
+
+        # Headline echo (with optional trailing period)
+        title_norm = re.sub(r"\s+", " ", title_lower).strip()
+        summary_norm = re.sub(r"\s+", " ", summary_lower).strip()
+        if summary_norm == title_norm or summary_norm.startswith(title_norm + "."):
+            issues.append(f"Summary repeats headline: {title[:80]}")
+            bad_stories += 1
+            continue
+
+        # Minimum sentence count
+        sentence_count = _count_sentences(summary)
+        if sentence_count < 2:
+            issues.append(f"Too short ({sentence_count} sentences): {title[:80]}")
+            bad_stories += 1
+            continue
+
+        # Fallback markers
+        if summary.startswith("[Headline]") or "[summary unavailable]" in summary_lower:
+            issues.append(f"Fallback marker present: {title[:80]}")
+            bad_stories += 1
+            continue
+
+        # Topic overlap
+        headline_words = extract_significant_words(title, min_len=4)
+        headline_words_filtered = [w for w in headline_words if w not in _STOP_WORDS]
+
+        if headline_words_filtered:
+            matching = [w for w in headline_words_filtered if w in summary_lower]
+            overlap_ratio = len(matching) / len(headline_words_filtered)
+
+            if overlap_ratio < 0.25:
+                issues.append(
+                    f"Topic mismatch (overlap {overlap_ratio:.0%}): {title[:80]}"
+                )
+                bad_stories += 1
+                continue
+
+    fail_threshold = total_stories * 0.10
+    passed = bad_stories <= fail_threshold
+    status = "PASS" if passed else "FAIL"
+    logger.info(
+        "VALIDATE_STORIES: %d stories, %d bad (%.0f%%), [Auto] fallbacks: %d, "
+        "threshold %.0f — %s",
+        total_stories,
+        bad_stories,
+        (bad_stories / total_stories * 100) if total_stories else 0,
+        auto_count,
+        fail_threshold,
+        status,
+    )
+
+    if issues:
+        logger.info("VALIDATE_STORIES ISSUES (%d):", len(issues))
+        for issue in issues[:20]:
+            logger.info("  - %s", issue)
+        if len(issues) > 20:
+            logger.info("  ... and %d more", len(issues) - 20)
+
+    return passed, issues
+
 
 def validate_report(filepath):
-    """Validate the rendered markdown report. Returns (passed, issues) tuple.
+    """Validate the final rendered markdown artifact (Phase 5).
+
+    Report-level checks only — story quality is validated in Phase 3D via
+    ``validate_stories(stories)`` against canonical Story objects.
 
     Report-level checks (7):
     1. Frontmatter required fields
     2. Weather section with forecast rows
-    3. No "Dynamic" fallback
-    4. No "Unavailable" fallback
-    5. Story count plausible (5-200)
+    3. No "Dynamic" fallback string in body
+    4. No "Unavailable" fallback string in body
+    5. Story count plausible range
     6. No duplicate URLs
-    7. File size reasonable (5KB-10MB)
+    7. File size reasonable (5 KB — 10 MB)
 
-    Per-story checks (5):
-    - Non-empty summary
-    - Minimum sentence count (2+)
-    - Summary not headline repeat
-    - No fallback markers
-    - Topic overlap
-
-    Returns False if >10% of stories have broken summaries.
+    Returns False if any report-level check fails.
     """
     issues = []
 
@@ -155,11 +275,17 @@ def validate_report(filepath):
             if story_count == 0:
                 issues.append("[REPORT-5] story_count_total is 0 — expected 5-200")
             elif story_count < 5:
-                issues.append(f"[REPORT-5] story_count_total is {story_count} — below minimum 5")
+                issues.append(
+                    f"[REPORT-5] story_count_total is {story_count} — below minimum 5"
+                )
             elif story_count > 200:
-                issues.append(f"[REPORT-5] story_count_total is {story_count} — above maximum 200")
+                issues.append(
+                    f"[REPORT-5] story_count_total is {story_count} — above maximum 200"
+                )
         except (ValueError, TypeError):
-            issues.append(f"[REPORT-5] story_count_total is not a valid integer: {story_count}")
+            issues.append(
+                f"[REPORT-5] story_count_total is not a valid integer: {story_count}"
+            )
 
     # REPORT CHECK 6: No duplicate URLs
     urls = _extract_urls(body)
@@ -174,153 +300,21 @@ def validate_report(filepath):
 
     # REPORT CHECK 7: File size reasonable
     if file_size < 5 * 1024:
-        issues.append(f"[REPORT-7] File too small ({file_size} bytes) — expected at least 5KB")
+        issues.append(
+            f"[REPORT-7] File too small ({file_size} bytes) — expected at least 5KB"
+        )
     elif file_size > 10 * 1024 * 1024:
-        issues.append(f"[REPORT-7] File too large ({file_size} bytes) — expected at most 10MB")
+        issues.append(
+            f"[REPORT-7] File too large ({file_size} bytes) — expected at most 10MB"
+        )
 
-    # --- Per-story checks ---
-    # Split into sections — find category headings
-    sections = re.split(r"^##\s+", content, flags=re.MULTILINE)
-
-    stories = []
-
-    for section in sections:
-        section_text = section.strip()
-        if not section_text:
-            continue
-
-        # Find numbered stories: "N. [Title](URL)"
-        story_blocks = re.split(r"\n(?=\d+\.\s+\[)", section_text)
-
-        for block in story_blocks:
-            block = block.strip()
-            if not block:
-                continue
-
-            # Extract title from first line
-            first_line_match = re.match(r"(\d+)\.\s+\[(.+?)\]\((.+?)\)", block)
-            if not first_line_match:
-                continue
-
-            title = first_line_match.group(2).strip()
-            block_lines = block.split("\n")
-            if len(block_lines) < 2:
-                continue
-
-            # Summary is everything after the title line, before meta lines
-            summary_lines = []
-            for line in block_lines[1:]:
-                line_stripped = line.strip()
-                if (
-                    line_stripped.startswith("*Originally published")
-                    or line_stripped.startswith("[[")
-                    or line_stripped.startswith("---")
-                    or line_stripped.startswith("##")
-                    or line_stripped == ""
-                ):
-                    continue
-                summary_lines.append(line_stripped)
-
-            summary = " ".join(summary_lines).strip()
-            stories.append((title, summary))
-
-    if not stories:
-        logger.warning("VALIDATE: No stories found in report")
-        issues.append("No stories found in report")
-        return False, issues
-
-    total_stories = len(stories)
-    bad_stories = 0
-    auto_count = 0
-
-    for title, summary in stories:
-        title_lower = title.lower()
-
-        # Check 1: Empty summary
-        if not summary or not summary.strip():
-            issues.append(f"Empty summary for: {title[:80]}")
-            bad_stories += 1
-            continue
-
-        summary_lower = summary.lower()
-
-        # Check 4a: [Auto] fallback — acceptable (headline-derived summary)
-        if summary.startswith("[Auto]"):
-            auto_count += 1
-            continue
-
-        # Check 2: Summary is just the headline
-        title_norm = re.sub(r"\s+", " ", title_lower)
-        summary_norm = re.sub(r"\s+", " ", summary_lower)
-        if summary_norm == title_norm or summary_norm.startswith(title_norm + "."):
-            issues.append(f"Summary repeats headline: {title[:80]}")
-            bad_stories += 1
-            continue
-
-        # Check 3: Minimum sentence count
-        sentence_count = _count_sentences(summary)
-        if sentence_count < 2:
-            issues.append(f"Too short ({sentence_count} sentences): {title[:80]}")
-            bad_stories += 1
-            continue
-
-        # Check 4: Fallback markers (now accepts [Auto], rejects [Headline]/[Summary Unavailable])
-        if summary.startswith("[Headline]") or "[summary unavailable]" in summary_lower:
-            issues.append(f"Fallback marker present: {title[:80]}")
-            bad_stories += 1
-            continue
-
-        # Check 5: Topic overlap — extract key words from headline, check presence in summary
-        headline_words = extract_significant_words(title, min_len=4)
-        # Remove common words
-        stop_words = {
-            "news",
-            "says",
-            "live",
-            "update",
-            "updates",
-            "here",
-            "what",
-            "how",
-            "why",
-            "when",
-            "year",
-            "report",
-            "story",
-            "today",
-        }
-        headline_words = [w for w in headline_words if w not in stop_words]
-
-        if headline_words:
-            matching = [w for w in headline_words if w in summary_lower]
-            overlap_ratio = len(matching) / len(headline_words) if headline_words else 1.0
-
-            # If <25% of significant headline words appear in summary, it's likely wrong
-            if overlap_ratio < 0.25:
-                issues.append(f"Topic mismatch (overlap {overlap_ratio:.0%}): {title[:80]}")
-                bad_stories += 1
-                continue
-
-    fail_threshold = total_stories * 0.10  # 10% failure rate
-    total_bad_ratio = bad_stories / total_stories if total_stories > 0 else 0
-
-    passed = bad_stories <= fail_threshold
+    passed = not issues
     status = "PASS" if passed else "FAIL"
-    logger.info(
-        "VALIDATE: %d stories, %d bad (%.0f%%), [Auto] fallbacks: %d, threshold %.0f — %s",
-        total_stories,
-        bad_stories,
-        total_bad_ratio * 100,
-        auto_count,
-        fail_threshold,
-        status,
-    )
+    logger.info("VALIDATE_REPORT: %s — %d issues", status, len(issues))
 
     if issues:
-        logger.info("VALIDATE ISSUES (%d):", len(issues))
-        for issue in issues[:20]:  # Log first 20 issues max
+        logger.info("VALIDATE_REPORT ISSUES (%d):", len(issues))
+        for issue in issues:
             logger.info("  - %s", issue)
-        if len(issues) > 20:
-            logger.info("  ... and %d more", len(issues) - 20)
 
     return passed, issues

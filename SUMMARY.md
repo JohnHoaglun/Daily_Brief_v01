@@ -2,7 +2,18 @@
 
 ## Changelog
 
-### v1.0.154 — Single-source version: `_version.py` only
+### v1.0.159 — Config override + Git provenance frontmatter wiring
+
+- **CLI `--config PATH` flag**: Parse before pipeline import; calls `use_config_path()` to override config source for the run. Top-level flag for pipeline; config subcommands use `--yaml` to avoid name collision.
+- **Config subcommands**: `validate`, `show`, `list-categories`, `list-lakes`, `show-prompt` now accept `--yaml PATH` for inspecting alternate configs.
+- **Git provenance in pipeline**: `stages.py::main()` calls four `resolve_git_*()` helpers from `provenance.py` and stores results in `RunContext.provenance` dict.
+- **Rendering thread**: `stage_render()` receives `ctx` and passes `ctx.provenance` to `build_markdown(git_provenance=...)`.
+- **YAML frontmatter insertion**: `build_markdown()` emits optional `git_commit`, `git_committed_at`, `git_author_name`, `git_committer_name` fields in frontmatter. Names are safely YAML-escaped (double-quoted when containing colons, quotes, newlines).
+- **Graceful degradation**: Missing git CLI, non-zero exit, timeout, or report written from a non-Git checkout produces the brief with provenance omitted — never aborts.
+- **Export wiring**: `pipeline/__init__.py` exports `use_config_path` for CLI integration.
+- **Version bump**: 1.0.158 → 1.0.159.
+
+### v1.0.158 — P2.4 Optional config override + optional Git provenance frontmatter (scope)
 
 ### v1.0.156 — P2.3 Dynamic config exports
 

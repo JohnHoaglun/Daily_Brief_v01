@@ -65,15 +65,16 @@ Full review performed: structural issues, files exceeding 500/300 lines, perform
   - [ ] Keep render-format checking as a secondary sanity gate only.
 - [ ] **Optimize `rss_dedup.py` widening (324 lines)** — `_widen_category_local` iterates ALL candidates per widen day (O(windows × candidates)). Pre-sort candidates by publish time to eliminate redundant scans.
 
-### P2.4 Optional config override + optional Git provenance frontmatter (v1.0.158)
+### P2.4 Optional config override + optional Git provenance frontmatter (v1.0.159)
 
-- [ ] Refactor `config.py` — rename `CONFIG_HOME → DEFAULT_CONFIG_FILE_PATH`, add `resolve_config_source()` returning `(path | ResourcePath, source_name)` with explicit fail-on-explicit-selection policy.
-- [ ] CLI — add `--config PATH` in `__main__.py` (parse before importing `daily_brief.config`), propagate to `cli.py`, add source reporting to `config show`.
-- [ ] `daily_brief/provenance.py` — small helper resolving commit SHA, committed timestamp, author name, committer name via `subprocess.run([...], shell=False, timeout=5)`.
-- [ ] Extend `RunContext` with optional `provenance` field; populate once in `main()` before rendering.
-- [ ] Thread provenance through `stage_render()` → `build_markdown()` → safe YAML-escaped frontmatter (names only, no email).
-- [ ] Focused tests: resolver precedence, missing/malformed config, CLI propagation, Git helper variants, frontmatter population/omission/escaping.
-- [ ] Update README configuration and provenance doc sections; update CHANGELOG and project tracking files.
+- [x] Refactor `config.py` — rename `CONFIG_HOME → DEFAULT_CONFIG_FILE_PATH`, add `use_config_path()`, `config_source()`, fix initialization ordering.
+- [x] CLI — add top-level `--config PATH` in `cli.py` and `__main__.py` (parse before importing `daily_brief.config`), propagate to `use_config_path()`.
+- [x] Config subcommands — `validate`, `show`, `list-categories`, `list-lakes`, `show-prompt` accept `--yaml PATH` for alternate config inspection.
+- [x] `daily_brief/provenance.py` — small helper resolving commit SHA, committed timestamp, author name, committer name via `subprocess.run([...], shell=False, timeout=5)`.
+- [x] Extend `RunContext` with optional `provenance` field; populate once in `main()` before rendering via `resolve_git_*` helpers.
+- [x] Thread provenance through `stage_render()` → `build_markdown()` → safe YAML-escaped frontmatter (names only, no email). Names with colons/quotes/newlines are safely double-quoted.
+- [x] Focused tests: `tests/test_provenance.py` (17 tests).
+- [x] Updated PLAN.md, PROJECT.md, SUMMARY.md, TODOS.md with implementation status.
 
 ### P2 — Cross-cutting structural issues (from review section 3)
 

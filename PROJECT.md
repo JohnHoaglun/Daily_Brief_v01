@@ -9,6 +9,7 @@ Daily Brief aggregates RSS stories from configured categories, enriches them wit
 - **P2.1 Add _current_context test-hub shim and fix Phase 2 timing (v1.0.151)**: Added `_current_context` global and `_update_test_context()` helper in `pipeline/__init__.py` — `main()` propagates per-run context to it. Rewired concurrent `_phase2_rss()` closure to call `stage_rss(ctx, session, log_fn)` directly, capturing Phase 2 timing into `ctx.phase_timings`. Retired `RUN_LOGFILE` import from `__init__.py`. Test baseline: 9/9 concurrency tests passing; config validate PASS.
 - **P2.2 Cross-cutting structural cleanup (v1.0.155)**: Extracted `extract_significant_words()` in `utils.py`; migrated `validation.py` and `tagging.py` callers; removed unused `re` from `config_validator.py`. Eliminated dead `RUN_LOGFILE`/`PHASE_TIMINGS`/`OUTPUT_DIR`/`_llm_client` globals from `context.py` and `stages.py`; added `ContextVar`-backed test-hub in `__init__.py` for task-local context observation. All 676 tests pass.
 - **v1.0.156**: Dynamic config exports — replaced 52 explicit one-liner assignments with module-level `__getattr__` backed by `_RUNTIME_CONFIG`. Added `__all__`. 681 tests pass.
+- **v1.0.158 — P2.4 Optional config override + optional Git provenance frontmatter**: Add `--config PATH` CLI parameter with documented resolver precedence; rename `CONFIG_HOME` to `DEFAULT_CONFIG_FILE_PATH`; add optional report frontmatter fields (`git_commit`, `git_committed_at`, `git_author_name`, `git_committer_name`) sourced from the latest Git commit. Names only — no email addresses. 681 tests pass.
 - **v1.0.157 — P2.3 HTTP body-size safety**: `iter_chunked(8192)` replaces `iter_any()`; per-source limits applied. All sources now bounded. 681 tests pass.
 - Version lives in a single canonical source: `daily_brief/_version.py`. All docstring, config, and registry references were removed (v1.0.154).
 - Performance baseline (v1.0.67): 105–114s internal, 137–147s wall-clock. Phase 3 (LLM) dominates at ~96–100s.
@@ -63,7 +64,8 @@ Daily Brief aggregates RSS stories from configured categories, enriches them wit
 - `SUMMARY.md`: completed, dated change history.
 
 ## Current Priorities
-All Phases A–C and P0–P2 items complete. HTTP body-size safety (v1.0.157) and dynamic config exports (v1.0.156) delivered.
+All Phases A–C and P0–P3 items complete. HTTP body-size safety (v1.0.157) and dynamic config exports (v1.0.156) delivered.
+- **v1.0.158 — P2.4 Optional config override + optional Git provenance frontmatter**: Add `--config PATH` CLI parameter with documented resolver precedence; rename `CONFIG_HOME` to `DEFAULT_CONFIG_FILE_PATH`; add optional report frontmatter fields (`git_commit`, `git_committed_at`, `git_author_name`, `git_committer_name`) sourced from the latest Git commit. Names only — no email addresses.
 
 ## Pre-Commit Verification (mandatory)
 Before every commit or push, run this exact sequence. No shortcuts — this is a non-negotiable gate:

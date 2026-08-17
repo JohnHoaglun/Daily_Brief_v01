@@ -1,6 +1,37 @@
 # PLAN — Cross-cutting structural improvements
 
-## Status: COMPLETE — All 676 tests pass. P1/P2 cleanup done.
+## Status: COMPLETE — All 681 tests pass. P1/P2 cleanup done.
+
+## v1.0.158 — P2.4 Optional config override + optional Git provenance frontmatter
+
+### Config override
+- **`--config PATH` CLI flag**: parse before any `daily_brief.config` import so the selected file drives all subsequent resolution.
+- **Resolver precedence** (highest to lowest): CLI `--config`, `DAILY_BRIEF_CONFIG` env var, project `config.yaml`, `~/.config/daily_brief/config.yaml`, packaged defaults.
+- **Selected-source reporting**: `config show` includes the resolved file path; pipeline logs the source.
+- **Explicit failure policy**: when `--config` or `DAILY_BRIEF_CONFIG` points to a missing file, fail with a clear error message instead of silently falling back to the next source.
+- **Renamed `CONFIG_HOME` to `DEFAULT_CONFIG_FILE_PATH`** in `config.py` — the old name read like a directory but it is a full file path.
+- **Implementation points**: `config.py` (resolver), `cli.py` (`--config` arg), `__main__.py` (parse-before-import), `config_validator.py` (source reporting).
+
+### Git provenance frontmatter
+- **Optional commit metadata**: `git_commit`, `git_committed_at`, `git_author_name`, `git_committer_name` — names only, no email addresses.
+- **Non-Git safety**: `git` missing, non-zero exit, timeout, or report written from a non-Git checkout produces the brief with provenance fields omitted — never aborts.
+- **Implementation points**: new module `daily_brief/provenance.py` (subprocess call), `RunContext` field in `pipeline/context.py`, thread into `stage_render()` → `build_markdown()` → rendered frontmatter, validate frontmatter accepts optional fields.
+
+### Tests
+- Config resolver precedence (CLI path, CLI dir, env var, project, user, packaged).
+- Explicit missing/malformed config errors.
+- CLI propagation to validate/show and normal pipeline startup.
+- Git helper: normal commit, unavailable executable, error exit, timeout, malformed output.
+- RunContext → rendering propagation.
+- Frontmatter: populated provenance, omitted unavailable provenance, YAML-safe escaping of names containing quotes, colons, newlines.
+
+### Verification
+- `python3 -m pytest --tb=no -q` (must match or improve baseline)
+- `python3 -m daily_brief config validate` (PASS)
+- `python3 -c "import daily_brief.pipeline; print('OK')"` (imports)
+- `python3 dashboard_pipeline.py` (production smoke: Phase 1–5, report written)
+
+---
 
 ## v1.0.157 — P2.3 HTTP body-size safety
 

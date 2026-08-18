@@ -2,6 +2,14 @@
 
 ## Changelog
 
+### v1.0.163 — Report contracts and weather late-binding restoration + ratio cap enforcement
+
+- **Test-to-production ratio cap enforcement**: Verified hard 75% cap — 5,198 test lines / 6,974 production lines = **74.53%**, within cap.
+- **Compact report contract restoration**: Replaced deleted `tests/test_report.py` with a 65-line module verifying all original production contracts: auto-version path generation (`#compute_output_path`), section grouping and fallback summary markers (`#build_sections_from_stories`), empty category / no-link rendering / sorted tags (`#build_markdown`), UTF-8 + trailing newline writes + `.tmp` cleanup on `fsync` failure (`#write_report`).
+- **Weather late-binding regression restored**: Added 1 compact package-level test to `tests/test_pipeline_stages.py` confirming `daily_brief.pipeline.fetch_weather` is intercepted via `_pip()` and the stage awaits the package-level mock.
+- **Removed ineffective test**: Deleted `test_write_report_failure_preserves_previous` from `tests/test_concurrency_atomic.py` — it did not exercise the actual `.tmp` write path.
+- **Final baseline**: 265 tests pass. No test-code regressions.
+
 ### v1.0.162 — Direct validation contract tests + stale TODO reconciliation
 
 - **`validate_stories()` direct unit tests**: Added `tests/test_validation.py` with 17 focused tests covering every semantic validation rule (empty collection, empty summary, headline echo with/without trailing period, sentence count, `[Headline]` and `[summary unavailable]` fallback markers, `[Auto]` exemption from all checks, topic overlap below/at 25%, threshold boundary at 1/10 pass and 1/10 + 1/10 fail). No mocking of `validate_stories` — tests exercise the actual validation logic directly.

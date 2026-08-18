@@ -1,6 +1,7 @@
 # TODO: Daily Brief v01
 
 ## Completed
+- **v1.0.163 — Report contracts restoration + ratio cap:** Enforced 75% test/code hard cap. Restored 5 report contract tests and 1 weather late-binding regression test in compact form. Removed 1 ineffective test. 265 tests pass, 74.53% ratio.
 - **Fix concurrency test hang:** `stage_weather()` used module-level `from daily_brief.sources.weather import fetch_weather` which bypassed test patches. Replaced with `_fw = _pip("fetch_weather")` late-binding. Updated test to patch `daily_brief.pipeline.fetch_weather`. Result: all 665/666 tests pass (1 skipped, 0 failures).
 - **Fix concurrency test bugs**: Added `_current_context` test-hub shim in `pipeline/__init__.py`; wired `stage_rss(ctx, session, log_fn)` in concurrent `_phase2_rss` closure so Phase 2 timing is recorded. Retired `RUN_LOGFILE` import from `__init__.py`. Tests read per-run state from `_current_context`.
 - **Phase 3D semantic validation enforcement (v1.0.161)**: Phase 3D story validation failures now return `EXIT_CODE_VALIDATION` (2) after report rendering. Updated `stages.py` to record `story_validation_failed` flag after Phase 3D and apply it to final exit code. Corrected `stages_validation.py` docstring. Added regression test. 261 tests pass.

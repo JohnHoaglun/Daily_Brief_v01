@@ -243,9 +243,23 @@ class TestShortCircuit(TestCase):
         validate_stories_mock.assert_called_once()
         write_report_mock.assert_called_once()
 
+    def test_package_level_weather_patch(self):
+        """Patching daily_brief.pipeline.fetch_weather takes effect via _pip() in stage_weather()."""
+        cc = _make_stage_patches()
+        cc.__enter__()
+        try:
+            with patch(
+                "daily_brief.pipeline.fetch_weather", new_callable=AsyncMock
+            ) as fetch_mock:
+                from daily_brief.pipeline.stages import main
 
-# ---------------------------------------------------------------------------
-# Package-level patching
-# ---------------------------------------------------------------------------
+                result = asyncio.get_event_loop().run_until_complete(main())
+                assert fetch_mock.called
+                assert result == 0
+        finally:
+            cc.__exit__(None, None, None)
 
+
+if __name__ == "__main__":
+    unittest.main()
 

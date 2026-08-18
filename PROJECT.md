@@ -5,7 +5,8 @@ Daily Brief aggregates RSS stories from configured categories, enriches them wit
 
 ## Current Status
 - Modular refactoring P0-P6 is complete.
-- **v1.0.163 — Report contracts and weather late-binding restoration**: Enforced 75% test/code cap (74.53%). Restored 5 compact direct-contract report tests and 1 weather late-binding regression test. Removed 1 ineffective atomic-write test. 265 tests pass.
+- **v1.0.164 — Verification metadata correction**: Corrected v1.0.163 reported ratio from 74.53% to 74.52% (5,197 / 6,974). No behavior changes.
+- **v1.0.163 — Report contracts and weather late-binding restoration**: Enforced 75% test/code cap (74.52%). Restored 5 compact direct-contract report tests and 1 weather late-binding regression test. Removed 1 ineffective atomic-write test. 265 tests pass.
 - **P1 Pipeline Stage Extraction (v1.0.149)**: All 5 phases extracted to standalone async functions. `main()` reduced from ~500 to ~178 lines of pure orchestration.
 - **P2.1 Add _current_context test-hub shim and fix Phase 2 timing (v1.0.151)**: Added `_current_context` global and `_update_test_context()` helper in `pipeline/__init__.py` — `main()` propagates per-run context to it. Rewired concurrent `_phase2_rss()` closure to call `stage_rss(ctx, session, log_fn)` directly, capturing Phase 2 timing into `ctx.phase_timings`. Retired `RUN_LOGFILE` import from `__init__.py`. Test baseline: 9/9 concurrency tests passing; config validate PASS.
 - **P2.2 Cross-cutting structural cleanup (v1.0.155)**: Extracted `extract_significant_words()` in `utils.py`; migrated `validation.py` and `tagging.py` callers; removed unused `re` from `config_validator.py`. Eliminated dead `RUN_LOGFILE`/`PHASE_TIMINGS`/`OUTPUT_DIR`/`_llm_client` globals from `context.py` and `stages.py`; added `ContextVar`-backed test-hub in `__init__.py` for task-local context observation. All 676 tests pass.

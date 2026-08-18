@@ -2,9 +2,14 @@
 
 ## Changelog
 
+### v1.0.164 — Verification metadata correction
+
+- **Ratio correction**: Corrected v1.0.163 reported test lines from 5,198 to 5,197 and ratio from 74.53% to 74.52%. Fixed PLAN.md verification commands to use `find -exec wc -l {} +` instead of `find | wc -l` (which counted files, not lines). No behavior changes.
+- **Final baseline**: 265 tests pass.
+
 ### v1.0.163 — Report contracts and weather late-binding restoration + ratio cap enforcement
 
-- **Test-to-production ratio cap enforcement**: Verified hard 75% cap — 5,198 test lines / 6,974 production lines = **74.53%**, within cap.
+- **Test-to-production ratio cap enforcement**: Verified hard 75% cap — 5,197 test lines / 6,974 production lines = **74.52%**, within cap.
 - **Compact report contract restoration**: Replaced deleted `tests/test_report.py` with a 65-line module verifying all original production contracts: auto-version path generation (`#compute_output_path`), section grouping and fallback summary markers (`#build_sections_from_stories`), empty category / no-link rendering / sorted tags (`#build_markdown`), UTF-8 + trailing newline writes + `.tmp` cleanup on `fsync` failure (`#write_report`).
 - **Weather late-binding regression restored**: Added 1 compact package-level test to `tests/test_pipeline_stages.py` confirming `daily_brief.pipeline.fetch_weather` is intercepted via `_pip()` and the stage awaits the package-level mock.
 - **Removed ineffective test**: Deleted `test_write_report_failure_preserves_previous` from `tests/test_concurrency_atomic.py` — it did not exercise the actual `.tmp` write path.

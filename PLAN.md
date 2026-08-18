@@ -1,10 +1,17 @@
 # PLAN — Cross-cutting structural improvements
 
-## Status: COMPLETE — All tests pass. P1/P2 cleanup done. Current baseline: 265 tests, ratio 74.53%.
+## Status: COMPLETE — All tests pass. P1/P2 cleanup done. Current baseline: 265 tests, ratio 74.52%.
+
+## v1.0.164 — Verification metadata correction COMPLETE
+
+- **Test count correction**: Verified lines via `find -exec wc -l {} + | tail -1` — 5,197 test lines, not the documented 5,198.
+- **Ratio correction**: 5,197 / 6,974 = **74.52%**, not 74.53%.
+- **Verification command fix**: Replaced incorrect `find ... | wc -l` (file counting) with correct `find ... -exec wc -l {} + | tail -1` (line counting) in PLAN.md.
+- No behavior changes.
 
 ## v1.0.163 — Report contracts and weather late-binding restoration + ratio cap enforcement COMPLETE
 
-- **Test ratio cap**: 5,198 test lines / 6,974 production lines = **74.53%** — within 75% hard cap.
+- **Test ratio cap**: 5,197 test lines / 6,974 production lines = **74.52%** — within 75% hard cap.
 - **Report contracts restored**: Compact 65-line `tests/test_report.py` directly tests `compute_output_path`, `build_sections_from_stories`, `build_markdown`, and `write_report` contracts (auto-version, section grouping, fallback markers, no-link rendering, UTF-8/write-newline `.tmp` failure cleanup).
 - **Weather late-binding restored**: Added `test_package_level_weather_patch` to `tests/test_pipeline_stages.py` (14 lines) — patch `daily_brief.pipeline.fetch_weather` and assert stage awaits it.
 - **Ineffective test removed**: Deleted `test_write_report_failure_preserves_previous` from `tests/test_concurrency_atomic.py` (53 lines) — did not actually test the `.tmp` write path.
@@ -12,9 +19,9 @@
 
 ### Verification
 - `python3 -m pytest --tb=no -q` — 265 passed
-- `find tests -name '*.py' | wc -l` → 5,198 test lines
-- `find daily_brief -name '*.py' | wc -l` → 6,974 production lines
-- Ratio: 74.53% (≤75% cap ✅)
+- `find tests -name '*.py' -exec wc -l {} + | tail -1` → 5,197 test lines
+- `find daily_brief -name '*.py' -not -path '*/__pycache__/*' -exec wc -l {} + | tail -1` → 6,974 production lines
+- Ratio: 74.52% (≤75% cap ✅)
 
 ---
 

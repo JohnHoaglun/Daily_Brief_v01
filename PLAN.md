@@ -1,6 +1,17 @@
 # PLAN — Cross-cutting structural improvements
 
-## Status: COMPLETE — All tests pass. P1/P2 cleanup done. Current baseline: 261 tests.
+## Status: COMPLETE — All tests pass. P1/P2 cleanup done. Current baseline: 278 tests.
+
+## v1.0.162 — Direct validation contract tests + stale TODO reconciliation COMPLETE
+
+- **`tests/test_validation.py`**: 17 direct behavioral tests for `validate_stories()` covering every rule: empty collection, empty/whitespace summary, headline echo (with/without trailing period), sentence count, `[Headline]` / `[summary unavailable]` fallback markers, `[Auto]` exemption, topic overlap threshold (below/equal/exact 25%), threshold boundary (1/10 pass, 2/10 fail).
+- **TODOS.md stale item reconciliation**: Dynamic config exports, in-memory Story validation, unused `batch_size`, `_EventLoopLagMonitor` move, `build_context` verification — all marked complete. Removed duplicate summarizer mismatch item. Corrected parser all-pairs optimization location. RSS widening TODO updated with correct guidance (use existing newest-first ordering, do not re-sort).
+
+### Verification
+- `python3 -m pytest tests/test_validation.py -xvs` — 17 passed
+- `python3 -m pytest tests/ -x --tb=short` — 278 passed
+
+---
 
 ## v1.0.161 — Phase 3D semantic validation enforcement COMPLETE
 

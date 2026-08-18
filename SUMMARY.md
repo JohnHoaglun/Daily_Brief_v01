@@ -2,6 +2,12 @@
 
 ## Changelog
 
+### v1.0.162 — Direct validation contract tests + stale TODO reconciliation
+
+- **`validate_stories()` direct unit tests**: Added `tests/test_validation.py` with 17 focused tests covering every semantic validation rule (empty collection, empty summary, headline echo with/without trailing period, sentence count, `[Headline]` and `[summary unavailable]` fallback markers, `[Auto]` exemption from all checks, topic overlap below/at 25%, threshold boundary at 1/10 pass and 1/10 + 1/10 fail). No mocking of `validate_stories` — tests exercise the actual validation logic directly.
+- **Stale TODO reconciliation**: Marked `config.py` dynamic exports complete (shipped v1.0.156), in-memory `Story` validation complete (shipped v1.0.161), unused `batch_size` parameter resolved (already removed), `_EventLoopLagMonitor` move complete (now in `pipeline/context.py`), `build_context` verification complete (confirmed + dedicated tests), removed duplicate summarizer mismatch detection item (superseded by parser optimization entry). Corrected parser all-pairs mismatch location to `summary_parser.py:435-470`. RSS widening TODO retained with corrected guidance (use existing newest-first feed ordering, do not re-sort).
+- **Version bump**: 1.0.161 → 1.0.162. 278 tests pass (261 + 17 new validation tests).
+
 ### v1.0.161 — Phase 3D semantic validation enforcement
 
 - **Phase 3D semantic validation now affects pipeline exit code**: `stages.py::main()` now records the Phase 3D story validation result and returns `EXIT_CODE_VALIDATION` (2) if semantic validation fails, even if Phase 5 report validation passes. The rendered markdown report is preserved with the flawed summaries for diagnostic purposes, but the process exit code now honestly reflects summary quality.

@@ -58,13 +58,9 @@ Full review performed: structural issues, files exceeding 500/300 lines, perform
 
 ### P2 — Files in 300–500 line range
 
-- [ ] **Reduce `config.py` exports (363 lines)** — Lines 311–363 are 50+ module-level one-liner exports from `_RUNTIME_CONFIG`.
-  - [ ] Option A: Export directly from `_RUNTIME_CONFIG` or a `Config` dataclass.
-  - [ ] Option B: Keep current structure but generate exports programmatically via `__all__` or dynamic attribute access.
-- [ ] **Improve `validation.py` (326 lines)** — Re-parses rendered Markdown to validate summaries, coupling to the MD format.
-  - [ ] Primary validation should run on in-memory `Story` objects after summarization, not re-parse Markdown.
-  - [ ] Keep render-format checking as a secondary sanity gate only.
-- [ ] **Optimize `rss_dedup.py` widening (324 lines)** — `_widen_category_local` iterates ALL candidates per widen day (O(windows × candidates)). Pre-sort candidates by publish time to eliminate redundant scans.
+- [x] **Reduce `config.py` exports — Complete in v1.0.156**: Replaced 52 one-liner exports with `__all__` + `__getattr__` backed by `_RUNTIME_CONFIG`. Line count: 396.
+- [x] **Improve `validation.py` — Complete in v1.0.161**: Primary in-memory `validate_stories()` runs on `Story` objects after summarization (Phase 3D). Report-level `validate_report()` remains as a secondary sanity gate.
+- [ ] **Optimize `rss_dedup.py` widening (324 lines)** — `_widen_category_local` iterates ALL candidates per widen day (O(windows × candidates)). Use the feed's existing newest-first ordering with a forward cursor to eliminate redundant scans. Candidate pool bounded to 50–100; optimization reduces redundant per-band checks.
 
 ### P2.4 Optional config override + optional Git provenance frontmatter (v1.0.159)
 
@@ -92,18 +88,17 @@ Full review performed: structural issues, files exceeding 500/300 lines, perform
 
 ### P2 — Performance optimizations (from review section 4)
 
-- [ ] **Optimize all-pairs mismatch detection O(n²×m)** — `summary_parser.py:422-434`: for each result, loop through all headlines to find best keyword match. Pre-compute significant-word sets for all headlines once, cache them, do set intersections instead of repeated regex + allocations.
+- [ ] **Optimize all-pairs mismatch detection O(n²×m)** — `summary_parser.py:435-470`: for each result, loop through all headlines to find best keyword match. Pre-compute significant-word sets for all headlines once, cache them, do set intersections instead of repeated regex + allocations.
 - [ ] **Optimize fuzzy matching O(n×m) per STORY_N line** — `summary_parser.py:153-162`: every `STORY_N` line with `story_headlines` triggers a difflib `SequenceMatcher` against ALL headlines. With batch_size=4 and 76+ stories, that's 300+ difflib ratio calculations per response. Cache normalized headlines, consider `fuzzymatch`/`thefuzz` if batches grow.
 - [ ] **Pre-compute keyword word counts in `tagging.py:131`** — `len([w for w in keyword.split() if w not in _STOP_WORDS])` creates a list allocation for every keyword match (~200 per report). Pre-compute during `precompile_tagging()`.
-- [ ] **Pre-cache headline word sets in summarizer mismatch detection** — Lines 490–511 re-extract words per story × per headline. Compute once during `batch_summarize_all()` setup.
 - [ ] **Add caching to `config.py` for test scenarios** — Module is re-imported by tests, triggering YAML parse + config build each time. Consider `@lru_cache` guard or module-level `_config_loaded` flag.
 
 ### P2 — Minor code quality
 
-- [ ] **Remove unused `batch_size` parameter** — `summary_service.py:115` `_summarize_sub_batch` accepts `batch_size` but docstring says "Unused parameter kept for API compatibility".
-- [ ] **Move `_EventLoopLagMonitor` out of `pipeline.py`** — 50 lines of profiling instrumentation mixed into core production code (~18% of pipeline file). Suggested: `pipeline/lag_monitor.py`.
+- [x] **Remove unused `batch_size` parameter — Already resolved**: parameter no longer exists in `_summarize_sub_batch()` signature.
+- [x] **Move `_EventLoopLagMonitor` — Complete**: now lives in `pipeline/context.py:147-189`, consumed by `stages_core.py`.
 - [ ] **Move `merge_weather_data` to separate `weather_model.py`** — `weather.py:279-365` is 87 lines of formatting logic. Orchestration (`fetch_weather`) and data modeling (`merge_weather_data`) should be separate.
 
 ### P3 — Investigate / deferred
 
-- [ ] **Verify `build_context` import** — `summary_coordinator.py` (was `summarizer.py:23` before P0 split at v1.0.144) imports `build_context` from `utils.py`. Confirm it exists in the final version (review showed it moved there in v1.0.100).
+- [x] **Verify `build_context` import — Complete**: imported by `summary_coordinator.py:23`, used in `summary_service.py:129`, regression coverage in `tests/test_build_context_wiring.py`.

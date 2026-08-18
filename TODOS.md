@@ -73,8 +73,9 @@ Full review performed: structural issues, files exceeding 500/300 lines, perform
 - [x] `daily_brief/provenance.py` — small helper resolving commit SHA, committed timestamp, author name, committer name via `subprocess.run([...], shell=False, timeout=5)`.
 - [x] Extend `RunContext` with optional `provenance` field; populate once in `main()` before rendering via `resolve_git_*` helpers.
 - [x] Thread provenance through `stage_render()` → `build_markdown()` → safe YAML-escaped frontmatter (names only, no email). Names with colons/quotes/newlines are safely double-quoted.
-- [x] Focused tests: `tests/test_provenance.py` (17 tests).
+- [x] Focused tests: `tests/test_provenance.py` (17 tests); `tests/test_config_override.py` (6 tests).
 - [x] Updated PLAN.md, PROJECT.md, SUMMARY.md, TODOS.md with implementation status.
+- [x] **Correctness fix (v1.0.159.1)**: Fixed `_find_config_path` precedence (env was checked before CLI override, now correct), `use_config_path()` now rebuilds `_RUNTIME_CONFIG` (was only updating `CONFIG_YAML`), explicit missing config now raises `FileNotFoundError` (was silently degrading).
 
 ### P2 — Cross-cutting structural issues (from review section 3)
 

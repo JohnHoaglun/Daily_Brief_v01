@@ -1,28 +1,29 @@
 # PLAN — Cross-cutting structural improvements
 
-## Status: COMPLETE — All tests pass. P1/P2 cleanup done. v1.0.159 implements complete config override + provenance wiring.
+## Status: COMPLETE — All tests pass. P1/P2 cleanup done. Current baseline: 260 tests.
 
-## v1.0.159 — Config override + Git provenance frontmatter wiring COMPLETE
+## v1.0.159 — P2.4 Config override correctness fix + Git provenance implementation COMPLETE
 
-### v1.0.158 (scoping phase)
-- Config override flag added and wired. Git provenance module created and fields threaded into pipeline context.
-- `provenance.py` (subprocess helper) and `tests/test_provenance.py` (17 tests pass).
-- `RunContext.provenance` field added.
+### Config override correctness (fixed three bugs in v1.0.159.1)
+- **`_find_config_path()` precedence**: Now checks CLI override *before* `DAILY_BRIEF_CONFIG` env var (env was checked first — reversed).
+- **`use_config_path()`**: Now rebuilds both `CONFIG_YAML` and `_RUNTIME_CONFIG` (previously only `CONFIG_YAML`).
+- **`__main__.py` parsing**: Parses `--config` via `_parse_cli_before_import()` *before* importing `cli.py`, ensuring overrides apply before config-dependent modules load.
+- **Explicit missing config**: Raises `FileNotFoundError` with clear message instead of silently degrading to `{}`.
+- **CLI flags**: Top-level `--config PATH` for pipeline runs; config subcommand flags use `--yaml` to avoid naming collision.
+- **Regression tests**: 6 tests in `tests/test_config_override.py`.
 
-### v1.0.159 (implementation phase)
-- **Config override CLI wiring**: `__main__.py` now parses `--config PATH` and calls `use_config_path()` before pipeline execution.
-- **CLI config subcommands**: `config validate/show/list-categories/list-lakes/show-prompt` all accept `--config` for inspection.
-- **Git provenance integration**: `stages.py::main()` calls `resolve_git_*` functions and populates `ctx.provenance`.
-- **Rendering thread**: `stages_core.py::stage_render()` passes `ctx.provenance` to `build_markdown()`.
-- **Frontmatter insertion**: `report.py::build_markdown()` writes optional YAML frontmatter with safe escaping for names containing colons, quotes, newlines.
-- **Module exports**: `pipeline/__init__.py` exports `use_config_path` for CLI integration.
+### Git provenance (v1.0.159.0)
+- **`provenance.py`**: Subprocess helper resolving commit SHA, committed timestamp, author name, committer name.
+- **`stages.py::main()`**: Calls four `resolve_git_*()` helpers, stores results in `ctx.provenance` dict.
+- **`stages_core.py::stage_render()`**: Passes `ctx.provenance` to `build_markdown()`.
+- **`report.py::build_markdown()`**: Emits optional YAML frontmatter with safe escaping for colons, quotes, newlines.
+- **`pipeline/__init__.py`**: Exports `use_config_path` for CLI integration.
 
 ### Verification
-- `python3 -m pytest --tb=no -q` (must match or improve baseline)
-- `python3 -m daily_brief config validate` (PASS)
-- `python3 -m daily_brief --help` (shows `--config`)
-- `python3 -m daily_brief config validate --config /nonexistent` (explicit failure)
-- `python3 -c "import daily_brief.pipeline; print('OK')"` (imports)
+- `python3 -m pytest --tb=no -q` — 260 passed (was 254, +6)
+- `python3 -m daily_brief config validate` — PASS
+- `python3 -c "import daily_brief.pipeline; print('OK')"` — OK
+- `python3 dashboard_pipeline.py` — Phase 1–5, report written
 
 ---
 

@@ -2,16 +2,17 @@
 
 ## Changelog
 
-### v1.0.159 — Config override + Git provenance frontmatter wiring
+### v1.0.159 — P2.4 Config override correctness fix + Git provenance frontmatter wiring
 
-- **CLI `--config PATH` flag**: Parse before pipeline import; calls `use_config_path()` to override config source for the run. Top-level flag for pipeline; config subcommands use `--yaml` to avoid name collision.
+- **Config override correctness fix**: Resolved three critical issues: (1) `_find_config_path()` now checks CLI override *before* `DAILY_BRIEF_CONFIG` env var (env was checked first, so env always won over CLI — reversed); (2) `use_config_path()` now rebuilds both `CONFIG_YAML` and `_RUNTIME_CONFIG` (previously only `CONFIG_YAML` was updated, meaning runtime constants like `LLM_MODEL` via `__getattr__` still reflected old values); (3) `__main__.py` now parses `--config` using `_parse_cli_before_import()` before importing `cli.py`, ensuring overrides apply before config-dependent modules load. Explicit missing config paths now raise `FileNotFoundError` (previously degraded silently).
 - **Config subcommands**: `validate`, `show`, `list-categories`, `list-lakes`, `show-prompt` now accept `--yaml PATH` for inspecting alternate configs.
 - **Git provenance in pipeline**: `stages.py::main()` calls four `resolve_git_*()` helpers from `provenance.py` and stores results in `RunContext.provenance` dict.
 - **Rendering thread**: `stage_render()` receives `ctx` and passes `ctx.provenance` to `build_markdown(git_provenance=...)`.
 - **YAML frontmatter insertion**: `build_markdown()` emits optional `git_commit`, `git_committed_at`, `git_author_name`, `git_committer_name` fields in frontmatter. Names are safely YAML-escaped (double-quoted when containing colons, quotes, newlines).
 - **Graceful degradation**: Missing git CLI, non-zero exit, timeout, or report written from a non-Git checkout produces the brief with provenance omitted — never aborts.
 - **Export wiring**: `pipeline/__init__.py` exports `use_config_path` for CLI integration.
-- **Version bump**: 1.0.158 → 1.0.159.
+- **Regression tests**: 6 new tests in `tests/test_config_override.py` (precedence override vs env, env over project, missing-config failure, runtime rebuild, config_source differs, raw_config precedence).
+- **Version bump**: 1.0.158 → 1.0.159. 260 tests pass.
 
 ### v1.0.158 — P2.4 Optional config override + optional Git provenance frontmatter (scope)
 

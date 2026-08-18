@@ -70,30 +70,32 @@ DEFAULTS = {
 
 
 def _find_config_path(override: Optional[str] = None, fail_on_missing: bool = False) -> Optional[Path]:
-    """Resolve config path with fallback chain: env, override, project root, package default."""
-    if override is not None and fail_on_missing:
+    """Resolve config path with precedence: override > env > project > user > packaged."""
+    # 1. CLI / programmatic override (highest precedence)
+    if override is not None:
         p = Path(override)
-        if not p.is_file():
+        if fail_on_missing and not p.is_file():
             raise FileNotFoundError(
-                f"Explicitly selected config file not found or not readable: {p}"
+                f"Explicitly selected config file not found: {p}"
             )
         return p
 
+    # 2. DAILY_BRIEF_CONFIG environment variable
     explicit = os.environ.get("DAILY_BRIEF_CONFIG")
     if explicit:
         return Path(explicit)
 
-    if override is not None:
-        return Path(override)
-
+    # 3. Project config.yaml (source install)
     project_config = BASE_DIR / "config.yaml"
     if project_config.is_file():
         return project_config
 
+    # 4. User config (~/.config/daily_brief/config.yaml)
     home_config = DEFAULT_CONFIG_FILE_PATH
     if home_config.is_file():
         return home_config
 
+    # 5. Packaged defaults (wheel default)
     shipped = BASE_DIR / "daily_brief" / "config.yaml"
     if shipped.is_file():
         return shipped
@@ -154,16 +156,34 @@ _DEFAULT_CONFIG_SOURCE = (
 _CONFIG_SOURCE_PATH: Optional[str] = _DEFAULT_CONFIG_SOURCE
 
 
-def use_config_path(path: str) -> None:
+# --- Public override mechanism (call BEFORE importing config-dependent modules) ---
+# This resolves the config path immediately and rebuilds the runtime
+# configuration snapshot.  Use for --config CLI parsing and test overrides.
+
+
+def use_config_path(path: str) -> Path:
     """Override the configuration file path before import-time resolution.
 
-    When ``path`` is set, it takes precedence over ``DAILY_BRIEF_CONFIG``
-    and all fallback locations.  Call this *before* importing
-    ``daily_brief.config`` to affect the import-time snapshot.
+    Resolves *path* to a real file and reloads both ``CONFIG_YAML``
+    and ``_RUNTIME_CONFIG`` immediately.  If ``path`` does not point
+    to an existing file an explicit error is raised — there is **no**
+    silent fallback.
+
+    Must be called before importing any submodule that depends on
+    runtime constants (LLM_MODEL, CATEGORIES, etc.).
+    Returns the absolute, resolved path for caller convenience.
     """
-    global CONFIG_YAML, _CONFIG_SOURCE_PATH
-    CONFIG_YAML = load_raw_config(path)
-    _CONFIG_SOURCE_PATH = str(Path(path))
+    abs_path = Path(path).resolve()
+    if not abs_path.is_file():
+        raise FileNotFoundError(
+            f"--config path does not exist: {abs_path}. "
+            "Call use_config_path() before importing config-dependent modules."
+        )
+    global CONFIG_YAML, _RUNTIME_CONFIG, _CONFIG_SOURCE_PATH
+    CONFIG_YAML = _read_config_path(abs_path)
+    _RUNTIME_CONFIG = build_runtime_config(CONFIG_YAML)
+    _CONFIG_SOURCE_PATH = str(abs_path)
+    return abs_path
 
 
 def _resolve_config_source(path: Optional[Path], yaml_path: Optional[str]) -> None:

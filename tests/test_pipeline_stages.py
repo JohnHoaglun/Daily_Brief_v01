@@ -222,6 +222,27 @@ class TestShortCircuit(TestCase):
 
         self.assertEqual(exit_code, EXIT_CODE_CONFIG)
 
+    def test_story_validation_failure_writes_report_and_returns_validation_exit(self):
+        """Phase 3D semantic failure must still render report but return validation exit code."""
+        cc = _make_stage_patches(validation_ok=True)
+        with (
+            cc,
+            patch(
+                "daily_brief.pipeline.stages.stage_validate_stories",
+                return_value=(False, ["invalid summary for test"]),
+            ) as validate_stories_mock,
+            patch("daily_brief.pipeline.aiohttp.ClientSession",
+                  side_effect=[_make_async_cm()]),
+            patch("daily_brief.pipeline.write_report") as write_report_mock,
+        ):
+            from daily_brief.pipeline import main as pm, EXIT_CODE_VALIDATION
+
+            exit_code = asyncio.get_event_loop().run_until_complete(pm())
+
+        self.assertEqual(exit_code, EXIT_CODE_VALIDATION)
+        validate_stories_mock.assert_called_once()
+        write_report_mock.assert_called_once()
+
 
 # ---------------------------------------------------------------------------
 # Package-level patching

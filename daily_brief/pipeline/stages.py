@@ -367,10 +367,11 @@ async def main():
             stories = await stage_summarize(stories, ctx, lgr.info)
 
             # Phase 3D: Story validation
-            passed, issues = stage_validate_stories(stories, ctx, lgr.info)
-            if not passed:
+            passed_stories, stories_issues = stage_validate_stories(stories, ctx, lgr.info)
+            story_validation_failed = not passed_stories
+            if not passed_stories:
                 lgr.info(
-                    f"  Validation: {len(issues)} issue(s) — proceeding with render "
+                    f"  Validation: {len(stories_issues)} issue(s) — proceeding with render "
                     f"({len(stories)} stories after summarization)"
                 )
 
@@ -385,6 +386,13 @@ async def main():
 
             # Phase 5: Validation
             exit_code = await stage_validate(report_path, ctx, lgr.info, run_started)
+
+            # If story-level semantic validation failed, return the validation
+            # exit code even if Phase 5 passed — the report preserves the
+            # flawed summaries for diagnostics, but the process outcome is
+            # honest about the summary quality.
+            if story_validation_failed:
+                exit_code = EXIT_CODE_VALIDATION
 
             # Late-bound: inform test hooks about the final context
             _set_current_run_context(ctx)

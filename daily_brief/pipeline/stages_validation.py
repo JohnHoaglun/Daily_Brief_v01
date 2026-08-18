@@ -35,9 +35,11 @@ def stage_validate_stories(stories, ctx, log_fn):
     Returns ``(passed, issues)``.  *passed* is ``True`` when no more
     than 10 % of stories fail semantic checks.
 
-    On failure logs the issues and returns ``True`` for *passed* so that
-    ``main()`` in ``stages.py`` can still record the exit code — the
-    decision to abort the pipeline is made by the caller itself.
+    On failure the function logs the issues and still returns the actual
+    *passed* result (which is ``False`` on failure) to the caller.  The
+    caller decides the pipeline exit code — the current implementation
+    preserves the rendered report for diagnostics before returning
+    ``EXIT_CODE_VALIDATION``.
     """
     t3d = time.monotonic()
 

@@ -1,6 +1,18 @@
 # PLAN — Cross-cutting structural improvements
 
-## Status: COMPLETE — All tests pass. P1/P2 cleanup done. Current baseline: 260 tests.
+## Status: COMPLETE — All tests pass. P1/P2 cleanup done. Current baseline: 261 tests.
+
+## v1.0.161 — Phase 3D semantic validation enforcement COMPLETE
+
+- **`stages.py::main()`**: Now records `story_validation_failed` flag after Phase 3D calling `stage_validate_stories()`. After Phase 5, if `story_validation_failed` is True, returns `EXIT_CODE_VALIDATION` (2) regardless of Phase 5 result.
+- **`stages_validation.py::stage_validate_stories()`**: Corrected docstring that claimed function returns `True` on failure — now accurately reflects that it returns `(passed, issues)` where `passed` is `False` on failure.
+- **Regression test**: Added `test_story_validation_failure_writes_report_and_returns_validation_exit()` to `tests/test_pipeline_stages.py` verifying exit code is 2, report is written, and Phase 5 executes even when Phase 3D fails.
+
+### Verification
+- `python3 -m pytest tests/test_pipeline_stages.py::TestShortCircuit -xvs` — all 4 short-circuit tests pass
+- `python3 -m pytest tests/ -x --tb=short` — 261 passed
+
+---
 
 ## v1.0.159 — P2.4 Config override correctness fix + Git provenance implementation COMPLETE
 

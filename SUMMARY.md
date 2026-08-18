@@ -2,6 +2,13 @@
 
 ## Changelog
 
+### v1.0.161 — Phase 3D semantic validation enforcement
+
+- **Phase 3D semantic validation now affects pipeline exit code**: `stages.py::main()` now records the Phase 3D story validation result and returns `EXIT_CODE_VALIDATION` (2) if semantic validation fails, even if Phase 5 report validation passes. The rendered markdown report is preserved with the flawed summaries for diagnostic purposes, but the process exit code now honestly reflects summary quality.
+- **Docstring update**: Fixed incorrect statement in `stages_validation.py::stage_validate_stories()` docstring that claimed the function returned `True` on failure — it correctly returns the actual `(passed, issues)` result.
+- **1 new regression test**: Added `test_story_validation_failure_writes_report_and_returns_validation_exit` to `tests/test_pipeline_stages.py` verifying exit code is `2`, report is written, and Phase 5 still executes.
+- **Version bump**: 1.0.160 → 1.0.161. 261 tests pass.
+
 ### v1.0.159 — P2.4 Config override correctness fix + Git provenance frontmatter wiring
 
 - **Config override correctness fix**: Resolved three critical issues: (1) `_find_config_path()` now checks CLI override *before* `DAILY_BRIEF_CONFIG` env var (env was checked first, so env always won over CLI — reversed); (2) `use_config_path()` now rebuilds both `CONFIG_YAML` and `_RUNTIME_CONFIG` (previously only `CONFIG_YAML` was updated, meaning runtime constants like `LLM_MODEL` via `__getattr__` still reflected old values); (3) `__main__.py` now parses `--config` using `_parse_cli_before_import()` before importing `cli.py`, ensuring overrides apply before config-dependent modules load. Explicit missing config paths now raise `FileNotFoundError` (previously degraded silently).

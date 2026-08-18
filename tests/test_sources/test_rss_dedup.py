@@ -5,6 +5,7 @@ Unit tests for daily_brief/pipelines/rss_dedup.py.
 from __future__ import annotations
 
 import asyncio
+import unittest.mock
 from datetime import datetime, timedelta
 from typing import List, Optional, Tuple
 from urllib.parse import unquote_plus
@@ -148,3 +149,63 @@ class TestFetchAndDedup:
         cats = [("CF", "fail", 10), ("CO", "ok", 10)]
         (deduped, _), _ = _feed_run(FS(), cats)
         assert "OK" in [d[0] for d in deduped]
+
+
+class TestWidening:
+    def test_multi_band_widening_order_and_cap(self):
+        """Stories recovered across widening bands in newest-first order;
+        outer cap truncates after widening stops."""
+        items = []
+        for h, t in [(40, "S1"), (64, "S2"), (88, "S3"), (112, "S4"),
+                     (36, "S0"), (480, "Sold")]:
+            offset = (NOW - timedelta(hours=h)).strftime("%a, %d %b %Y %H:%M:%S +0000")
+            items.append({"title": t, "pubDate": offset})
+        (deduped, _), _ = _feed_run(
+            _make_session({"q": _rss_xml(items)}),
+            [("CA", "q", 2)],
+        )
+        cat_stories = [d[0] for d in deduped if d[4] == "CA"]
+        assert "S0" in cat_stories
+        cap = max(2, 0)
+        assert len(cat_stories) == cap
+
+    def test_widening_local_dedup_state_shared_with_initial(self):
+        """Local widening shares the category seen-set from initial pass;
+        a title already in seen should increment dup_filtered but not
+        be added to accepted."""
+        from daily_brief.pipelines.rss_dedup import _widen_category_local
+        import datetime as dt_mod
+
+        t0 = NOW - timedelta(hours=20)
+        t1 = NOW - timedelta(hours=36)
+        candidates = [
+            ("Dup Title", "https://a.com", "", t0),
+            ("Unique", "https://b.com", "", t1),
+        ]
+        accepted: list = []
+        seen_map: dict = {"W": {"dup title"}}  # already seen in initial pass
+
+        with (
+            unittest.mock.patch(
+                "daily_brief.config.CATEGORY_AGE_LIMITS",
+                {"W": 10},
+            ),
+            unittest.mock.patch(
+                "daily_brief.config.CATEGORY_SOURCE_WINDOWS",
+                {"W": 168},
+            ),
+            unittest.mock.patch.object(
+                dt_mod, "datetime", wraps=dt_mod.datetime
+            ) as mocked_dt,
+        ):
+            mocked_dt.now.return_value = NOW
+
+            age_filtered, dup_filtered, recovered = _widen_category_local(
+                "W", candidates, accepted, NOW, seen_map,
+            )
+
+        assert age_filtered == 0
+        assert dup_filtered == 1
+        assert recovered == 1
+        assert len(accepted) == 1
+        assert accepted[0][0] == "Unique"

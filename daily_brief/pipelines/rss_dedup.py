@@ -279,46 +279,113 @@ def _widen_category_local(
 
     max_window_hrs = CATEGORY_SOURCE_WINDOWS.get(cat_name, 24)
     max_widen_days = max_window_hrs // 24
-    for widen_days in range(2, min(max_widen_days + 1, 8)):
-        widen_hours = widen_days * 24
 
-        for title, link, snippet, pub_dt in candidates:
-            # Only look at entries not yet eligible at the previous cutoff
+    # Optimization: candidates are already newest-first. For monotonic
+    # windows (min_age <= 48), use a forward cursor so we skip entries
+    # permanently past each cutoff instead of rescanning the full list.
+    # Non-monotonic configs (min_age > 48) preserve the original full-scan
+    # path because the initial prev_hours can cause revisiting.
+    use_cursor = min_age <= 48.0
+
+    if use_cursor:
+        idx = 0
+        n = len(candidates)
+
+        # Advance to first eligible entry (age <= prev_hours excluded)
+        while idx < n:
+            title, link, snippet, pub_dt = candidates[idx]
             if pub_dt is not None:
                 try:
-                    age_secs = (now_ct - pub_dt).total_seconds()
-                    age_hrs = age_secs / 3600
+                    age_hrs = (now_ct - pub_dt).total_seconds() / 3600
                 except Exception:
                     age_hrs = None
+                if age_hrs is not None and age_hrs <= prev_hours:
+                    idx += 1
+                    continue
+            # Undated or past prev_cutoff — stop advancing
+            break
 
-                if age_hrs is not None:
-                    # Already within the previous window — was already processed
-                    if age_hrs <= prev_hours:
+        for widen_days in range(2, min(max_widen_days + 1, 8)):
+            widen_hours = widen_days * 24
+
+            band_stopped = False
+            while idx < n and not band_stopped:
+                title, link, snippet, pub_dt = candidates[idx]
+                idx += 1
+
+                if pub_dt is not None:
+                    try:
+                        age_hrs = (now_ct - pub_dt).total_seconds() / 3600
+                    except Exception:
+                        age_hrs = None
+
+                    if age_hrs is not None:
+                        # Older than this window — no more entries in this band
+                        if age_hrs > widen_hours:
+                            band_stopped = True
+                            break
+                    else:
+                        # Undated — never accepted by widening, stop
+                        band_stopped = True
+                        break
+
+                if band_stopped:
+                    break
+
+                norm = normalize_title(title)
+                if norm in seen:
+                    dup_filtered += 1
+                    continue
+                if is_realt_estate_title(title) or is_obituary_title(title):
+                    continue
+                seen.add(norm)
+                accepted.append((title, link, snippet, pub_dt, cat_name))
+                recovered += 1
+
+            prev_hours = widen_hours
+            if len(accepted) >= 3:
+                break
+    else:
+        for widen_days in range(2, min(max_widen_days + 1, 8)):
+            widen_hours = widen_days * 24
+
+            for title, link, snippet, pub_dt in candidates:
+                # Only look at entries not yet eligible at the previous cutoff
+                if pub_dt is not None:
+                    try:
+                        age_secs = (now_ct - pub_dt).total_seconds()
+                        age_hrs = age_secs / 3600
+                    except Exception:
+                        age_hrs = None
+
+                    if age_hrs is not None:
+                        # Already within the previous window — was already processed
+                        if age_hrs <= prev_hours:
+                            continue
+                        # Outside this window — skip, may be eligible later or not at all
+                        if age_hrs > widen_hours:
+                            continue
+                        # Within this widening band — eligible
+                        # (don't count as age_filtered since it was already counted)
+                    else:
+                        # Undated — already processed in initial pass
                         continue
-                    # Outside this window — skip, may be eligible later or not at all
-                    if age_hrs > widen_hours:
-                        continue
-                    # Within this widening band — eligible
-                    # (don't count as age_filtered since it was already counted)
                 else:
                     # Undated — already processed in initial pass
                     continue
-            else:
-                # Undated — already processed in initial pass
-                continue
 
-            norm = normalize_title(title)
-            if norm in seen:
-                dup_filtered += 1
-                continue
-            if is_realt_estate_title(title) or is_obituary_title(title):
-                continue
-            seen.add(norm)
-            accepted.append((title, link, snippet, pub_dt, cat_name))
-            recovered += 1
+                norm = normalize_title(title)
+                if norm in seen:
+                    dup_filtered += 1
+                    continue
+                if is_realt_estate_title(title) or is_obituary_title(title):
+                    continue
+                seen.add(norm)
+                accepted.append((title, link, snippet, pub_dt, cat_name))
+                recovered += 1
 
-        prev_hours = widen_hours
-        if len(accepted) >= 3:
-            break
+            prev_hours = widen_hours
+            if len(accepted) >= 3:
+                break
 
     return age_filtered, dup_filtered, recovered

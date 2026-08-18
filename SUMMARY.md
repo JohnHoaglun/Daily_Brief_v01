@@ -2,6 +2,13 @@
 
 ## Changelog
 
+### v1.0.165 — RSS widening cursor optimization
+
+- **Cursor-based monotonic widening**: `_widen_category_local()` now uses a forward cursor for normal configs (`min_age_hours ≤ 48h`), advancing past entries permanently instead of rescanning the full candidate list per widening band. Reduces complexity from `O(n_bands × n_candidates)` to `O(n_candidates)`.
+- **Non-monotonic fallback**: When `min_age_hours > 48h`, preserves the existing full-scan path for identical duplicate-filter statistics.
+- **Two new tests**: `test_multi_band_widening_order_and_cap` and `test_widening_local_dedup_state_shared_with_initial` in `tests/test_sources/test_rss_dedup.py`.
+- **Final baseline**: 267 tests pass. 5,258 test lines / 7,041 production lines = **74.68%.
+
 ### v1.0.164 — Verification metadata correction
 
 - **Ratio correction**: Corrected v1.0.163 reported test lines from 5,198 to 5,197 and ratio from 74.53% to 74.52%. Fixed PLAN.md verification commands to use `find -exec wc -l {} +` instead of `find | wc -l` (which counted files, not lines). No behavior changes.

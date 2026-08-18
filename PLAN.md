@@ -1,6 +1,19 @@
 # PLAN — Cross-cutting structural improvements
 
-## Status: COMPLETE — All tests pass. P1/P2 cleanup done. Current baseline: 265 tests, ratio 74.52%.
+## Status: COMPLETE — All tests pass. P1/P2 cleanup done. Current baseline: 267 tests, ratio 74.68%.
+
+## v1.0.165 — RSS widening cursor optimization COMPLETE
+
+- **Cursor-based monotonic widening**: `_widen_category_local()` now uses a forward cursor for normal configs (`min_age_hours <= 48`), advancing past entries permanently instead of rescanning the full candidate list per band. Reduces complexity from `O(n_bands × n_candidates)` to `O(n_candidates)`.
+- **Non-monotonic fallback**: When `min_age_hours > 48`, preserves the existing full-scan path to maintain identical duplicate-filter statistics.
+- **Behavior-preservation verified**: All 267 tests pass, including two new tests (`test_multi_band_widening_order_and_cap`, `test_widening_local_dedup_state_shared_with_initial`) confirming correct narrowing order and local dedup state sharing.
+- **Production lines +67** (cursor logic in `rss_dedup.py`), **+61 test lines**.
+
+### Verification
+- `python3 -m pytest --tb=no -q` — 267 passed
+- `find tests -name '*.py' -exec wc -l {} + | tail -1` → 5,258 test lines
+- `find daily_brief -name '*.py' -not -path '*/__pycache__/*' -exec wc -l {} + | tail -1` → 7,041 production lines
+- Ratio: 74.68% (≤75% cap ✅)
 
 ## v1.0.164 — Verification metadata correction COMPLETE
 
@@ -214,6 +227,5 @@ Every release touches **one** file: `daily_brief/_version.py`.
 **Never** bump versions in module docstrings, test files, or `config.yaml`.
 
 ## Non-Goals
-- RSS widening optimization deferred (bounded 50–100 candidates × ≤6 passes; behavioral risk outweighs benefit).
 - Do not change connectivity checks into broader endpoint redesign beyond hardening.
 - Do not change exit code policy for WARN/SKIPPED.

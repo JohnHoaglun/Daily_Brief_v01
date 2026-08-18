@@ -1,6 +1,7 @@
 # TODO: Daily Brief v01
 
 ## Completed
+- **v1.0.165 — RSS widening cursor optimization**: Added forward-cursor scan for monotonic widening (`min_age ≤ 48h`). Non-monotonic configs retain full-scan fallback. Behavior-preservation verified: 267 tests pass, 74.68% ratio.
 - **v1.0.164 — Verification metadata correction**: Corrected v1.0.163 reported test lines from 5,198 to 5,197 and ratio from 74.53% to 74.52%. Fixed PLAN.md verification commands to use `find -exec wc -l {} +` instead of `find | wc -l` (file-counting). No behavior changes. 265 tests pass, 74.52% ratio.
 - **v1.0.163 — Report contracts restoration + ratio cap:** Enforced 75% test/code hard cap. Restored 5 report contract tests and 1 weather late-binding regression test in compact form. Removed 1 ineffective test. 265 tests pass, 74.52% ratio.
 - **Fix concurrency test hang:** `stage_weather()` used module-level `from daily_brief.sources.weather import fetch_weather` which bypassed test patches. Replaced with `_fw = _pip("fetch_weather")` late-binding. Updated test to patch `daily_brief.pipeline.fetch_weather`. Result: all 665/666 tests pass (1 skipped, 0 failures).
@@ -62,7 +63,7 @@ Full review performed: structural issues, files exceeding 500/300 lines, perform
 
 - [x] **Reduce `config.py` exports — Complete in v1.0.156**: Replaced 52 one-liner exports with `__all__` + `__getattr__` backed by `_RUNTIME_CONFIG`. Line count: 396.
 - [x] **Improve `validation.py` — Complete in v1.0.161**: Primary in-memory `validate_stories()` runs on `Story` objects after summarization (Phase 3D). Report-level `validate_report()` remains as a secondary sanity gate.
-- [ ] **Optimize `rss_dedup.py` widening (324 lines)** — `_widen_category_local` iterates ALL candidates per widen day (O(windows × candidates)). Use the feed's existing newest-first ordering with a forward cursor to eliminate redundant scans. Candidate pool bounded to 50–100; optimization reduces redundant per-band checks.
+- [x] **Optimize `rss_dedup.py` widening**: Completed in v1.0.165 — forward-cursor monotonic scanning with non-monotonic fallback.
 
 ### P2.4 Optional config override + optional Git provenance frontmatter (v1.0.159)
 

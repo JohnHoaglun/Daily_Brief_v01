@@ -5,6 +5,7 @@ Daily Brief aggregates RSS stories from configured categories, enriches them wit
 
 ## Current Status
 - Modular refactoring P0-P6 is complete.
+- **v1.0.165 — RSS widening cursor optimization**: `_widen_category_local()` now uses a forward cursor for monotonic configs (`min_age ≤ 48h`), skipping permanently past entries instead of rescanning the full candidate list per widening band. Non-monotonic configs retain the original full-scan path. Two new tests added. 267 tests pass, 74.68% ratio.
 - **v1.0.164 — Verification metadata correction**: Corrected v1.0.163 reported ratio from 74.53% to 74.52% (5,197 / 6,974). No behavior changes.
 - **v1.0.163 — Report contracts and weather late-binding restoration**: Enforced 75% test/code cap (74.52%). Restored 5 compact direct-contract report tests and 1 weather late-binding regression test. Removed 1 ineffective atomic-write test. 265 tests pass.
 - **P1 Pipeline Stage Extraction (v1.0.149)**: All 5 phases extracted to standalone async functions. `main()` reduced from ~500 to ~178 lines of pure orchestration.

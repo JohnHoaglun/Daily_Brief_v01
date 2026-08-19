@@ -98,13 +98,13 @@ Full review performed: structural issues, files exceeding 500/300 lines, perform
 - [x] **Optimize all-pairs mismatch detection O(n²×m)**: Completed in v1.0.166 — precomputed `headline_words_3`/`headline_words_4` caches, cached `_best_headline_keyword_match`, synchronized `result_words_3`.
 - [x] **Optimize fuzzy matching O(n×m) per STORY_N line**: Completed in v1.0.167 — precomputed `headline_normalized` array replaces per-iteration `_normalize(sh)` in both fuzzy-matching loops (Strategy 0 and positional fallback). Zero behavioral changes.
 - [x] **Pre-compute keyword word counts in `tagging.py:131`**: Completed in v1.0.168 — `_KEYWORD_WORD_COUNT_CACHE` dict precomputed during `precompile_tagging()`, replaces per-match list allocation.
-- [ ] **Add caching to `config.py` for test scenarios** — Module is re-imported by tests, triggering YAML parse + config build each time. Consider `@lru_cache` guard or module-level `_config_loaded` flag.
+- [x] **Add caching to `config.py` for test scenarios**: Resolved — `reload` in conftest.py targets only `daily_brief.pipeline`, not `daily_brief.config`. Config values resolved via O(1) dict lookup in `__getattr__`. No test explicitly reloads config module.
 
 ### P2 — Minor code quality
 
 - [x] **Remove unused `batch_size` parameter — Already resolved**: parameter no longer exists in `_summarize_sub_batch()` signature.
 - [x] **Move `_EventLoopLagMonitor` — Complete**: now lives in `pipeline/context.py:147-189`, consumed by `stages_core.py`.
-- [ ] **Move `merge_weather_data` to separate `weather_model.py`** — `weather.py:279-365` is 87 lines of formatting logic. Orchestration (`fetch_weather`) and data modeling (`merge_weather_data`) should be separate.
+- [x] **Move `merge_weather_data` to separate `weather_model.py`**: Completed in v1.0.169 — extracted to `sources/weather_model.py` (102 lines), `weather.py` re-exports via import. Zero behavioral changes.
 
 ### P3 — Investigate / deferred
 

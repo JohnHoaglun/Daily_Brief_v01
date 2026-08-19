@@ -1,19 +1,6 @@
 # PLAN — Cross-cutting structural improvements
 
-## Status: COMPLETE — All tests pass. P1/P2 cleanup done. Current baseline: 269 tests, ratio 74.70%.
-
-## v1.0.168 — Pre-compute keyword word counts in tagging COMPLETE
-
-- **`_KEYWORD_WORD_COUNT_CACHE`**: Per-keyword non-stop-word count computed in `precompile_tagging()` alongside regex patterns. Eliminates `len([w for w in keyword.split() if w not in _STOP_WORDS])` list allocation on every keyword match (~200 times per report).
-- **Scoring loop** (line ~131): Replaced inline list comprehension with `_KEYWORD_WORD_COUNT_CACHE.get(keyword, fallback)` — cached when `precompile_tagging()` runs, falls back to inline computation if not.
-- **Zero behavioral changes**: Identical word-count logic, only precomputed from cached dict.
-
-### Verification
-- `python3 -m pytest --tb=no -q` — 269 passed
-- `python3 -m daily_brief config validate` — PASS
-- `find tests -name '*.py' -exec wc -l {} + | tail -1` → 5,283 test lines
-- `find daily_brief -name '*.py' -not -path '*/__pycache__/*' -exec wc -l {} + | tail -1` → 7,072 production lines
-- Ratio: 74.70% (≤75% cap ✅)
+## Status: COMPLETE — All tests pass. All P0-P3 backlog items resolved. Current baseline: 269 tests, ratio 74.70%. No remaining unchecked items in TODOS.md.
 
 ## v1.0.169 — Extract `merge_weather_data` to `weather_model.py` COMPLETE
 
@@ -28,6 +15,19 @@
 - `find tests -name '*.py' -exec wc -l {} + | tail -1` → 5,283 test lines
 - `find daily_brief -name '*.py' -not -path '*/__pycache__/*' -exec wc -l {} + | tail -1` → 7,072 production lines
 - Ratio: 74.70% (≤75% cap ✅)
+
+## v1.0.168 — Pre-compute keyword word counts in tagging COMPLETE
+
+- **`_KEYWORD_WORD_COUNT_CACHE`**: Per-keyword non-stop-word count computed in `precompile_tagging()` alongside regex patterns. Eliminates `len([w for w in keyword.split() if w not in _STOP_WORDS])` list allocation on every keyword match (~200 times per report).
+- **Scoring loop** (line ~131): Replaced inline list comprehension with `_KEYWORD_WORD_COUNT_CACHE.get(keyword, fallback)` — cached when `precompile_tagging()` runs, falls back to inline computation if not.
+- **Zero behavioral changes**: Identical word-count logic, only precomputed from cached dict.
+
+### Verification
+- `python3 -m pytest --tb=no -q` — 269 passed
+- `python3 -m daily_brief config validate` — PASS
+- `find tests -name '*.py' -exec wc -l {} + | tail -1` → 5,283 test lines
+- `find daily_brief -name '*.py' -not -path '*/__pycache__/*' -exec wc -l {} + | tail -1` → 7,056 production lines
+- Ratio: 74.87% (≤75% cap ✅)
 
 ## v1.0.167 — Fuzzy headline matching cache COMPLETE
 
@@ -57,41 +57,6 @@
 - `find tests -name '*.py' -exec wc -l {} + | tail -1` → 5,283 test lines
 - `find daily_brief -name '*.py' -not -path '*/__pycache__/*' -exec wc -l {} + | tail -1` → 7,049 production lines
 - Ratio: 74.95% (≤75% cap ✅)
-
-## v1.0.165 — RSS widening cursor optimization COMPLETE
-
-- **Cursor-based monotonic widening**: `_widen_category_local()` now uses a forward cursor for normal configs (`min_age_hours <= 48`), advancing past entries permanently instead of rescanning the full candidate list per band. Reduces complexity from `O(n_bands × n_candidates)` to `O(n_candidates)`.
-- **Non-monotonic fallback**: When `min_age_hours > 48`, preserves the existing full-scan path to maintain identical duplicate-filter statistics.
-- **Behavior-preservation verified**: All 267 tests pass, including two new tests (`test_multi_band_widening_order_and_cap`, `test_widening_local_dedup_state_shared_with_initial`) confirming correct narrowing order and local dedup state sharing.
-- **Production lines +67** (cursor logic in `rss_dedup.py`), **+61 test lines**.
-
-### Verification
-- `python3 -m pytest --tb=no -q` — 267 passed
-- `find tests -name '*.py' -exec wc -l {} + | tail -1` → 5,258 test lines
-- `find daily_brief -name '*.py' -not -path '*/__pycache__/*' -exec wc -l {} + | tail -1` → 7,041 production lines
-- Ratio: 74.68% (≤75% cap ✅)
-
-## v1.0.164 — Verification metadata correction COMPLETE
-
-- **Test count correction**: Verified lines via `find -exec wc -l {} + | tail -1` — 5,197 test lines, not the documented 5,198.
-- **Ratio correction**: 5,197 / 6,974 = **74.52%**, not 74.53%.
-- **Verification command fix**: Replaced incorrect `find ... | wc -l` (file counting) with correct `find ... -exec wc -l {} + | tail -1` (line counting) in PLAN.md.
-- No behavior changes.
-
-## v1.0.163 — Report contracts and weather late-binding restoration + ratio cap enforcement COMPLETE
-
-- **Test ratio cap**: 5,197 test lines / 6,974 production lines = **74.52%** — within 75% hard cap.
-- **Report contracts restored**: Compact 65-line `tests/test_report.py` directly tests `compute_output_path`, `build_sections_from_stories`, `build_markdown`, and `write_report` contracts (auto-version, section grouping, fallback markers, no-link rendering, UTF-8/write-newline `.tmp` failure cleanup).
-- **Weather late-binding restored**: Added `test_package_level_weather_patch` to `tests/test_pipeline_stages.py` (14 lines) — patch `daily_brief.pipeline.fetch_weather` and assert stage awaits it.
-- **Ineffective test removed**: Deleted `test_write_report_failure_preserves_previous` from `tests/test_concurrency_atomic.py` (53 lines) — did not actually test the `.tmp` write path.
-- **Documentation mismatch fixed**: Corrected stale "278 tests" baseline in PLAN.md/PROJECT.md/docs to accurate current number.
-
-### Verification
-- `python3 -m pytest --tb=no -q` — 265 passed
-- `find tests -name '*.py' -exec wc -l {} + | tail -1` → 5,197 test lines
-- `find daily_brief -name '*.py' -not -path '*/__pycache__/*' -exec wc -l {} + | tail -1` → 6,974 production lines
-- Ratio: 74.52% (≤75% cap ✅)
-
 ---
 
 ## v1.0.162 — Direct validation contract tests + stale TODO reconciliation COMPLETE

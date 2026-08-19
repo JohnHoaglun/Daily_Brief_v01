@@ -2,6 +2,16 @@
 
 ## Changelog
 
+### v1.0.166 — All-pairs summary parser word-set cache
+
+- **Precomputed headline caches**: `headline_words_3` and `headline_words_4` arrays computed once per parse call. Eliminates repeated `_keyword_set()` across 4 matching paths: strategy 1, strategy 2, positional fallback, adjacent swaps, and all-pairs validation.
+- **Cached keyword-matching helper**: `_best_headline_keyword_match` accepts optional `headline_word_sets` parameter for supplying precomputed sets; default path unchanged.
+- **Synchronized result cache**: `result_words_3` computed before adjacent swaps, swapped in lockstep with `results`.
+- **All-pairs reuse**: Validation phase reuses synchronized caches.
+- **Zero behavioral changes**: Same output, same swap decisions, same `SWAP DETECTED` diagnostics.
+- **2 new tests**: Tie-breaking for equal keyword scores, all-pairs mismatch diagnostic logging without output mutation.
+- **Final baseline**: 269 tests pass. 5,283 test lines / 7,049 production lines = **74.95%**.
+
 ### v1.0.165 — RSS widening cursor optimization
 
 - **Cursor-based monotonic widening**: `_widen_category_local()` now uses a forward cursor for normal configs (`min_age_hours ≤ 48h`), advancing past entries permanently instead of rescanning the full candidate list per widening band. Reduces complexity from `O(n_bands × n_candidates)` to `O(n_candidates)`.

@@ -1,6 +1,21 @@
 # PLAN — Cross-cutting structural improvements
 
-## Status: COMPLETE — All tests pass. P1/P2 cleanup done. Current baseline: 267 tests, ratio 74.68%.
+## Status: COMPLETE — All tests pass. P1/P2 cleanup done. Current baseline: 269 tests, ratio 74.95%.
+
+## v1.0.166 — All-pairs summary parser word-set cache COMPLETE
+
+- **Precomputed headline caches**: `headline_words_3` and `headline_words_4` arrays computed once per parse invocation at entry, eliminating repeated `_keyword_set()` calls across 4 matching paths.
+- **Cached `_best_headline_keyword_match`**: Optional `headline_word_sets` parameter to supply precomputed sets; default path unchanged for backward compatibility.
+- **Synchronized result cache**: `result_words_3` computed before adjacent swaps; swapped in lockstep when results are reordered.
+- **All-pairs reuse**: Post-swap validation reuses `headline_words_3` and `result_words_3`.
+- **Zero behavioral changes**: Same output, same swap decisions, same diagnostic warnings.
+- **2 new targeted tests**: `_best_headline_keyword_match` tie-breaking (earliest wins), all-pairs SWAP DETECTED logging without output mutation.
+
+### Verification
+- `python3 -m pytest --tb=no -q` — 269 passed
+- `find tests -name '*.py' -exec wc -l {} + | tail -1` → 5,283 test lines
+- `find daily_brief -name '*.py' -not -path '*/__pycache__/*' -exec wc -l {} + | tail -1` → 7,049 production lines
+- Ratio: 74.95% (≤75% cap ✅)
 
 ## v1.0.165 — RSS widening cursor optimization COMPLETE
 

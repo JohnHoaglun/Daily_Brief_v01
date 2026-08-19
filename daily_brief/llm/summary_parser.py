@@ -27,6 +27,7 @@ def _best_headline_keyword_match(
     *,
     min_length: int,
     denominator: str,
+    headline_word_sets: list[set[str]] | None = None,
 ) -> tuple[int | None, float]:
     """Return first best headline match using the configured overlap denominator.
 
@@ -34,17 +35,23 @@ def _best_headline_keyword_match(
     denominator="query":    overlap / len(query_words)
 
     Preserves strict > comparison (earliest headline wins ties).
+
+    When *headline_word_sets* is supplied, it must be a list of precomputed
+    keyword-sets (one per headline at the same index).  The caller owns
+    lifecycle and must not mutate the list.
     """
     best_idx = None
     best_score = 0.0
     for si, sh in enumerate(story_headlines):
-        sh_words = _keyword_set(sh, min_length=min_length)
+        if headline_word_sets is not None:
+            sh_words = headline_word_sets[si]
+        else:
+            sh_words = _keyword_set(sh, min_length=min_length)
         if not sh_words:
             continue
         if denominator == "headline":
             score = len(sh_words & query_words) / len(sh_words)
         else:
-            # denominator == "query"
             score = len(sh_words & query_words) / len(query_words)
         if score > best_score:
             best_score = score
@@ -80,6 +87,8 @@ def parse_batch_summary_response(response, count, story_headlines=None):
     reserved_empty_slots = set()
 
     if story_headlines:
+        headline_words_3 = [_keyword_set(h, min_length=3) for h in story_headlines]
+        headline_words_4 = [_keyword_set(h, min_length=4) for h in story_headlines]
         processed_story_lines = set()
         for line_idx, line in enumerate(lines):
             m = story_line_re.match(line.strip())
@@ -165,7 +174,8 @@ def parse_batch_summary_response(response, count, story_headlines=None):
             summary_words = _keyword_set(summary_text[:150].lower(), min_length=4)
 
             best_idx, best_score = _best_headline_keyword_match(
-                summary_words, story_headlines, min_length=4, denominator="headline"
+                summary_words, story_headlines, min_length=4, denominator="headline",
+                headline_word_sets=headline_words_4,
             )
 
             # If >= 30% of headline words appear in summary, it's a match
@@ -205,7 +215,8 @@ def parse_batch_summary_response(response, count, story_headlines=None):
                         continue
 
                     best_idx2, best_score2 = _best_headline_keyword_match(
-                        excerpt_words, story_headlines, min_length=4, denominator="query"
+                        excerpt_words, story_headlines, min_length=4, denominator="query",
+                        headline_word_sets=headline_words_4,
                     )
 
                     if best_idx2 is not None and best_score2 >= 0.3 and best_idx2 < count:
@@ -342,7 +353,8 @@ def parse_batch_summary_response(response, count, story_headlines=None):
             raw_clean = _norm(re.sub(r"^(#{2,3}\s*)?\*{0,2}\d+[\)\.]\s*", "", raw))
             raw_words = _keyword_set(_norm(raw_clean), min_length=4)
             best_si, best_s = _best_headline_keyword_match(
-                raw_words, story_headlines, min_length=4, denominator="headline"
+                raw_words, story_headlines, min_length=4, denominator="headline",
+                headline_word_sets=headline_words_4,
             )
             # Also try difflib ratio on full text
             if best_s < 0.7:
@@ -406,28 +418,28 @@ def parse_batch_summary_response(response, count, story_headlines=None):
     # If two adjacent stories' summaries are each a better match for the OTHER
     # headline, swap them to fix off-by-one misalignment
     if story_headlines:
+        result_words_3 = [_keyword_set(r.lower(), min_length=3) for r in results]
         for i in range(len(results) - 1):
             j = i + 1
             hi = story_headlines[i] if i < len(story_headlines) else ""
             hj = story_headlines[j] if j < len(story_headlines) else ""
-            si = results[i].lower()
-            sj = results[j].lower()
-            if not si or not sj or not hi or not hj:
+            if not hi or not hj:
                 continue
-            hi_words = _keyword_set(hi.lower(), min_length=3)
-            hj_words = _keyword_set(hj.lower(), min_length=3)
+            hi_words = headline_words_3[i] if i < len(headline_words_3) else _keyword_set(hi.lower(), min_length=3)
+            hj_words = headline_words_3[j] if j < len(headline_words_3) else _keyword_set(hj.lower(), min_length=3)
             if not hi_words or not hj_words:
                 continue
-            overlap_i_to_j = len(hj_words & _keyword_set(si, min_length=3)) / len(hj_words)
-            overlap_j_to_i = len(hi_words & _keyword_set(sj, min_length=3)) / len(hi_words)
-            overlap_i_normal = len(hi_words & _keyword_set(si, min_length=3)) / len(
+            overlap_i_to_j = len(hj_words & result_words_3[j]) / len(hj_words)
+            overlap_j_to_i = len(hi_words & result_words_3[i]) / len(hi_words)
+            overlap_i_normal = len(hi_words & result_words_3[i]) / len(
                 hi_words
             )
-            overlap_j_normal = len(hj_words & _keyword_set(sj, min_length=3)) / len(
+            overlap_j_normal = len(hj_words & result_words_3[j]) / len(
                 hj_words
             )
             if overlap_i_to_j > overlap_i_normal and overlap_j_to_i > overlap_j_normal:
                 results[i], results[j] = results[j], results[i]
+                result_words_3[i], result_words_3[j] = result_words_3[j], result_words_3[i]
                 logger.debug(
                     f"SWAP FIX: swapped stories {i} and {j} (cross-overlap {overlap_i_to_j:.2f}/{overlap_j_to_i:.2f} > normal {overlap_i_normal:.2f}/{overlap_j_normal:.2f})"
                 )
@@ -436,12 +448,8 @@ def parse_batch_summary_response(response, count, story_headlines=None):
         for i in range(len(results)):
             if i >= len(story_headlines):
                 continue
-            headline = story_headlines[i]
-            summary = results[i]
-            if not headline or not summary:
-                continue
-            hl_words = _keyword_set(headline.lower(), min_length=3)
-            sum_words = _keyword_set(summary.lower(), min_length=3)
+            hl_words = headline_words_3[i] if i < len(headline_words_3) else _keyword_set(story_headlines[i].lower(), min_length=3)
+            sum_words = result_words_3[i]
             if not hl_words:
                 continue
             overlap_pct = len(hl_words & sum_words) / len(hl_words)
@@ -452,7 +460,7 @@ def parse_batch_summary_response(response, count, story_headlines=None):
                 for m in range(len(story_headlines)):
                     if m == i:
                         continue
-                    mh_words = _keyword_set(story_headlines[m].lower(), min_length=3)
+                    mh_words = headline_words_3[m] if m < len(headline_words_3) else _keyword_set(story_headlines[m].lower(), min_length=3)
                     if not mh_words:
                         continue
                     m_score = len(mh_words & sum_words) / len(mh_words)
@@ -461,12 +469,12 @@ def parse_batch_summary_response(response, count, story_headlines=None):
                         best_mismatch_idx = m
                 if best_mismatch_idx is not None:
                     logger.warning(
-                        f'[SWAP DETECTED] Story {i} (headline "{headline}") assigned summary from story '
+                        f'[SWAP DETECTED] Story {i} (headline "{story_headlines[i]}") assigned summary from story '
                         f"{best_mismatch_idx} — keyword overlap {overlap_pct * 100:.0f}%"
                     )
                 else:
                     logger.warning(
-                        f'[SWAP DETECTED] Story {i} (headline "{headline}") — topic mismatch, '
+                        f'[SWAP DETECTED] Story {i} (headline "{story_headlines[i]}") — topic mismatch, '
                         f"keyword overlap {overlap_pct * 100:.0f}%"
                     )
 

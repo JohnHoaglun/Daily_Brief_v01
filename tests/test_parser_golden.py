@@ -78,3 +78,28 @@ class TestParserEdgeCases(TestCase):
     def test_numbered_variants(self):
         self.assertTrue(all(s.strip() for s in parse_batch_summary_response("1. First\n2. Second", 2)))
         self.assertTrue(all(s.strip() for s in parse_batch_summary_response("1) First\n2) Second", 2)))
+
+    def test_keyword_match_tie_earliest_wins(self):
+        """Equal headline scores return earliest index (strict >)."""
+        from daily_brief.llm.summary_parser import _best_headline_keyword_match
+        query = {"apple", "banana", "cherry"}
+        headlines = ["Apple Banana Date", "Apple Cherry Date"]
+        idx, score = _best_headline_keyword_match(
+            query, headlines, min_length=4, denominator="headline"
+        )
+        self.assertEqual(idx, 0)
+        self.assertAlmostEqual(score, 2 / 3)
+
+    def test_all_pairs_mismatch_diagnostics(self):
+        """All-pairs validation logs SWAP DETECTED but preserves output."""
+        headlines = ["Morning News Update", "Weather Forecast", "Sports Recap"]
+        response = (
+            "STORY_0 = Weather is sunny and warm today.\n"
+            "STORY_1 = Sports scores from the championship finals.\n"
+            "STORY_2 = Breaking: local government announces new policy changes."
+        )
+        with self.assertLogs("daily_brief.llm.summary_parser", "WARNING") as cm:
+            result = parse_batch_summary_response(response, 3, story_headlines=headlines)
+        self.assertIn("Weather", result[1])
+        self.assertIn("Sports", result[2])
+        self.assertIn("SWAP DETECTED", "\n".join(cm.output))

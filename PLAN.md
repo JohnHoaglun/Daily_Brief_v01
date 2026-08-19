@@ -2,6 +2,19 @@
 
 ## Status: COMPLETE — All tests pass. P1/P2 cleanup done. Current baseline: 269 tests, ratio 74.95%.
 
+## v1.0.168 — Pre-compute keyword word counts in tagging COMPLETE
+
+- **`_KEYWORD_WORD_COUNT_CACHE`**: Per-keyword non-stop-word count computed in `precompile_tagging()` alongside regex patterns. Eliminates `len([w for w in keyword.split() if w not in _STOP_WORDS])` list allocation on every keyword match (~200 times per report).
+- **Scoring loop** (line ~131): Replaced inline list comprehension with `_KEYWORD_WORD_COUNT_CACHE.get(keyword, fallback)` — cached when `precompile_tagging()` runs, falls back to inline computation if not.
+- **Zero behavioral changes**: Identical word-count logic, only precomputed from cached dict.
+
+### Verification
+- `python3 -m pytest --tb=no -q` — 269 passed
+- `python3 -m daily_brief config validate` — PASS
+- `find tests -name '*.py' -exec wc -l {} + | tail -1` → 5,283 test lines
+- `find daily_brief -name '*.py' -not -path '*/__pycache__/*' -exec wc -l {} + | tail -1` → 7,056 production lines
+- Ratio: 74.87% (≤75% cap ✅)
+
 ## v1.0.167 — Fuzzy headline matching cache COMPLETE
 
 - **Precomputed normalized headlines**: `headline_normalized` array computed once per parse call alongside `headline_words_3`/`headline_words_4`, eliminating repeated `re.sub(r"\s+", " ", h.strip().lower())` calls in both fuzzy-matching loops.

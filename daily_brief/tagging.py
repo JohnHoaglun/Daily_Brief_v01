@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 # Maps keyword -> (pattern_str_compiled, pattern2_str_compiled)
 _KEYWORD_REGEXP_CACHE = {}
 
+# Precompiled per-keyword non-stop-word counts — built in precompile_tagging().
+_KEYWORD_WORD_COUNT_CACHE = {}
+
 
 def precompile_tagging():
     """Precompile all keyword matchers from TAGGING_MAPPINGS and CATEGORY_BOOSTS.
@@ -35,12 +38,15 @@ def precompile_tagging():
             if bkw:
                 keywords.add(bkw)
     cache = {}
+    wc_cache = {}
     for kw in keywords:
         kw_esc = re.escape(kw)
         pat1 = re.compile(r"(?<![a-zA-Z])" + kw_esc + r"(?![a-zA-Z])", re.IGNORECASE)
         pat2 = re.compile(r"(?<![a-zA-Z])" + kw_esc + r"(s|es|ed|ing)(?![a-zA-Z])", re.IGNORECASE)
         cache[kw] = (pat1, pat2)
+        wc_cache[kw] = len([w for w in kw.split() if w not in _STOP_WORDS])
     _KEYWORD_REGEXP_CACHE = cache
+    _KEYWORD_WORD_COUNT_CACHE = wc_cache
     return len(cache)
 
 
@@ -129,7 +135,9 @@ def tag_story_with_keywords(story_title, category=None):
                 pos = title_lower.find(keyword)
                 if pos >= 0:
                     boost = 2.0 if pos < 100 else 1.0
-                    word_count = len([w for w in keyword.split() if w not in _STOP_WORDS])
+                    word_count = _KEYWORD_WORD_COUNT_CACHE.get(
+                        keyword, len([w for w in keyword.split() if w not in _STOP_WORDS])
+                    )
                     score += boost * max(word_count, 1)
 
         # Category boosts: always fire for category membership (not just keyword match)

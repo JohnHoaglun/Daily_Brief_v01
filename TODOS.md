@@ -1,6 +1,7 @@
 # TODO: Daily Brief v01
 
 ## Completed
+- **v1.0.168 — Tagging word-count cache**: `_KEYWORD_WORD_COUNT_CACHE` dict precomputed in `precompile_tagging()` replaces per-match list comprehension. Zero behavioral changes. 269 tests pass, 74.87% ratio.
 - **v1.0.167 — Fuzzy headline matching cache**: Precomputed `headline_normalized` array replaces per-iteration `re.sub()` normalization in both fuzzy-matching loops. Zero behavioral changes. 269 tests pass, 74.96% ratio.
 - **v1.0.166 — All-pairs parser word-set cache**: Precomputed headline + result word-set caches in `summary_parser.py`, synchronized `result_words_3` during swaps, cached `headline_word_sets` in `_best_headline_keyword_match`. 2 new tests. 269 tests pass, 74.95% ratio.
 - **v1.0.165 — RSS widening cursor optimization**: Added forward-cursor scan for monotonic widening (`min_age ≤ 48h`). Non-monotonic configs retain full-scan fallback. Behavior-preservation verified: 267 tests pass, 74.68% ratio.

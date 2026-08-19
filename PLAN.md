@@ -2,6 +2,20 @@
 
 ## Status: COMPLETE — All tests pass. P1/P2 cleanup done. Current baseline: 269 tests, ratio 74.95%.
 
+## v1.0.167 — Fuzzy headline matching cache COMPLETE
+
+- **Precomputed normalized headlines**: `headline_normalized` array computed once per parse call alongside `headline_words_3`/`headline_words_4`, eliminating repeated `re.sub(r"\s+", " ", h.strip().lower())` calls in both fuzzy-matching loops.
+- **Strategy 0 loop** (line ~131): `for si, sh_normalized in enumerate(headline_normalized):` replaces per-iteration `_normalize(sh)` call.
+- **Positional fallback loop** (line ~362): `for si, sn in enumerate(headline_normalized):` replaces per-iteration `_norm(sh)` call.
+- **Zero behavioral changes**: Same output, same fuzzy thresholds, same swap decisions.
+- Production lines: -1 (2 inline normalization calls replaced by precomputed array accesses; +1 added, -2 removed).
+
+### Verification
+- `python3 -m pytest --tb=no -q` — 269 passed
+- `find tests -name '*.py' -exec wc -l {} + | tail -1` → 5,283 test lines
+- `find daily_brief -name '*.py' -not -path '*/__pycache__/*' -exec wc -l {} + | tail -1` → 7,048 production lines
+- Ratio: 74.96% (≤75% cap ✅)
+
 ## v1.0.166 — All-pairs summary parser word-set cache COMPLETE
 
 - **Precomputed headline caches**: `headline_words_3` and `headline_words_4` arrays computed once per parse invocation at entry, eliminating repeated `_keyword_set()` calls across 4 matching paths.

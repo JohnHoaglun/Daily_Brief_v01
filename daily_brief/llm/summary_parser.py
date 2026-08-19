@@ -89,6 +89,7 @@ def parse_batch_summary_response(response, count, story_headlines=None):
     if story_headlines:
         headline_words_3 = [_keyword_set(h, min_length=3) for h in story_headlines]
         headline_words_4 = [_keyword_set(h, min_length=4) for h in story_headlines]
+        headline_normalized = [re.sub(r"\s+", " ", h.strip().lower()) for h in story_headlines]
         processed_story_lines = set()
         for line_idx, line in enumerate(lines):
             m = story_line_re.match(line.strip())
@@ -127,8 +128,7 @@ def parse_batch_summary_response(response, count, story_headlines=None):
             best_fuzzy_score = 0.0
             if headline_excerpt:
                 excerpt_normalized = _normalize(headline_excerpt)
-                for si, sh in enumerate(story_headlines):
-                    sh_normalized = _normalize(sh)
+                for si, sh_normalized in enumerate(headline_normalized):
                     ratio = difflib.SequenceMatcher(
                         None, excerpt_normalized, sh_normalized
                     ).ratio()
@@ -359,8 +359,7 @@ def parse_batch_summary_response(response, count, story_headlines=None):
             # Also try difflib ratio on full text
             if best_s < 0.7:
                 rn = _norm(raw_clean)
-                for si, sh in enumerate(story_headlines):
-                    sn = _norm(sh)
+                for si, sn in enumerate(headline_normalized):
                     r = difflib.SequenceMatcher(None, rn, sn).ratio()
                     if r > best_s:
                         best_s = r

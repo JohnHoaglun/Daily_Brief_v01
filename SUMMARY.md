@@ -2,6 +2,15 @@
 
 ## Changelog
 
+### v1.0.167 — Fuzzy headline matching cache
+
+- **Precomputed normalized headlines**: `headline_normalized` array computed once per parse call alongside `headline_words_3` and `headline_words_4`. Eliminates repeated `re.sub(r"\s+", " ", h.strip().lower())` in both fuzzy-matching loops.
+- **Strategy 0 loop**: `for si, sh_normalized in enumerate(headline_normalized):` replaces per-iteration `_normalize(sh)` call.
+- **Positional fallback loop**: `for si, sn in enumerate(headline_normalized):` replaces per-iteration `_norm(sh)` call.
+- **Zero behavioral changes**: Same output, same fuzzy thresholds, same swap decisions.
+- **Production lines**: -1 (2 inline normalization calls replaced by precomputed array accesses, +1 added for precomputed array).
+- **Final baseline**: 269 tests pass. 5,283 test lines / 7,048 production lines = **74.96%**.
+
 ### v1.0.166 — All-pairs summary parser word-set cache
 
 - **Precomputed headline caches**: `headline_words_3` and `headline_words_4` arrays computed once per parse call. Eliminates repeated `_keyword_set()` across 4 matching paths: strategy 1, strategy 2, positional fallback, adjacent swaps, and all-pairs validation.

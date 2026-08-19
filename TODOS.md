@@ -1,6 +1,7 @@
 # TODO: Daily Brief v01
 
 ## Completed
+- **v1.0.167 — Fuzzy headline matching cache**: Precomputed `headline_normalized` array replaces per-iteration `re.sub()` normalization in both fuzzy-matching loops. Zero behavioral changes. 269 tests pass, 74.96% ratio.
 - **v1.0.166 — All-pairs parser word-set cache**: Precomputed headline + result word-set caches in `summary_parser.py`, synchronized `result_words_3` during swaps, cached `headline_word_sets` in `_best_headline_keyword_match`. 2 new tests. 269 tests pass, 74.95% ratio.
 - **v1.0.165 — RSS widening cursor optimization**: Added forward-cursor scan for monotonic widening (`min_age ≤ 48h`). Non-monotonic configs retain full-scan fallback. Behavior-preservation verified: 267 tests pass, 74.68% ratio.
 - **v1.0.164 — Verification metadata correction**: Corrected v1.0.163 reported test lines from 5,198 to 5,197 and ratio from 74.53% to 74.52%. Fixed PLAN.md verification commands to use `find -exec wc -l {} +` instead of `find | wc -l` (file-counting). No behavior changes. 265 tests pass, 74.52% ratio.
@@ -93,7 +94,7 @@ Full review performed: structural issues, files exceeding 500/300 lines, perform
 ### P2 — Performance optimizations (from review section 4)
 
 - [x] **Optimize all-pairs mismatch detection O(n²×m)**: Completed in v1.0.166 — precomputed `headline_words_3`/`headline_words_4` caches, cached `_best_headline_keyword_match`, synchronized `result_words_3`.
-- [ ] **Optimize fuzzy matching O(n×m) per STORY_N line** — `summary_parser.py:153-162`: every `STORY_N` line with `story_headlines` triggers a difflib `SequenceMatcher` against ALL headlines. With batch_size=4 and 76+ stories, that's 300+ difflib ratio calculations per response. Cache normalized headlines, consider `fuzzymatch`/`thefuzz` if batches grow.
+- [x] **Optimize fuzzy matching O(n×m) per STORY_N line**: Completed in v1.0.167 — precomputed `headline_normalized` array replaces per-iteration `_normalize(sh)` in both fuzzy-matching loops (Strategy 0 and positional fallback). Zero behavioral changes.
 - [ ] **Pre-compute keyword word counts in `tagging.py:131`** — `len([w for w in keyword.split() if w not in _STOP_WORDS])` creates a list allocation for every keyword match (~200 per report). Pre-compute during `precompile_tagging()`.
 - [ ] **Add caching to `config.py` for test scenarios** — Module is re-imported by tests, triggering YAML parse + config build each time. Consider `@lru_cache` guard or module-level `_config_loaded` flag.
 

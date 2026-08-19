@@ -2,6 +2,13 @@
 
 ## Changelog
 
+### v1.0.169 — Extract `merge_weather_data` to `weather_model.py`
+
+- **`daily_brief/sources/weather_model.py`** (102 lines): new module for pure deterministic weather data merge. Owns station data formatting, ERA5 fallback, equal-rainfall suppression, "Unavailable" defaults.
+- **`weather.py`**: imports from `weather_model` and re-exports `merge_weather_data`. Existing call sites and test imports resolve to the same callable.
+- **Zero behavioral changes**: Same function, same logic, same return shape. Pure code extraction.
+- **Final baseline**: 269 tests pass. 5,283 test lines / 7,072 production lines = **74.70%**.
+
 ### v1.0.168 — Pre-compute keyword word counts in tagging
 
 - **`_KEYWORD_WORD_COUNT_CACHE`**: Per-keyword non-stop-word count computed in `precompile_tagging()` alongside regex patterns. Eliminates `len([w for w in keyword.split() if w not in _STOP_WORDS])` list allocation on every match (~200 times per report).

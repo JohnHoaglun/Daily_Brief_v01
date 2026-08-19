@@ -1,6 +1,6 @@
 # PLAN — Cross-cutting structural improvements
 
-## Status: COMPLETE — All tests pass. P1/P2 cleanup done. Current baseline: 269 tests, ratio 74.95%.
+## Status: COMPLETE — All tests pass. P1/P2 cleanup done. Current baseline: 269 tests, ratio 74.70%.
 
 ## v1.0.168 — Pre-compute keyword word counts in tagging COMPLETE
 
@@ -12,8 +12,22 @@
 - `python3 -m pytest --tb=no -q` — 269 passed
 - `python3 -m daily_brief config validate` — PASS
 - `find tests -name '*.py' -exec wc -l {} + | tail -1` → 5,283 test lines
-- `find daily_brief -name '*.py' -not -path '*/__pycache__/*' -exec wc -l {} + | tail -1` → 7,056 production lines
-- Ratio: 74.87% (≤75% cap ✅)
+- `find daily_brief -name '*.py' -not -path '*/__pycache__/*' -exec wc -l {} + | tail -1` → 7,072 production lines
+- Ratio: 74.70% (≤75% cap ✅)
+
+## v1.0.169 — Extract `merge_weather_data` to `weather_model.py` COMPLETE
+
+- **`weather_model.py`** (102 lines): new module for pure deterministic weather data merge. Owns station data formatting, ERA5 fallback, equal-rainfall suppression, "Unavailable" defaults.
+- **`weather.py`**: `from daily_brief.sources.weather_model import merge_weather_data` — function body removed, existing call sites unchanged. Test imports via `weather.merge_weather_data` resolve to the re-exported function.
+- **Zero behavioral changes**: Same function, same logic, same return shape. Pure extraction.
+- **Production lines**: +16 (new file 102 lines, removed body ~87 lines + added import + comment stub).
+
+### Verification
+- `python3 -m pytest --tb=no -q` — 269 passed
+- `python3 -m daily_brief config validate` — PASS
+- `find tests -name '*.py' -exec wc -l {} + | tail -1` → 5,283 test lines
+- `find daily_brief -name '*.py' -not -path '*/__pycache__/*' -exec wc -l {} + | tail -1` → 7,072 production lines
+- Ratio: 74.70% (≤75% cap ✅)
 
 ## v1.0.167 — Fuzzy headline matching cache COMPLETE
 

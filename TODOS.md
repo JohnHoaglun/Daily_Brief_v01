@@ -1,6 +1,7 @@
 # TODO: Daily Brief v01
 
 ## Completed
+- **v1.0.169 — Extract `merge_weather_data` to `weather_model.py`**: New module `weather_model.py` (102 lines) owns weather data merge logic. `weather.py` re-exports via import. Zero behavioral changes. 269 tests pass, 74.70% ratio.
 - **v1.0.168 — Tagging word-count cache**: `_KEYWORD_WORD_COUNT_CACHE` dict precomputed in `precompile_tagging()` replaces per-match list comprehension. Zero behavioral changes. 269 tests pass, 74.87% ratio.
 - **v1.0.167 — Fuzzy headline matching cache**: Precomputed `headline_normalized` array replaces per-iteration `re.sub()` normalization in both fuzzy-matching loops. Zero behavioral changes. 269 tests pass, 74.96% ratio.
 - **v1.0.166 — All-pairs parser word-set cache**: Precomputed headline + result word-set caches in `summary_parser.py`, synchronized `result_words_3` during swaps, cached `headline_word_sets` in `_best_headline_keyword_match`. 2 new tests. 269 tests pass, 74.95% ratio.
@@ -96,7 +97,7 @@ Full review performed: structural issues, files exceeding 500/300 lines, perform
 
 - [x] **Optimize all-pairs mismatch detection O(n²×m)**: Completed in v1.0.166 — precomputed `headline_words_3`/`headline_words_4` caches, cached `_best_headline_keyword_match`, synchronized `result_words_3`.
 - [x] **Optimize fuzzy matching O(n×m) per STORY_N line**: Completed in v1.0.167 — precomputed `headline_normalized` array replaces per-iteration `_normalize(sh)` in both fuzzy-matching loops (Strategy 0 and positional fallback). Zero behavioral changes.
-- [ ] **Pre-compute keyword word counts in `tagging.py:131`** — `len([w for w in keyword.split() if w not in _STOP_WORDS])` creates a list allocation for every keyword match (~200 per report). Pre-compute during `precompile_tagging()`.
+- [x] **Pre-compute keyword word counts in `tagging.py:131`**: Completed in v1.0.168 — `_KEYWORD_WORD_COUNT_CACHE` dict precomputed during `precompile_tagging()`, replaces per-match list allocation.
 - [ ] **Add caching to `config.py` for test scenarios** — Module is re-imported by tests, triggering YAML parse + config build each time. Consider `@lru_cache` guard or module-level `_config_loaded` flag.
 
 ### P2 — Minor code quality

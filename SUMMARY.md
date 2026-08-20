@@ -2,6 +2,11 @@
 
 ## Changelog
 
+### v1.0.170 — Documentation correction: RSS dedup history
+
+- Corrected historical claim "7 pre-existing RSS dedup failures" — these were clock-dependent test-fixture issues (fixture dates exceeded production age limits), not `xfail`s. The repair (commit `2a29004`) modified **eight** test methods; "seven" was a miscount. No production code changed.
+- 269 tests pass, 74.70% ratio. Zero behavioral changes.
+
 ### v1.0.169 — Extract `merge_weather_data` to `weather_model.py`
 
 - **`daily_brief/sources/weather_model.py`** (102 lines): new module for pure deterministic weather data merge. Owns station data formatting, ERA5 fallback, equal-rainfall suppression, "Unavailable" defaults.
@@ -367,7 +372,7 @@ Automated daily news brief generator that fetches news from 17 content categorie
 - `tests/test_batch_behavior_regression.py`: Updated boilerplate test recovery text to include headline keyword overlap.
 - `tests/test_batch_failure_fixtures.py`: Updated recovery mock to return headline-overlapping text.
 - `config.yaml`, `PROJECT.md`, `TODOS.md`, `__init__.py`: version bumped to 1.0.112.
-- 977/984 tests passing (7 pre-existing RSS dedup failures). Config validate PASS. Live smoke test: WARN (zero FAILs, 55.63s).
+- 977/984 tests passing (eight clock-dependent RSS dedup test failures — fixture dates exceeded production age limits; not `xfail`s. Fix applied in commit `2a29004`). Config validate PASS. Live smoke test: WARN (zero FAILs, 55.63s).
 
 ### v1.0.111 — Frontmatter category count includes empty categories
 - `src/daily_brief/pipeline.py`: `rendered_cat_count` now counts all non-weather RSS categories regardless of story count. Previously excluded empty categories via `len(sections_map.get(cn, [])) > 0` guard, but `report.py` renders every configured category with `_No stories found._`, so the frontmatter count must match all rendered headers.
@@ -375,7 +380,7 @@ Automated daily news brief generator that fetches news from 17 content categorie
 - `tests/test_pipeline.py`: added `TestRenderedCatCount` class with `test_rendered_cat_count_includes_empty_categories` (verifies count is 2 for two categories, one empty) and `test_rendered_cat_count_excludes_weather` (verifies weather category excluded).
 - `tests/test_validate_run.py`: added `TestCheck43FrontmatterCategoryCount` with valid fixture (count 2, two headers) and mismatched fixture (count 1, two headers) — verifies check 4.3 passes/fail correctly.
 - `src/daily_brief/__init__.py`, `config.yaml`, `PROJECT.md`, `TODOS.md`: version bumped to 1.0.111.
-- 968/975 tests passing (7 pre-existing RSS dedup failures). Config validate PASS.
+- 968/975 tests passing (eight clock-dependent RSS dedup test failures — fixture dates exceeded production age limits; not `xfail`s. Fix applied in commit `2a29004`). Config validate PASS.
 
 ### v1.0.110 — Tag conflict policy: international + us-focused allowed
 - `config.yaml`: removed `["international", "us-focused"]` from `tag_conflicts`; retained `["international", "local"]` as sole configured conflict.

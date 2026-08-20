@@ -2,7 +2,13 @@
 
 ## Status: COMPLETE — All tests pass. All P0-P3 backlog items resolved. Current baseline: 269 tests, ratio 74.70%. No remaining unchecked items in TODOS.md.
 
-## v1.0.169 — Extract `merge_weather_data` to `weather_model.py` COMPLETE
+## v1.0.170 — Documentation correction: RSS dedup history COMPLETE
+
+- Corrected "7 pre-existing RSS dedup failures" documentation claim.
+  The failures were clock-dependent test-fixture issues, not `xfail`s.
+  The repair (commit `2a29004`) modified **eight** test methods —
+  "seven" was a historical miscount. No production code changed.
+- 269 tests pass, 74.70% ratio. Zero behavioral changes.
 
 - **`weather_model.py`** (102 lines): new module for pure deterministic weather data merge. Owns station data formatting, ERA5 fallback, equal-rainfall suppression, "Unavailable" defaults.
 - **`weather.py`**: `from daily_brief.sources.weather_model import merge_weather_data` — function body removed, existing call sites unchanged. Test imports via `weather.merge_weather_data` resolve to the re-exported function.

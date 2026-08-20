@@ -15,8 +15,10 @@ Performance cache optimizations in `summary_parser.py` (word-set + normalized-he
 - v1.0.161: Phase 3D semantic validation enforcement
 - v1.0.159: Config override correctness + Git provenance
 - v1.0.157: HTTP body-size safety
-- P1: Pipeline stage extraction, concurrency fix
+- P1: Pipeline stage extraction, concurrency fix, build_context wiring
 
 - P0: File size cap, test module splits, summarizer split (1014→5 modules), config validator split.
-- P2: `build_context` wiring, deduped regex patterns, dead globals removed, HTTP body-size safety, module-level globals cleanup.
+
+
+
 

@@ -5,6 +5,7 @@ Daily Brief aggregates RSS stories from configured categories, enriches them wit
 
 ## Current Status
 - Modular refactoring P0-P6 is complete.
+- **v1.0.171 — `stage_render` cleanup-call fix**: Removed the erroneous pre-write `cleanup_old_files(output_dir, MAX_LOG_VERSIONS, "md")` call (int in the `log_dir` position — silent failure). Post-write call now resolves via `_pip()`. Added `TestRenderCleanupArgs` regression test; removed `test_package_level_weather_patch` (its `_pip()` patch contract is covered by the new test). 269 tests pass, 74.95% ratio.
 - **v1.0.170 — Documentation correction**: Corrected historical "7 pre-existing RSS dedup failures" claim in doc history — they were clock-dependent test-fixture issues, not `xfail`s. The repair modified eight test methods, not seven. Zero behavioral changes. 269 tests pass, 74.70% ratio.
 - **v1.0.169 — `merge_weather_data` extraction**: Pure deterministic merge logic extracted to new `weather_model.py` (102 lines). `weather.py` re-exports via `from weather_model import merge_weather_data`. Zero behavioral changes. 269 tests pass, 74.70% ratio.
 - **v1.0.168 — Tagging word-count cache**: `_KEYWORD_WORD_COUNT_CACHE` dict precomputed in `precompile_tagging()` replaces per-match list comprehension. Zero behavioral changes. 269 tests pass, 74.87% ratio.

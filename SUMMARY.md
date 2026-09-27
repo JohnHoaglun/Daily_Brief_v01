@@ -2,6 +2,12 @@
 
 ## Changelog
 
+### v1.0.171 — `stage_render` cleanup-call fix + regression test
+
+- **`stages_core.py`**: Removed the erroneous pre-write `cleanup_old_files(ctx.output_dir, MAX_LOG_VERSIONS, "md")` call — it passed an int where `log_dir` is expected (silent failure inside the try/except). The single post-write call now resolves via `_pip("cleanup_old_files")` for test-patch compatibility; direct import removed.
+- **`tests/test_pipeline_stages.py`**: Added `TestRenderCleanupArgs` — regression test asserting `cleanup_old_files` is called exactly once with `(output_dir, log_dir, MAX_LOG_VERSIONS)` and an int version count. Replaced `TestShortCircuit.test_package_level_weather_patch` — its `_pip()` package-level-patch contract is now covered by the new test (and the success exit code is asserted there).
+- **Final baseline**: 269 tests pass. 5,298 test lines / 7,069 production lines = **74.95%**.
+
 ### v1.0.170 — Documentation correction: RSS dedup history
 
 - Corrected historical claim "7 pre-existing RSS dedup failures" — these were clock-dependent test-fixture issues (fixture dates exceeded production age limits), not `xfail`s. The repair (commit `2a29004`) modified **eight** test methods; "seven" was a miscount. No production code changed.

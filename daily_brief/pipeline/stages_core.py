@@ -28,8 +28,7 @@ from daily_brief.pipeline.context import (
     _percentile,
 )
 from daily_brief.pipelines.rss_dedup import fetch_and_dedup
-from daily_brief.rendering import cleanup_old_files
-# Stage extract and compute output path resolved via _pip() for test-patch compatibility
+# Stage extract, compute output path, and cleanup resolved via _pip() for test-patch compatibility
 from daily_brief.sources.rss import format_pub_date
 from daily_brief.categorization import ordered_categories_for_render
 from daily_brief.rendering.report import build_markdown, build_sections_from_stories
@@ -179,8 +178,6 @@ async def stage_render(
     FRONTMATTER_TAG_SEEDS = _pip("FRONTMATTER_TAG_SEEDS")
 
     t4 = time.monotonic()
-    cleanup_old_files(ctx.output_dir, MAX_LOG_VERSIONS, "md")
-
     sections = build_sections_from_stories(stories, format_pub_date)
     copt = _pip("compute_output_path")
     filepath, file_ver = copt(ctx.output_dir, file_ver=log_ver)
@@ -204,7 +201,7 @@ async def stage_render(
         git_provenance=ctx.provenance,
     )
     _pip("write_report")(filepath, md)
-    cleanup_old_files(ctx.output_dir, ctx.input_log_dir, MAX_LOG_VERSIONS)
+    _pip("cleanup_old_files")(ctx.output_dir, ctx.input_log_dir, MAX_LOG_VERSIONS)
 
     el4 = time.monotonic() - t4
     log_fn(f"\nFile written to {filepath}")

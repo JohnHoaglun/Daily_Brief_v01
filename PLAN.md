@@ -1,6 +1,6 @@
 # PLAN — Cross-cutting structural improvements
 
-## Status: COMPLETE — All tests pass. All P0-P3 backlog items resolved. Current baseline: 269 tests, ratio 74.70%. No remaining unchecked items in TODOS.md.
+## Status: COMPLETE — All tests pass. All P0-P3 backlog items resolved. Current baseline: 269 tests, ratio 74.95%. No remaining unchecked items in TODOS.md.
 
 ## v1.0.170 — Documentation correction: RSS dedup history COMPLETE
 

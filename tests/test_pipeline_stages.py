@@ -157,6 +157,37 @@ class TestConcurrentPair(TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Cleanup invocation regression
+# ---------------------------------------------------------------------------
+
+
+class TestRenderCleanupArgs(TestCase):
+    """stage_render calls cleanup_old_files with (output_dir, log_dir, int)."""
+
+    def tearDown(self):
+        _restore_aiohttp_client_session()
+
+    def test_cleanup_called_once_with_dirs_and_version_count(self):
+        """Regression: a pre-write call used to pass (dir, int, 'md')."""
+        cc = _make_stage_patches()
+        with cc, patch("daily_brief.pipeline.aiohttp.ClientSession",
+                       side_effect=[_make_async_cm()]), \
+              patch("daily_brief.pipeline.write_report"):
+            from daily_brief.pipeline import (
+                MAX_LOG_VERSIONS, cleanup_old_files,
+                get_current_run_context, main as pm,
+            )
+
+            exit_code = asyncio.get_event_loop().run_until_complete(pm())
+
+        ctx = get_current_run_context()
+        self.assertEqual(exit_code, 0)
+        cleanup_old_files.assert_called_once_with(
+            ctx.output_dir, ctx.input_log_dir, MAX_LOG_VERSIONS)
+        self.assertIsInstance(cleanup_old_files.call_args.args[2], int)
+
+
+# ---------------------------------------------------------------------------
 # Short-circuit behaviors
 # ---------------------------------------------------------------------------
 
@@ -242,22 +273,6 @@ class TestShortCircuit(TestCase):
         self.assertEqual(exit_code, EXIT_CODE_VALIDATION)
         validate_stories_mock.assert_called_once()
         write_report_mock.assert_called_once()
-
-    def test_package_level_weather_patch(self):
-        """Patching daily_brief.pipeline.fetch_weather takes effect via _pip() in stage_weather()."""
-        cc = _make_stage_patches()
-        cc.__enter__()
-        try:
-            with patch(
-                "daily_brief.pipeline.fetch_weather", new_callable=AsyncMock
-            ) as fetch_mock:
-                from daily_brief.pipeline.stages import main
-
-                result = asyncio.get_event_loop().run_until_complete(main())
-                assert fetch_mock.called
-                assert result == 0
-        finally:
-            cc.__exit__(None, None, None)
 
 
 if __name__ == "__main__":

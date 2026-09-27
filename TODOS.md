@@ -1,12 +1,12 @@
 # TODO: Daily Brief v01
 
-Current baseline: 269 tests, 74.70% ratio (≤75% cap). All P0-P3 review findings completed — detailed history in `SUMMARY.md`.
+Current baseline: 269 tests, 74.95% ratio (≤75% cap). All P0-P3 review findings completed — detailed history in `SUMMARY.md`.
 
 ## Active
 
-## Completed — Recent releases (v1.0.163–v1.0.170)
+## Completed — Recent releases (v1.0.163–v1.0.171)
 
-Performance cache optimizations in `summary_parser.py` (word-set + fuzzy + all-pairs validation) and `tagging.py` (keyword word-count cache). Structural cleanup: `weather.py` → `weather_model.py` (102-line pure module). All zero behavioral changes.
+Performance cache optimizations in `summary_parser.py` (word-set + fuzzy + all-pairs validation) and `tagging.py` (keyword word-count cache). Structural cleanup: `weather.py` → `weather_model.py` (102-line pure module). Bug fix: `stage_render` pre-write `cleanup_old_files` arg-order error (v1.0.171). All other items zero behavioral changes.
 
 ## Past work — Completed
 
